@@ -46,7 +46,7 @@
 
 /* maximum cost value */
 #define MAX_COST                (1.7e+308)
-
+#define MAX_COST_EXT            (MAX_COST * 0.999999999)
 
 /* virtual frame depth B picture */
 #define FRM_DEPTH_0                   0

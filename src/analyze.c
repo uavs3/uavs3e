@@ -864,10 +864,10 @@ static double mode_coding_unit(core_t *core, lbac_t *sbac_best, int x, int y, in
     }
 
     //**************** intra ********************
-    if ((core->slice_type == SLICE_I || is_cu_nz(bst_info->num_nz) || cost_best == MAX_COST) && cons_pred_mode != ONLY_INTER) {
+    if ((core->slice_type == SLICE_I || is_cu_nz(bst_info->num_nz) || cost_best > MAX_COST_EXT) && cons_pred_mode != ONLY_INTER) {
         if (cu_width <= 64 && cu_height <= 64) {
             core->dist_cu_best = COM_INT32_MAX;
-            if (core->cost_best != MAX_COST) {
+            if (core->cost_best < MAX_COST_EXT) {
                 core->inter_satd = block_pel_satd(cu_width_log2, cu_height_log2, pic_org->y + (y * pic_org->stride_luma) + x, bst_info->pred[0], pic_org->stride_luma, 1 << cu_width_log2, bit_depth);
             } else {
                 core->inter_satd = COM_UINT32_MAX;
@@ -909,7 +909,7 @@ static void check_run_split(core_t *core, int cu_width_log2, int cu_height_log2,
                     min_cost = p_bef_data->split_cost[i];
                 }
             }
-            if (min_cost == MAX_COST) {
+            if (min_cost > MAX_COST_EXT) {
                 run_list[0] = 1;
                 for (i = 1; i < NUM_SPLIT_MODE; i++) {
                     run_list[i] = 0;
@@ -1167,15 +1167,15 @@ static double mode_coding_tree(core_t *core, lbac_t *sbac_cur, int x0, int y0, i
         }
     }
 #if ENC_ECU_ADAPTIVE
-    if (cost_best != MAX_COST && cud >= (core->ptr % 2 ? ENC_ECU_DEPTH - 1 : ENC_ECU_DEPTH)
+    if (cost_best < MAX_COST && cud >= (core->ptr % 2 ? ENC_ECU_DEPTH - 1 : ENC_ECU_DEPTH)
 #else
-    if (cost_best != MAX_COST && cud >= ENC_ECU_DEPTH
+    if (cost_best < MAX_COST && cud >= ENC_ECU_DEPTH
 #endif
         && bst_info->cu_mode == MODE_SKIP) {
         next_split = 0;
     }
 
-    if (cost_best != MAX_COST) {
+    if (cost_best < MAX_COST) {
         if (slice_type == SLICE_I) {
             if (bst_info->ipm[PB0][0] != IPD_IPCM && core->dist_cu_best < (1 << (cu_width_log2 + cu_height_log2 + 7))) {
                 u8 bits_inc_by_split = ((cu_width_log2 + cu_height_log2 >= 6) ? 2 : 0) + 8; //two split flags + one more (intra dir + cbf + edi_flag + mtr info) + 1-bit penalty, approximately 8 bits
@@ -1243,7 +1243,7 @@ static double mode_coding_tree(core_t *core, lbac_t *sbac_cur, int x0, int y0, i
         for (int split_mode_num = 1; split_mode_num < NUM_SPLIT_MODE; ++split_mode_num) {
             split_mode_t split_mode = split_mode_order[split_mode_num];
             int is_mode_EQT = com_split_is_EQT(split_mode);
-            int EQT_not_skiped = is_mode_EQT ? (best_split_mode != NO_SPLIT || cost_best == MAX_COST) : 1;
+            int EQT_not_skiped = is_mode_EQT ? (best_split_mode != NO_SPLIT || cost_best > MAX_COST_EXT) : 1;
 
             if (split_allow[split_mode] && EQT_not_skiped) {
                 double best_cons_cost = MAX_COST;
@@ -1326,7 +1326,7 @@ static double mode_coding_tree(core_t *core, lbac_t *sbac_cur, int x0, int y0, i
                             prev_log2_sub_cuh = log2_sub_cuh;
                         }
                     }
-                    if (cost_temp != MAX_COST && tree_status_child == TREE_L && tree_status == TREE_LC) {
+                    if (cost_temp < MAX_COST && tree_status_child == TREE_L && tree_status == TREE_LC) {
                         core->tree_status = TREE_C;
                         core->cons_pred_mode = NO_MODE_CONS;
                         lbac_copy(&core->sbac_bakup, &sbac_tree_c);
@@ -1366,7 +1366,7 @@ static double mode_coding_tree(core_t *core, lbac_t *sbac_cur, int x0, int y0, i
         }
     }
 
-    if (cost_best == MAX_COST) {
+    if (cost_best > MAX_COST_EXT) {
         return MAX_COST;
     }
 
@@ -1393,7 +1393,7 @@ static double mode_coding_tree(core_t *core, lbac_t *sbac_cur, int x0, int y0, i
     }
     update_map_scu(core, x0, y0, 1 << cu_width_log2, 1 << cu_height_log2);
 
-    return (cost_best > MAX_COST) ? MAX_COST : cost_best;
+    return (cost_best > MAX_COST_EXT) ? MAX_COST : cost_best;
 }
 
 void enc_mode_init_frame(core_t *core)

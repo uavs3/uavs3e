@@ -468,19 +468,19 @@ void analyze_intra_cu(core_t *core, lbac_t *sbac_best)
                 cost_2Nx2N = cost_temp;
             } else if (pb_part_size == SIZE_2NxhN) {
                 cost_2NxhN = cost_temp;
-                assert(cost_2Nx2N != MAX_COST);
+                assert(cost_2Nx2N < MAX_COST);
                 if (cost_2NxhN > cost_2Nx2N * 1.05) {
                     try_non_2NxhN = 0;
                 }
             } else if (pb_part_size == SIZE_hNx2N) {
                 cost_hNx2N = cost_temp;
-                assert(cost_2Nx2N != MAX_COST);
+                assert(cost_2Nx2N < MAX_COST);
                 if (cost_hNx2N > cost_2Nx2N * 1.05) {
                     try_non_hNx2N = 0;
                 }
             }
 
-            if (cost_hNx2N != MAX_COST && cost_2NxhN != MAX_COST) {
+            if (cost_hNx2N < MAX_COST && cost_2NxhN < MAX_COST) {
                 if (cost_hNx2N > cost_2NxhN * 1.1) {
                     try_non_hNx2N = 0;
                 } else if (cost_2NxhN > cost_hNx2N * 1.1) {
