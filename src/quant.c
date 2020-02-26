@@ -296,9 +296,11 @@ static int rdoq_quant_block(core_t *core, int slice_type, int qp, double d_lambd
             last_b_zero = 1;
         }
     }
-    /* ===== clean uncoded coeficients ===== */
-    for (int i = last_coef_nz + 1; i <= last_checked_nz; i++) {
-        coef[scan[i]] = 0;
+    if (num_nz_coef) {
+        /* ===== clean uncoded coeficients ===== */
+        for (int i = last_coef_nz + 1; i <= last_checked_nz; i++) {
+            coef[scan[i]] = 0;
+        }
     }
     return num_nz_coef;
 }
