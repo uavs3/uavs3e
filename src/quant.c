@@ -142,7 +142,7 @@ void rdoq_init_cu_est_bits(core_t *core, lbac_t *lbac)
     }
 }
 
-static __inline u32 rdoq_get_coef_bits(s64 rd64_uncoded_cost, s64 *rd64_coded_cost, u32 level_double, u32 abs_level,
+static __inline u32 rdoq_one_coef(s64 rd64_uncoded_cost, s64 *rd64_coded_cost, u32 level_double, u32 abs_level,
                                        s32 *est_run, s32(*est_level)[2], s32 q_bits, s32 err_scale, s64 lambda, int last_pos)
 {
     u32 best_abs_level = 0;
@@ -192,7 +192,6 @@ static int rdoq_quant_block(core_t *core, int slice_type, int qp, double d_lambd
     const int ns_offset = ((cu_width_log2 + cu_height_log2) & 1) ? (1 << (ns_shift - 1)) : 0;
     const int q_value = (scale * ns_scale + ns_offset) >> ns_shift;
     const int max_num_coef = 1 << (cu_width_log2 + cu_height_log2);
-    const int max_num_coef_fixed = 1 << (cu_width_log2 + COM_MIN(5, cu_height_log2));
     const int pre_check_scale_bits = 10;
     const int q_bits_scale = q_bits + pre_check_scale_bits;
 
@@ -201,88 +200,105 @@ static int rdoq_quant_block(core_t *core, int slice_type, int qp, double d_lambd
 
     int offset = ((slice_type == SLICE_I) ? FAST_RDOQ_INTRA_RND_OFST : FAST_RDOQ_INTER_RND_OFST) << (q_bits_scale - 9);
     int zero_coeff_threshold = ((1 << q_bits_scale) - offset) / q_value;
+    const int max_used_coef = 1 << (cu_width_log2 + COM_MIN(5, cu_height_log2));
 
-    if (uavs3e_funs_handle.quant_check(coef, max_num_coef_fixed, pre_check_scale_bits, zero_coeff_threshold - 1)) {
+    if (uavs3e_funs_handle.quant_check(coef, max_used_coef, pre_check_scale_bits, zero_coeff_threshold - 1)) {
         return 0;
     }
     
     int num_nz_coef = 0;
-    s16 tmp_coef[MAX_TR_DIM];
-    u32 tmp_level_double[MAX_TR_DIM];
-    s64 err_uncoded_double[MAX_TR_DIM];
+    s16 coef_1d[MAX_TR_DIM];
+    s16 abs_level[MAX_TR_DIM];
+    u32 abs_coef[MAX_TR_DIM];
+    s64 zero_coef_err[MAX_TR_DIM];
     s32 err_scale = tbl_rdoq_err_scale[qp][log2_size - 1];
+    const u16 *scan = com_tbl_scan[cu_width_log2 - 1][cu_height_log2 - 1];
 
-    s64 d64_block_uncoded_cost = uavs3e_funs_handle.quant_rdoq(coef, max_num_coef_fixed, q_value, q_bits, err_scale, 
-                                                           ERR_SCALE_PRECISION_BITS, tmp_level_double, tmp_coef, err_uncoded_double);
-  
-    if (max_num_coef_fixed < max_num_coef) {
-        memset(err_uncoded_double + max_num_coef_fixed, 0, (max_num_coef - max_num_coef_fixed) * sizeof(s64));
-        memset(tmp_coef + max_num_coef_fixed, 0, (max_num_coef - max_num_coef_fixed) * sizeof(s16));
+    for (int i = 0; i < max_num_coef; i += 4) {
+        coef_1d[i + 0] = coef[scan[i + 0]];
+        coef_1d[i + 1] = coef[scan[i + 1]];
+        coef_1d[i + 2] = coef[scan[i + 2]];
+        coef_1d[i + 3] = coef[scan[i + 3]];
     }
 
-    const u16 *scan = com_tbl_scan[cu_width_log2 - 1][cu_height_log2 - 1];
-    s32(*rdoq_bin_est_lst)[LBAC_CTX_LAST2][2] = core->rdoq_bin_est_lst[ch_type != Y_C];
-    int tmp_nz_coef = 0;
-    int scan_pos;
-    u32 run;
-    u32 prev_level;
-    s32 ctx_qt_cbf;
+    s64 allzero_cost = uavs3e_funs_handle.quant_rdoq(coef_1d, max_num_coef, q_value, q_bits, err_scale,
+                                                        ERR_SCALE_PRECISION_BITS, abs_coef, abs_level, zero_coef_err);
+
     const s64 lambda = (s64)(d_lambda * (double)(1 << SCALE_BITS) + 0.5);
-    s64 d64_best_cost = 0;
-    s64 d64_base_cost = 0;
-    s64 d64_coded_cost = 0;
-    s64 d64_uncoded_cost = 0;
-    int ctx_run_level_base = (ch_type == Y_C ? 0 : 12);
-    u32 best_last_idx_p1 = 0;
+    s64 cost_best = allzero_cost;
+    s64 cost_curr = allzero_cost;
 
     if (!is_intra && ch_type == Y_C) {
-        d64_best_cost = d64_block_uncoded_cost + GET_I_COST(core->rdoq_bin_est_ctp[1], lambda);
-        d64_base_cost = d64_block_uncoded_cost + GET_I_COST(core->rdoq_bin_est_ctp[0], lambda);
+        cost_best += GET_I_COST(core->rdoq_bin_est_ctp[1], lambda);
+        cost_curr += GET_I_COST(core->rdoq_bin_est_ctp[0], lambda);
     } else {
-        ctx_qt_cbf = ch_type;
-        d64_best_cost = d64_block_uncoded_cost + GET_I_COST(core->rdoq_bin_est_cbf[ctx_qt_cbf][0], lambda);
-        d64_base_cost = d64_block_uncoded_cost + GET_I_COST(core->rdoq_bin_est_cbf[ctx_qt_cbf][1], lambda);
+        cost_best += GET_I_COST(core->rdoq_bin_est_cbf[ch_type][0], lambda);
+        cost_curr += GET_I_COST(core->rdoq_bin_est_cbf[ch_type][1], lambda);
     }
 
-    run = 0;
-    prev_level = 6;
+    u32 last_b_zero     = 0;
+    int last_checked_nz = 0;
+    int tmp_nz_coef     = 0;
+    u32 last_coef_nz    = 0;
 
-    for (scan_pos = 0; scan_pos < max_num_coef; scan_pos++) {
-        u32 blk_pos = scan[scan_pos];
-        int ctx_run_level = ((COM_MIN(prev_level - 1, 5)) << 1) + ctx_run_level_base;
-        s32 level = rdoq_get_coef_bits(err_uncoded_double[blk_pos], &d64_coded_cost, tmp_level_double[blk_pos], 
-                           tmp_coef[blk_pos], core->rdoq_bin_est_run[ctx_run_level + !!run], core->rdoq_bin_est_lvl + ctx_run_level, 
-                           q_bits, err_scale, lambda, scan_pos == max_num_coef - 1);
+    s32(*rdoq_bin_est_lst_base)[LBAC_CTX_LAST2][2] = core->rdoq_bin_est_lst[ch_type != Y_C];
+    s32(*rdoq_bin_est_lst)[2] = rdoq_bin_est_lst_base[5];
+    int zero_coef_bins = 0;
 
-        coef[blk_pos] = (s16)(coef[blk_pos] < 0 ? -level : level);
+    int ctx_run_level_base = (ch_type == Y_C ? 0 : 12);
+    s32 (*est_run  )[2] = core->rdoq_bin_est_run + 10 + ctx_run_level_base;
+    s32 (*est_level)[2] = core->rdoq_bin_est_lvl + 10 + ctx_run_level_base;
 
-        d64_base_cost -= err_uncoded_double[blk_pos];
-        d64_base_cost += d64_coded_cost;
+    memset(coef, 0, sizeof(s16) * max_num_coef);
+
+    for (int i = 0; i < max_num_coef; i++) {
+        if (!abs_level[i]) {
+            zero_coef_bins += est_run[last_b_zero][0];
+            last_b_zero = 1;
+            continue;
+        } else if (zero_coef_bins) {
+            cost_curr += (s64)GET_I_COST(zero_coef_bins, lambda);
+            zero_coef_bins = 0;
+        }
+
+        s64 cost_curr_coef;
+        s32 level = rdoq_one_coef(zero_coef_err[i], &cost_curr_coef, abs_coef[i], abs_level[i], est_run[last_b_zero], est_level, 
+                                    q_bits, err_scale, lambda, i == max_num_coef - 1);
+
+        cost_curr -= zero_coef_err[i];
+        cost_curr += cost_curr_coef;
 
         if (level) {
-            /* ----- check for last flag ----- */
-            s64 d64_cost_last_zero = GET_I_COST(rdoq_bin_est_lst[COM_MIN(prev_level - 1, 5)][uavs3e_get_log2(scan_pos + 1)][0], lambda);
-            s64 d64_cost_last_one  = GET_I_COST(rdoq_bin_est_lst[COM_MIN(prev_level - 1, 5)][uavs3e_get_log2(scan_pos + 1)][1], lambda);
-            s64 d64_cur_is_last_cost = d64_base_cost + d64_cost_last_one;
+            last_checked_nz = i;
+            coef[scan[i]] = (s16)(coef_1d[i] < 0 ? -level : level);
 
-            d64_base_cost += d64_cost_last_zero;
+            /* ----- check for last flag ----- */
+            s64 cost_flag0 = GET_I_COST(rdoq_bin_est_lst[uavs3e_get_log2(i + 1)][0], lambda);
+            s64 cost_flag1 = GET_I_COST(rdoq_bin_est_lst[uavs3e_get_log2(i + 1)][1], lambda);
+            s64 cost_curr_end = cost_curr + cost_flag1;
+
+            cost_curr += cost_flag0;
             tmp_nz_coef++;
 
-            if (d64_cur_is_last_cost < d64_best_cost) {
-                d64_best_cost = d64_cur_is_last_cost;
-                best_last_idx_p1 = scan_pos + 1;
+            if (cost_curr_end < cost_best) {
+                cost_best = cost_curr_end;
+                last_coef_nz = i;
                 num_nz_coef += tmp_nz_coef;
                 tmp_nz_coef = 0;
             }
-            run = 0;
-            prev_level = level;
+            last_b_zero = 0;
+
+            int ctx_offset = ((COM_MIN(level - 1, 5)) << 1) + ctx_run_level_base;
+            est_level = core->rdoq_bin_est_lvl + ctx_offset;
+            est_run   = core->rdoq_bin_est_run + ctx_offset;
+            rdoq_bin_est_lst = rdoq_bin_est_lst_base[COM_MIN(level - 1, 5)];
         } else {
-            run++;
+            last_b_zero = 1;
         }
     }
     /* ===== clean uncoded coeficients ===== */
-    for (scan_pos = best_last_idx_p1; scan_pos < max_num_coef; scan_pos++) {
-        coef[scan[scan_pos]] = 0;
+    for (int i = last_coef_nz + 1; i <= last_checked_nz; i++) {
+        coef[scan[i]] = 0;
     }
     return num_nz_coef;
 }
