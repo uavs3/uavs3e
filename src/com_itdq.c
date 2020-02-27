@@ -908,23 +908,25 @@ static int quant_check(s16 *coef, int num, int shift, int threshold)
     return 1;
 }
 
-static s64 quant_rdoq(s16 *coef, int num, int q_value, int q_bits, s32 err_scale, int precision_bits, u32* tmp_level_double, s16* tmp_coef, s64 *err_uncoded_double)
+static int quant_rdoq(s16 *coef, int num, int q_value, int q_bits, s32 err_scale, int precision_bits, u32* abs_coef, s16* abs_level, s64 *uncoded_err)
 {
     s32 q_bits_add = 1 << (q_bits - 1);
-    s64 d64_block_uncoded_cost = 0;
+    int last_nz = -1;
 
     for (int i = 0; i < num; i++) {
         u32 level_double = COM_ABS16(coef[i]) * q_value;
         u32 max_abs_level = (u32)((level_double + q_bits_add) >> q_bits);
-        s64 err = (level_double * (s64)err_scale) >> precision_bits;
-        tmp_level_double[i] = level_double;
-        err = err * err;
-        err_uncoded_double[i] = err;
-        tmp_coef[i] = (u16)max_abs_level;
-        d64_block_uncoded_cost += err;
+
+        if (max_abs_level) {
+            s64 err = (level_double * (s64)err_scale) >> precision_bits;
+            abs_coef[i] = level_double;
+            uncoded_err[i] = err * err;
+            last_nz = i;
+        }
+        abs_level[i] = (u16)max_abs_level;
     }
 
-    return d64_block_uncoded_cost;
+    return last_nz;
 }
 
 void uavs3e_funs_init_itrans_c()

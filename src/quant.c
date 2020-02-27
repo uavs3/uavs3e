@@ -221,25 +221,25 @@ static int rdoq_quant_block(core_t *core, int slice_type, int qp, double d_lambd
         coef_1d[i + 3] = coef[scan[i + 3]];
     }
 
-    s64 allzero_cost = uavs3e_funs_handle.quant_rdoq(coef_1d, max_num_coef, q_value, q_bits, err_scale,
+    int last_nz = uavs3e_funs_handle.quant_rdoq(coef_1d, max_num_coef, q_value, q_bits, err_scale,
                                                         ERR_SCALE_PRECISION_BITS, abs_coef, abs_level, zero_coef_err);
 
     const s64 lambda = (s64)(d_lambda * (double)(1 << SCALE_BITS) + 0.5);
-    s64 cost_best = allzero_cost;
-    s64 cost_curr = allzero_cost;
+    s64 cost_best_delta; 
+    s64 cost_curr_delta;
 
     if (!is_intra && ch_type == Y_C) {
-        cost_best += GET_I_COST(core->rdoq_bin_est_ctp[1], lambda);
-        cost_curr += GET_I_COST(core->rdoq_bin_est_ctp[0], lambda);
-    } else {
-        cost_best += GET_I_COST(core->rdoq_bin_est_cbf[ch_type][0], lambda);
-        cost_curr += GET_I_COST(core->rdoq_bin_est_cbf[ch_type][1], lambda);
+        cost_best_delta = GET_I_COST(core->rdoq_bin_est_ctp[1], lambda);
+        cost_curr_delta = GET_I_COST(core->rdoq_bin_est_ctp[0], lambda);
+    } else {    
+        cost_best_delta = GET_I_COST(core->rdoq_bin_est_cbf[ch_type][0], lambda);
+        cost_curr_delta = GET_I_COST(core->rdoq_bin_est_cbf[ch_type][1], lambda);
     }
 
     u32 last_b_zero     = 0;
     int last_checked_nz = 0;
     int tmp_nz_coef     = 0;
-    u32 last_coef_nz    = 0;
+    u32 end_pos         = 0;
 
     s32(*rdoq_bin_est_lst_base)[LBAC_CTX_LAST2][2] = core->rdoq_bin_est_lst[ch_type != Y_C];
     s32(*rdoq_bin_est_lst)[2] = rdoq_bin_est_lst_base[5];
@@ -251,13 +251,13 @@ static int rdoq_quant_block(core_t *core, int slice_type, int qp, double d_lambd
 
     memset(coef, 0, sizeof(s16) * max_num_coef);
 
-    for (int i = 0; i < max_num_coef; i++) {
+    for (int i = 0; i <= last_nz; i++) {
         if (!abs_level[i]) {
             zero_coef_bins += est_run[last_b_zero][0];
             last_b_zero = 1;
             continue;
         } else if (zero_coef_bins) {
-            cost_curr += (s64)GET_I_COST(zero_coef_bins, lambda);
+            cost_curr_delta += (s64)GET_I_COST(zero_coef_bins, lambda);
             zero_coef_bins = 0;
         }
 
@@ -265,8 +265,8 @@ static int rdoq_quant_block(core_t *core, int slice_type, int qp, double d_lambd
         s32 level = rdoq_one_coef(zero_coef_err[i], &cost_curr_coef, abs_coef[i], abs_level[i], est_run[last_b_zero], est_level, 
                                     q_bits, err_scale, lambda, i == max_num_coef - 1);
 
-        cost_curr -= zero_coef_err[i];
-        cost_curr += cost_curr_coef;
+        cost_curr_delta -= zero_coef_err[i];
+        cost_curr_delta += cost_curr_coef;
 
         if (level) {
             last_checked_nz = i;
@@ -275,14 +275,14 @@ static int rdoq_quant_block(core_t *core, int slice_type, int qp, double d_lambd
             /* ----- check for last flag ----- */
             s64 cost_flag0 = GET_I_COST(rdoq_bin_est_lst[uavs3e_get_log2(i + 1)][0], lambda);
             s64 cost_flag1 = GET_I_COST(rdoq_bin_est_lst[uavs3e_get_log2(i + 1)][1], lambda);
-            s64 cost_curr_end = cost_curr + cost_flag1;
+            s64 cost_curr_end = cost_curr_delta + cost_flag1;
 
-            cost_curr += cost_flag0;
+            cost_curr_delta += cost_flag0;
             tmp_nz_coef++;
 
-            if (cost_curr_end < cost_best) {
-                cost_best = cost_curr_end;
-                last_coef_nz = i;
+            if (cost_curr_end < cost_best_delta) {
+                cost_best_delta = cost_curr_end;
+                end_pos = i;
                 num_nz_coef += tmp_nz_coef;
                 tmp_nz_coef = 0;
             }
@@ -298,7 +298,7 @@ static int rdoq_quant_block(core_t *core, int slice_type, int qp, double d_lambd
     }
     if (num_nz_coef) {
         /* ===== clean uncoded coeficients ===== */
-        for (int i = last_coef_nz + 1; i <= last_checked_nz; i++) {
+        for (int i = end_pos + 1; i <= last_checked_nz; i++) {
             coef[scan[i]] = 0;
         }
     }

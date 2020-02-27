@@ -297,7 +297,7 @@ typedef struct uavs3e_funs_handle_t {
     void(*affine_sobel_flt_ver)(pel *pred, int i_pred, int *deriv, int i_deriv, int width, int height);
     void(*affine_coef_computer)(s16 *resi, int i_resi, int(*deriv)[MAX_CU_DIM], int i_deriv, s64(*coef)[7], int width, int height, int vertex_num);
 
-    s64(*quant_rdoq)(s16 *coef, int num, int q_value, int q_bits, s32 err_scale, int precision_bits, u32* tmp_level_double, s16* tmp_coef, s64 *err_uncoded_double);
+    int(*quant_rdoq)(s16 *coef, int num, int q_value, int q_bits, s32 err_scale, int precision_bits, u32* abs_coef, s16* abs_level, s64 *uncoded_err);
     int(*quant_check)(s16 *coef, int num, int shift, int threshold);
 
 

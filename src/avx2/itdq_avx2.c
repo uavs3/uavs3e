@@ -2340,37 +2340,41 @@ int quant_check_avx2(s16 *coef, int num, int shift, int threshold)
     return 1;
 }
 
-s64 quant_rdoq_avx2(s16 *coef, int num, int q_value, int q_bits, s32 err_scale, int precision_bits, u32* tmp_level_double, s16* tmp_coef, s64 *err_uncoded_double)
+int quant_rdoq_avx2(s16 *coef, int num, int q_value, int q_bits, s32 err_scale, int precision_bits, u32* abs_coef, s16* abs_level, s64 *uncoded_err)
 {
     __m256i QValue = _mm256_set1_epi32(q_value);
     __m256i QADD = _mm256_set1_epi32(1 << (q_bits - 1));
     __m256i ERRSCALE = _mm256_set1_epi64x((s64)err_scale);
-    __m256i UNCODED = _mm256_setzero_si256();
+    __m256i mask = _mm256_set1_epi32(-1);
+
+    int last_nz = -1;
 
     for (int i = 0; i < num; i += 8) {
         __m256i C = _mm256_cvtepi16_epi32(_mm_loadu_si128((const __m128i*)(coef + i)));
         __m256i LEVEL = _mm256_mullo_epi32(_mm256_abs_epi32(C), QValue);
         __m256i COEF = _mm256_srli_epi32(_mm256_add_epi32(LEVEL, QADD), q_bits);
-        __m128i COEF128 = _mm_packs_epi32(_mm256_castsi256_si128(COEF), _mm256_extracti128_si256(COEF, 1));
-        __m256i T1 = _mm256_cvtepi32_epi64(_mm256_castsi256_si128(LEVEL));
-        __m256i T2 = _mm256_cvtepi32_epi64(_mm256_extracti128_si256(LEVEL, 1));
 
-        _mm256_storeu_si256((__m256i*)(tmp_level_double + i), LEVEL);
-        _mm_storeu_si128((__m128i*)(tmp_coef + i), COEF128);
+        if (_mm256_testz_si256(COEF, mask)) {
+            _mm_storeu_si128((__m128i*)(abs_level + i), _mm_setzero_si128());
+        } else {
+            __m128i COEF128 = _mm_packs_epi32(_mm256_castsi256_si128(COEF), _mm256_extracti128_si256(COEF, 1));
+            _mm_storeu_si128((__m128i*)(abs_level + i), COEF128);
+            _mm256_storeu_si256((__m256i*)(abs_coef + i), LEVEL);
 
-        T1 = _mm256_srli_epi64(_mm256_mul_epi32(T1, ERRSCALE), precision_bits);
-        T2 = _mm256_srli_epi64(_mm256_mul_epi32(T2, ERRSCALE), precision_bits);
-        T1 = _mm256_mul_epi32(T1, T1);
-        T2 = _mm256_mul_epi32(T2, T2);
-        _mm256_storeu_si256((__m256i*)(err_uncoded_double + i    ), T1);
-        _mm256_storeu_si256((__m256i*)(err_uncoded_double + i + 4), T2);
-        UNCODED = _mm256_add_epi64(T1, UNCODED);
-        UNCODED = _mm256_add_epi64(T2, UNCODED);
-
+            __m256i T1 = _mm256_cvtepi32_epi64(_mm256_castsi256_si128(LEVEL));
+            __m256i T2 = _mm256_cvtepi32_epi64(_mm256_extracti128_si256(LEVEL, 1));
+            T1 = _mm256_srli_epi64(_mm256_mul_epi32(T1, ERRSCALE), precision_bits);
+            T2 = _mm256_srli_epi64(_mm256_mul_epi32(T2, ERRSCALE), precision_bits);
+            T1 = _mm256_mul_epi32(T1, T1);
+            T2 = _mm256_mul_epi32(T2, T2);
+            _mm256_storeu_si256((__m256i*)(uncoded_err + i), T1);
+            _mm256_storeu_si256((__m256i*)(uncoded_err + i + 4), T2);
+            
+            last_nz = i + 7;
+        }
     }
 
-    return _mm256_extract_epi64(UNCODED, 0) + _mm256_extract_epi64(UNCODED, 1) + 
-           _mm256_extract_epi64(UNCODED, 2) + _mm256_extract_epi64(UNCODED, 3);
+    return last_nz;
 }
 
 
