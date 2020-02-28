@@ -219,7 +219,7 @@ void uavs3e_pel_avrg_32_avx2(pel *dst, int i_dst, pel *src1, pel *src2, int heig
 void uavs3e_pel_avrg_64_avx2(pel *dst, int i_dst, pel *src1, pel *src2, int height);
 void uavs3e_pel_avrg_128_avx2(pel *dst, int i_dst, pel *src1, pel *src2, int height);
 
-int quant_check_avx2(s16 *coef, int num, int shift, int threshold);
+int quant_check_avx2(s16 *coef, int num, int threshold);
 int quant_rdoq_avx2(s16 *coef, int num, int q_value, int q_bits, s32 err_scale, int precision_bits, u32* abs_coef, s16* abs_level, s64 *uncoded_err);
 
 u32 uavs3e_had_8x4_avx2(pel *p_org, int i_org, pel *p_pred, int i_pred);

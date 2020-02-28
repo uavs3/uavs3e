@@ -2320,18 +2320,16 @@ void uavs3e_dquant_avx2(s16 *src, s16 *dst, u8 *wq_matrix[2], int log2_w, int lo
     }
 }
 
-int quant_check_avx2(s16 *coef, int num, int shift, int threshold)
+int quant_check_avx2(s16 *coef, int num, int threshold)
 {
-    __m256i T1 = _mm256_set1_epi32(threshold);
-    __m256i T2 = _mm256_set1_epi32(-threshold);
-    __m256i mask = _mm256_set1_epi32(-1);
+    __m256i T1 = _mm256_set1_epi16(threshold);
+    __m256i T2 = _mm256_set1_epi16(-threshold);
+    __m256i mask = _mm256_set1_epi16(-1);
 
-    for (int i = 0; i < num; i += 8) {
-        __m256i C = _mm256_cvtepi16_epi32(_mm_loadu_si128((const __m128i*)(coef + i)));
-        C = _mm256_slli_epi32(C, shift);
-
-        __m256i M1 = _mm256_cmpgt_epi32(C, T1);
-        __m256i M2 = _mm256_cmpgt_epi32(T2, C);
+    for (int i = 0; i < num; i += 16) {
+        __m256i C  = _mm256_loadu_si256((const __m256i*)(coef + i));
+        __m256i M1 = _mm256_cmpgt_epi16(C, T1);
+        __m256i M2 = _mm256_cmpgt_epi16(T2, C);
 
         if (!_mm256_testz_si256(_mm256_or_si256(M1, M2), mask)) {
             return 0;
@@ -2342,21 +2340,25 @@ int quant_check_avx2(s16 *coef, int num, int shift, int threshold)
 
 int quant_rdoq_avx2(s16 *coef, int num, int q_value, int q_bits, s32 err_scale, int precision_bits, u32* abs_coef, s16* abs_level, s64 *uncoded_err)
 {
-    __m256i QValue = _mm256_set1_epi32(q_value);
-    __m256i QADD = _mm256_set1_epi32(1 << (q_bits - 1));
-    __m256i ERRSCALE = _mm256_set1_epi64x((s64)err_scale);
-    __m256i mask = _mm256_set1_epi32(-1);
-
+    int half_step = 1 << (q_bits - 1);
     int last_nz = -1;
 
-    for (int i = 0; i < num; i += 8) {
-        __m256i C = _mm256_cvtepi16_epi32(_mm_loadu_si128((const __m128i*)(coef + i)));
-        __m256i LEVEL = _mm256_mullo_epi32(_mm256_abs_epi32(C), QValue);
-        __m256i COEF = _mm256_srli_epi32(_mm256_add_epi32(LEVEL, QADD), q_bits);
+    __m256i QValue   = _mm256_set1_epi32(q_value);
+    __m256i QADD     = _mm256_set1_epi32(half_step);
+    __m256i ERRSCALE = _mm256_set1_epi64x((s64)err_scale);
+    __m256i THRD     = _mm256_set1_epi32((half_step - 1) / q_value);
 
-        if (_mm256_testz_si256(COEF, mask)) {
+    for (int i = 0; i < num; i += 8) {
+        __m256i C = _mm256_abs_epi32(_mm256_cvtepi16_epi32(_mm_loadu_si128((const __m128i*)(coef + i))));
+        __m256i MASK = _mm256_cmpgt_epi32(C, THRD);
+
+        if (_mm256_testz_si256(MASK, MASK)) {
             _mm_storeu_si128((__m128i*)(abs_level + i), _mm_setzero_si128());
         } else {
+            C = _mm256_and_si256(C, MASK);
+            __m256i LEVEL = _mm256_mullo_epi32(C, QValue);
+            __m256i COEF = _mm256_srli_epi32(_mm256_add_epi32(LEVEL, QADD), q_bits);
+
             __m128i COEF128 = _mm_packs_epi32(_mm256_castsi256_si128(COEF), _mm256_extracti128_si256(COEF, 1));
             _mm_storeu_si128((__m128i*)(abs_level + i), COEF128);
             _mm256_storeu_si256((__m256i*)(abs_coef + i), LEVEL);

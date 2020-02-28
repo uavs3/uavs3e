@@ -192,17 +192,15 @@ static int rdoq_quant_block(core_t *core, int slice_type, int qp, double d_lambd
     const int ns_offset = ((cu_width_log2 + cu_height_log2) & 1) ? (1 << (ns_shift - 1)) : 0;
     const int q_value = (scale * ns_scale + ns_offset) >> ns_shift;
     const int max_num_coef = 1 << (cu_width_log2 + cu_height_log2);
-    const int pre_check_scale_bits = 10;
-    const int q_bits_scale = q_bits + pre_check_scale_bits;
 
 #define FAST_RDOQ_INTRA_RND_OFST  201
 #define FAST_RDOQ_INTER_RND_OFST  153 
 
-    int offset = ((slice_type == SLICE_I) ? FAST_RDOQ_INTRA_RND_OFST : FAST_RDOQ_INTER_RND_OFST) << (q_bits_scale - 9);
-    int zero_coeff_threshold = ((1 << q_bits_scale) - offset) / q_value;
+    int offset = ((slice_type == SLICE_I) ? FAST_RDOQ_INTRA_RND_OFST : FAST_RDOQ_INTER_RND_OFST) << (q_bits - 9);
+    int nz_threshold = ((1 << q_bits) - offset - 1) / q_value + 1;
     const int max_used_coef = 1 << (cu_width_log2 + COM_MIN(5, cu_height_log2));
 
-    if (uavs3e_funs_handle.quant_check(coef, max_used_coef, pre_check_scale_bits, zero_coeff_threshold - 1)) {
+    if (uavs3e_funs_handle.quant_check(coef, max_used_coef, nz_threshold)) {
         return 0;
     }
     

@@ -888,14 +888,14 @@ void com_invqt_inter_yuv(com_mode_t *mode, int tree_status, s16 coef[N_C][MAX_CU
     }
 }
 
-static int quant_check(s16 *coef, int num, int shift, int threshold)
+static int quant_check(s16 *coef, int num, int threshold)
 {
     num >>= 2;
     while (num--) {
-        int lev10 = coef[0] << shift;
-        int lev11 = coef[1] << shift;
-        int lev12 = coef[2] << shift;
-        int lev13 = coef[3] << shift;
+        int lev10 = coef[0];
+        int lev11 = coef[1];
+        int lev12 = coef[2];
+        int lev13 = coef[3];
 
         if (lev10 > threshold || lev10 < -threshold ||
             lev11 > threshold || lev11 < -threshold ||
@@ -912,18 +912,23 @@ static int quant_rdoq(s16 *coef, int num, int q_value, int q_bits, s32 err_scale
 {
     s32 q_bits_add = 1 << (q_bits - 1);
     int last_nz = -1;
+    int threshold = ((1 << (q_bits - 1)) - 1) / q_value + 1;
 
     for (int i = 0; i < num; i++) {
-        u32 level_double = COM_ABS16(coef[i]) * q_value;
-        u32 max_abs_level = (u32)((level_double + q_bits_add) >> q_bits);
+        int abs_value = COM_ABS16(coef[i]);
 
-        if (max_abs_level) {
+        if (abs_value < threshold) {
+            abs_level[i] = 0;
+        } else {
+            u32 level_double = abs_value * q_value;
             s64 err = (level_double * (s64)err_scale) >> precision_bits;
-            abs_coef[i] = level_double;
+
+            abs_level  [i] = (u32)((level_double + q_bits_add) >> q_bits);
+            abs_coef   [i] = level_double;
             uncoded_err[i] = err * err;
+
             last_nz = i;
         }
-        abs_level[i] = (u16)max_abs_level;
     }
 
     return last_nz;
