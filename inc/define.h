@@ -98,15 +98,15 @@ typedef struct uavs3e_input_node_t {
 typedef struct uavs3e_enc_inter_data_t {
     /*** sequence level ***/
     int bit_depth;
-    int gop_size;                 /* gop size           */
+    int gop_size;                       /* gop size           */
     int max_search_range;
-    s16 min_mv_offset[MV_D];      /* minimum clip value */
-    s16 max_mv_offset[MV_D];      /* maximum clip value */
-    s16 max_mv_pos   [MV_D];      /* maximum MV */
+    s16 min_mv[MV_D];                   /* min mv relative to current coordinate */
+    s16 max_mv[MV_D];                   /* max mv relative to current coordinate */
+    s16 max_coord[MV_D];                /* max coordinate */
 
     /*** picture level ***/
-    s64  ptr;                      /* current frame numbser */
-    s16(*map_mv)[REFP_NUM][MV_D];  /* motion vector map     */
+    s64  ptr;                           /* current frame numbser */
+    s16(*map_mv)[REFP_NUM][MV_D];       /* motion vector map     */
     com_ref_pic_t(*refp)[REFP_NUM];     /* reference pictures    */
 
     /*** local data ***/

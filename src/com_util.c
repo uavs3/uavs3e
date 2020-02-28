@@ -1373,27 +1373,6 @@ void com_check_split_mode(com_seqh_t *sqh, int *split_allow, int cu_width_log2, 
     assert(num_allowed);
 }
 
-void com_mv_rounding_s32(s32 hor, int ver, s32 *rounded_hor, s32 *rounded_ver, s32 right_shift, int left_shift)
-{
-    int add = (right_shift > 0) ? (1 << (right_shift - 1)) : 0;
-    *rounded_hor = (hor >= 0) ? (((hor + add) >> right_shift) << left_shift) : -(((-hor + add) >> right_shift) << left_shift);
-    *rounded_ver = (ver >= 0) ? (((ver + add) >> right_shift) << left_shift) : -(((-ver + add) >> right_shift) << left_shift);
-}
-
-s16 com_mv_rounding_s16_xy(s32 mv, int right_shift, int left_shift)
-{
-    int add = (right_shift > 0) ? (1 << (right_shift - 1)) : 0;
-    return ((mv + add) >> right_shift) << left_shift;
-}
-
-void com_mv_rounding_s16(s32 hor, s32 ver, s16 *rounded_hor, s16 *rounded_ver, int right_shift, int left_shift)
-{
-    int add = (right_shift > 0) ? (1 << (right_shift - 1)) : 0;
-    *rounded_hor = ((hor + add) >> right_shift) << left_shift;
-    *rounded_ver = ((ver + add) >> right_shift) << left_shift;
-}
-
-
 /*******************************************/
 /* Neighbor location: Graphical indication */
 /*                                         */

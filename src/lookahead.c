@@ -94,7 +94,7 @@ double cal_pic_cost(enc_ctrl_t *h, com_img_t *img_org, s16(*map_mv)[REFP_NUM][MV
                     M32(mvp) = 0;
 
                     me_search_tz(pi, x, y, UNIT_SIZE, UNIT_SIZE, info->pic_width, info->pic_height, refi, lidx, mvp, mv, 0);
-                    com_mc_blk_luma(ref_pic, pred_buf, UNIT_SIZE, (x << 2) + mv[MV_X], (y << 2) + mv[MV_Y], UNIT_SIZE, UNIT_SIZE, UNIT_WIDX, pi->max_mv_pos[MV_X], pi->max_mv_pos[MV_Y], 255, 0);
+                    com_mc_blk_luma(ref_pic, pred_buf, UNIT_SIZE, (x << 2) + mv[MV_X], (y << 2) + mv[MV_Y], UNIT_SIZE, UNIT_SIZE, UNIT_WIDX, pi->max_coord[MV_X], pi->max_coord[MV_Y], 255, 0);
 
                     u32 cost = com_had(UNIT_SIZE, UNIT_SIZE, org, pred_buf, i_org, UNIT_SIZE, bit_depth);
                     if (cost < min_cost) {

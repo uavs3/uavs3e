@@ -41,12 +41,12 @@ static core_t *core_alloc(com_info_t *info)
         }
     }
 
-    inter_search_t *pi    = &core->pinter;
-    pi->bit_depth           = info->bit_depth_internal;
-    pi->gop_size            = info->gop_size;
-    pi->max_search_range    = info->sqh.low_delay ? SEARCH_RANGE_IPEL_LD : SEARCH_RANGE_IPEL_RA;
-    pi->max_mv_pos   [MV_X] = (s16)info->pic_width  + 4;
-    pi->max_mv_pos   [MV_Y] = (s16)info->pic_height + 4;
+    inter_search_t *pi   = &core->pinter;
+    pi->bit_depth        = info->bit_depth_internal;
+    pi->gop_size         = info->gop_size;
+    pi->max_search_range = info->sqh.low_delay ? SEARCH_RANGE_IPEL_LD : SEARCH_RANGE_IPEL_RA;
+    pi->max_coord[MV_X]  = (s16)info->pic_width  + 4;
+    pi->max_coord[MV_Y]  = (s16)info->pic_height + 4;
     inter_search_create(pi, info->pic_width, info->pic_height);
 
     int l_size = sizeof(pel) * ((MAX_CU_SIZE + SAO_SHIFT_PIX_NUM + 2) * (MAX_CU_SIZE + SAO_SHIFT_PIX_NUM + 2) + info->pic_width + ALIGN_MASK);
@@ -1377,8 +1377,8 @@ void *uavs3e_create(enc_cfg_t *cfg, int *err)
     pi->bit_depth = info->bit_depth_internal;
     pi->gop_size  = info->gop_size;
     pi->max_search_range = info->sqh.low_delay ? SEARCH_RANGE_IPEL_LD : SEARCH_RANGE_IPEL_RA;
-    pi->max_mv_pos[MV_X] = (s16)info->pic_width + 4;
-    pi->max_mv_pos[MV_Y] = (s16)info->pic_height + 4;
+    pi->max_coord[MV_X] = (s16)info->pic_width + 4;
+    pi->max_coord[MV_Y] = (s16)info->pic_height + 4;
     inter_search_create(pi, info->pic_width, info->pic_height);
 
 #if defined(ENABLE_FUNCTION_C)

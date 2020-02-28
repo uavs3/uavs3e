@@ -41,7 +41,7 @@ s64 calc_dist_filter_boundary(core_t *core, com_pic_t *pic_rec, com_pic_t *pic_o
 
 void analyze_inter_cu(core_t *core, lbac_t *sbac_best);
 double pinter_residue_rdo_chroma(core_t *core);
-u32 me_search_tz(inter_search_t *pi, int x, int y, int w, int h, int pic_width, int pic_height, s8 refi, int lidx, s16 mvp[MV_D], s16 mv[MV_D], int bi);
+u32 me_search_tz(inter_search_t *pi, int x, int y, int w, int h, int pic_width, int pic_height, s8 refi, int lidx, const s16 mvp[MV_D], s16 mv[MV_D], int bi);
 void inter_search_create(inter_search_t *pi, int width, int height);
 void inter_search_free(inter_search_t *pi);
 

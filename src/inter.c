@@ -1488,10 +1488,11 @@ static u32 affine_me_gradient(inter_search_t *pi, int x, int y, int cu_width_log
                 mvd[1][MV_Y] <<= 2;
                 mvd[2][MV_X] <<= 2;
                 mvd[2][MV_Y] <<= 2;
+
                 if (amvr_shift > 0) {
-                    com_mv_rounding_s16(mvd[0][MV_X], mvd[0][MV_Y], &mvd[0][MV_X], &mvd[0][MV_Y], amvr_shift, amvr_shift);
-                    com_mv_rounding_s16(mvd[1][MV_X], mvd[1][MV_Y], &mvd[1][MV_X], &mvd[1][MV_Y], amvr_shift, amvr_shift);
-                    com_mv_rounding_s16(mvd[2][MV_X], mvd[2][MV_Y], &mvd[2][MV_X], &mvd[2][MV_Y], amvr_shift, amvr_shift);
+                    com_mv_rounding_s16(mvd[0][MV_X], mvd[0][MV_Y], &mvd[0][MV_X], &mvd[0][MV_Y], amvr_shift);
+                    com_mv_rounding_s16(mvd[1][MV_X], mvd[1][MV_Y], &mvd[1][MV_X], &mvd[1][MV_Y], amvr_shift);
+                    com_mv_rounding_s16(mvd[2][MV_X], mvd[2][MV_Y], &mvd[2][MV_X], &mvd[2][MV_Y], amvr_shift);
                 }
             }
         } else {
@@ -1515,9 +1516,10 @@ static u32 affine_me_gradient(inter_search_t *pi, int x, int y, int cu_width_log
                 mvd[0][MV_Y] <<= 2;
                 mvd[1][MV_X] <<= 2;
                 mvd[1][MV_Y] <<= 2;
+
                 if (amvr_shift > 0) {
-                    com_mv_rounding_s16(mvd[0][MV_X], mvd[0][MV_Y], &mvd[0][MV_X], &mvd[0][MV_Y], amvr_shift, amvr_shift);
-                    com_mv_rounding_s16(mvd[1][MV_X], mvd[1][MV_Y], &mvd[1][MV_X], &mvd[1][MV_Y], amvr_shift, amvr_shift);
+                    com_mv_rounding_s16(mvd[0][MV_X], mvd[0][MV_Y], &mvd[0][MV_X], &mvd[0][MV_Y], amvr_shift);
+                    com_mv_rounding_s16(mvd[1][MV_X], mvd[1][MV_Y], &mvd[1][MV_X], &mvd[1][MV_Y], amvr_shift);
                 }
             }
         }

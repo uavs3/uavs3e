@@ -168,9 +168,20 @@ int com_set_split_mode(s8  split_mode, int cud, int cup, int cu_width, int cu_he
 u8   com_get_cons_pred_mode(int cud, int cup, int cu_width, int cu_height, int lcu_s, s8(*split_mode_buf)[MAX_CU_DEPTH][NUM_BLOCK_SHAPE]);
 void com_set_cons_pred_mode(u8 cons_pred_mode, int cud, int cup, int cu_width, int cu_height, int lcu_s, s8(*split_mode_buf)[MAX_CU_DEPTH][NUM_BLOCK_SHAPE]);
 
-void com_mv_rounding_s32(s32 hor, s32 ver, s32 *rounded_hor, s32 *rounded_ver, int right_shift, int left_shift);
-void com_mv_rounding_s16(s32 hor, s32 ver, s16 *rounded_hor, s16 *rounded_ver, int right_shift, int left_shift);
-s16 com_mv_rounding_s16_xy(s32 mv, int right_shift, int left_shift);
+static avs3_inline void com_mv_rounding_s32(s32 hor, int ver, s32 *rounded_hor, s32 *rounded_ver, s32 right_shift, int left_shift)
+{
+    int add = (right_shift > 0) ? (1 << (right_shift - 1)) : 0;
+    *rounded_hor = (hor >= 0) ? (((hor + add) >> right_shift) << left_shift) : -(((-hor + add) >> right_shift) << left_shift);
+    *rounded_ver = (ver >= 0) ? (((ver + add) >> right_shift) << left_shift) : -(((-ver + add) >> right_shift) << left_shift);
+}
+
+static avs3_inline void com_mv_rounding_s16(s32 hor, s32 ver, s16 *rounded_hor, s16 *rounded_ver, int shift)
+{
+    com_assert(shift);
+    int add = (1 << (shift - 1));
+    *rounded_hor = ((hor + add) >> shift) << shift;
+    *rounded_ver = ((ver + add) >> shift) << shift;
+}
 
 void com_get_affine_mvp_scaling(s64 ptr, int scup, int lidx, s8 cur_refi, \
                                 s16(*map_mv)[REFP_NUM][MV_D], s8(*map_refi)[REFP_NUM], com_ref_pic_t(*refp)[REFP_NUM], \
