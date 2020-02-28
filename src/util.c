@@ -49,7 +49,7 @@ void cu_pel_sub(u8 tree_status, int x, int y, int cu_width_log2, int cu_height_l
     }
 }
 
-double enc_get_hgop_qp(double base_qp, int frm_depth, int max_b_frames)
+double enc_get_hgop_qp(double base_qp, int frm_depth, int is_ld)
 {
     static const enc_aqp_param_t tbl_qp_adapt_param_ra[8] = {
         { -4,  0,      0 },
@@ -72,7 +72,7 @@ double enc_get_hgop_qp(double base_qp, int frm_depth, int max_b_frames)
         { 9, -6.5000, 0.2590},
     };
 
-    const enc_aqp_param_t *qp_adapt_param = max_b_frames == 0 ? tbl_qp_adapt_param_ld : tbl_qp_adapt_param_ra;
+    const enc_aqp_param_t *qp_adapt_param = is_ld ? tbl_qp_adapt_param_ld : tbl_qp_adapt_param_ra;
     base_qp += qp_adapt_param[frm_depth].qp_offset_layer;
 
     double dqp_offset = COM_MAX(0, base_qp) * qp_adapt_param[frm_depth].qp_offset_model_scale + qp_adapt_param[frm_depth].qp_offset_model_offset;

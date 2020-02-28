@@ -46,17 +46,16 @@ static void lookahead_get_ipred_nbr(pel *dst, int x, int y, int w, int h, int pi
     }
 }
 
-double cal_pic_cost(enc_ctrl_t *h, s16(*map_mv)[REFP_NUM][MV_D])
+double cal_pic_cost(enc_ctrl_t *h, com_img_t *img_org, s16(*map_mv)[REFP_NUM][MV_D])
 {
     com_info_t *info   = &h->info;
     inter_search_t *pi = &h->preprocess_pinter;
-    com_pic_t *pic_org =  h->pic_org;
     const int base_qp = 32;
     const double base_lambda = 1.43631 * pow(2.0, (base_qp - 16.0) / 4.0);
     int bit_depth = info->bit_depth_internal;
     double total_cost = 0;
 
-    pi->ptr    = h->ptr;
+    pi->ptr    = img_org->ptr;
     pi->refp   = h->refp;
     pi->map_mv = map_mv;
 
@@ -78,8 +77,8 @@ double cal_pic_cost(enc_ctrl_t *h, s16(*map_mv)[REFP_NUM][MV_D])
         for (int x = 0; x < info->pic_width - UNIT_SIZE + 1; x += UNIT_SIZE) {
             u32 min_cost = COM_UINT32_MAX;
             pel nb_buf[INTRA_NEIB_SIZE];
-            pel *org = pic_org->y + y * pic_org->stride_luma + x;
-            int i_org = pic_org->stride_luma;
+            pel *org = (pel*)img_org->planes[0] + y * img_org->stride[0] + x;
+            int i_org = img_org->stride[0];
             ALIGNED_32(pel pred_buf[MAX_CU_DIM]);
 
             pi->org = org;

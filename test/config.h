@@ -62,6 +62,7 @@ typedef enum _CONFIG_S {
     CONFIG_VERBOSE,
     CONFIG_MAX_B_FRAMES,
     CONFIG_DISABLE_HGOP,
+    CONFIG_CLOSE_GOP,
     CONFIG_OUT_BIT_DEPTH,
     CONFIG_IN_BIT_DEPTH,
     CONFIG_QP_OFFSET_CB,
@@ -264,6 +265,11 @@ static app_cfg_t options[] = {
         CFG_KEY_NULL,  "disable_hgop", CFG_TYPE_INTEGER,
         &cfg_flags[CONFIG_DISABLE_HGOP], &cfg.disable_hgop,
         "disable hierarchical GOP. if not set, hierarchical GOP is used"
+    },
+    {
+        CFG_KEY_NULL,  "close_gop", CFG_TYPE_INTEGER,
+        &cfg_flags[CONFIG_CLOSE_GOP], &cfg.close_gop,
+        "use close gop"
     },
     {
         CFG_KEY_NULL,  "qp_offset_cb", CFG_TYPE_INTEGER,
@@ -898,7 +904,7 @@ static int parse_rpl_cfg(enc_cfg_t *param)
             assert(0);
         }
         param->rpls_l0[i].poc = atoi(strtok(NULL, "|"));
-        param->rpls_l0[i].temporal_id = atoi(strtok(NULL, "|"));
+        atoi(strtok(NULL, "|"));
         param->rpls_l0[i].active = atoi(strtok(NULL, "|"));
 
         int j = 0;
@@ -938,7 +944,7 @@ static int parse_rpl_cfg(enc_cfg_t *param)
             assert(0);
         }
         param->rpls_l1[i].poc = atoi(strtok(NULL, "|"));
-        param->rpls_l1[i].temporal_id = atoi(strtok(NULL, "|"));
+        atoi(strtok(NULL, "|"));
         param->rpls_l1[i].active = atoi(strtok(NULL, "|"));
 
         int j = 0;
@@ -969,7 +975,7 @@ static int parse_rpl_cfg(enc_cfg_t *param)
     /* printf RPL */
     for (int i = 0; i < 20; i++) {
         com_rpl_t *rpl = &param->rpls_l0[i];
-        printf("{ %d, %2d, %d, %d, %d, { ", rpl->slice_type, rpl->poc, rpl->temporal_id, rpl->num, rpl->active);
+        printf("{ %d, %2d, %d, %d, { ", rpl->slice_type, rpl->poc, rpl->num, rpl->active);
         for (int j = 0; j < MAX_REFS; j++) printf("%2d, ", rpl->ref_poc[j]);
         printf(" }, { ");
         for (int j = 0; j < MAX_REFS; j++) printf("%2d, ", rpl->delta_doi[j]);
@@ -978,7 +984,7 @@ static int parse_rpl_cfg(enc_cfg_t *param)
     printf("\n");
     for (int i = 0; i < 20; i++) {
         com_rpl_t *rpl = &param->rpls_l1[i];
-        printf("{ %d, %2d, %d, %d, %d, { ", rpl->slice_type, rpl->poc, rpl->temporal_id, rpl->num, rpl->active);
+        printf("{ %d, %2d, %d, %d, %d, { ", rpl->slice_type, rpl->poc, rpl->layer_id, rpl->num, rpl->active);
         for (int j = 0; j < MAX_REFS; j++) printf("%3d, ", rpl->ref_poc[j]);
         printf(" }, { ");
         for (int j = 0; j < MAX_REFS; j++) printf("%2d, ", rpl->delta_doi[j]);

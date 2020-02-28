@@ -52,7 +52,7 @@ void cu_pel_sub(u8 tree_status, int x, int y, int cu_width_log2, int cu_height_l
 int enc_create_cu_data(enc_cu_t *cu_data, int cu_width_log2, int cu_height_log2);
 int enc_delete_cu_data(enc_cu_t *cu_data);
 
-double enc_get_hgop_qp(double base_qp, int frm_depth, int max_b_frames);
+double enc_get_hgop_qp(double base_qp, int frm_depth, int is_ld);
 
 
 #endif /* _ENC_UTIL_H_ */

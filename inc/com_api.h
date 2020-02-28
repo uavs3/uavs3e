@@ -73,6 +73,7 @@ typedef struct uavs3e_com_img_t com_img_t;
 struct uavs3e_com_img_t {
     int        num_planes;          /* number of plane */
     long long  pts, dts;            /* time-stamps */
+    long long  ptr;
 
     int        width [MAX_PLANES];  /* width (in unit of pixel) */
     int        height[MAX_PLANES];  /* height (in unit of pixel) */
@@ -92,7 +93,6 @@ struct uavs3e_com_img_t {
 typedef struct uavs3e_com_rpl_t {
     int slice_type;
     int poc;
-    int temporal_id;
     int num;
     int active;
     int ref_poc[MAX_REFS];

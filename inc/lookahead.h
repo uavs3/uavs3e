@@ -19,7 +19,7 @@
 #ifndef _ENC_LOOKAHEAD_H_
 #define _ENC_LOOKAHEAD_H_
 
-double cal_pic_cost(enc_ctrl_t *h, s16(*map_mv)[REFP_NUM][MV_D]);
+double cal_pic_cost(enc_ctrl_t *h, com_img_t *img_org, s16(*map_mv)[REFP_NUM][MV_D]);
 
 
 #endif //_ENC_LOOKAHEAD_H_

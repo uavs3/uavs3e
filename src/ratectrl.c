@@ -102,9 +102,9 @@ void rc_update(void *rc_handle, com_pic_t *pic, char *ext_info, int info_buf_siz
 {
     enc_rc_t *p = (enc_rc_t*)rc_handle;
    
-    int temporal_id = pic->temporal_id;
+    int layer_id = pic->layer_id;
 
-    if (temporal_id <= 1) {
+    if (layer_id <= 1) {
         if (p->total_subgops >= 0) {
             p->total_factor += (p->subgop_bits / p->subgop_frms) * p->subgop_qscale / p->subgop_cplx;
         }
@@ -127,7 +127,7 @@ void rc_update(void *rc_handle, com_pic_t *pic, char *ext_info, int info_buf_siz
     p->win_frames = COM_MIN(p->win_frames + 1, p->win_size);
 
     if (ext_info) {
-        sprintf(ext_info, "tid:%d cost:%5.2f br:%9.2fkbps", pic->temporal_id, pic->picture_satd, p->total_bits / (p->total_frms / p->frame_rate) / 1000);
+        sprintf(ext_info, "tid:%d cost:%5.2f br:%9.2fkbps", pic->layer_id, pic->picture_satd, p->total_bits / (p->total_frms / p->frame_rate) / 1000);
 
         if (p->total_subgops > 0) {
             sprintf(ext_info, "%s C:%9.2f", ext_info, p->total_factor / p->total_subgops);
@@ -150,22 +150,22 @@ void rc_destroy(void *rc_handle)
 //  ABR:  Bits * qScale / (complex^(1 - QCompress))= C, calculate factor C through historical data
 //
 /*************************************************************************************************/
-int rc_get_qp(void *rc_handle, enc_ctrl_t *h)
+int rc_get_qp(void *rc_handle, enc_ctrl_t *h, com_pic_t *pic)
 {
     double qp;
     double min_qp = h->cfg.rc_min_qp;
     enc_rc_t *p = (enc_rc_t*)rc_handle;
-    com_pic_t *pic = h->pic_org;
-    int temporal_id = pic->temporal_id;
+    int layer_id = pic->layer_id;
+    long long ptr = pic->img->ptr;
 
-    if (temporal_id <= 1) {
+    if (layer_id <= 1) {
         p->shortTermCplxSum *= 0.5;
         p->shortTermCplxCount *= 0.5;
         p->shortTermCplxSum += pic->picture_satd;
         p->shortTermCplxCount++;
 
         double blurredComplexity = pic->picture_satd_blur = pow(p->shortTermCplxSum / p->shortTermCplxCount, 1 - QCompress);
-        int sub_gop_frms = (int)(h->ptr - p->top_last_ptr);
+        int sub_gop_frms = (int)(ptr - p->top_last_ptr);
 
         if (p->max_bitrate != 0 && p->win_frames >= p->win_size - sub_gop_frms) {
             // calculate max_qp
@@ -181,7 +181,7 @@ int rc_get_qp(void *rc_handle, enc_ctrl_t *h)
             double frame_bits = COM_MAX(max_bits / sub_gop_frms, p->target_bitrate / p->frame_rate / 2);
             double qScale = blurredComplexity * (p->total_factor / p->total_subgops) / frame_bits;
 
-            min_qp = uavs3e_qScale2qp(qScale) - (temporal_id == 0 ? 3 : 0);
+            min_qp = uavs3e_qScale2qp(qScale) - (layer_id == 0 ? 3 : 0);
             //printf("%d  %f  %f  %f\n", sub_gop_frms, frame_bits, qScale, min_qp);
             min_qp = COM_MIN(min_qp, h->cfg.rc_max_qp);
         }
@@ -192,7 +192,7 @@ int rc_get_qp(void *rc_handle, enc_ctrl_t *h)
         } 
         else if (h->cfg.rc_type == RC_TYPE_ABR) {
             if (p->total_factor == 0) {
-                if (temporal_id == 0) { // I frame
+                if (layer_id == 0) { // I frame
                     double cpp = pow(pic->picture_satd, 1.31);
                     double bpp = p->target_bitrate / p->frame_rate / p->frame_pixels;
                     double alpha = bpp < 0.025 ? 0.25 : 0.3;
@@ -202,7 +202,7 @@ int rc_get_qp(void *rc_handle, enc_ctrl_t *h)
                     qp = (int)(5.661 * log(lambda) + 13.131 + 0.5);
                     p->top_fwd_qp = qp;
                 } else {
-                    qp = enc_get_hgop_qp(p->top_fwd_qp, temporal_id, h->cfg.max_b_frames);
+                    qp = enc_get_hgop_qp(p->top_fwd_qp, layer_id, h->info.sqh.low_delay);
                     // don't assign p->top_fwd_qp
                 }
             } else {
@@ -214,7 +214,7 @@ int rc_get_qp(void *rc_handle, enc_ctrl_t *h)
 
                 qp = uavs3e_qScale2qp(qScale);
 
-                if (temporal_id == 0) {
+                if (layer_id == 0) {
                     qp -= 3;
                 }
                 p->top_fwd_qp = p->top_bwd_qp;
@@ -222,12 +222,12 @@ int rc_get_qp(void *rc_handle, enc_ctrl_t *h)
         }
         qp = COM_MAX(qp, min_qp);
         p->top_bwd_qp = qp;
-        p->top_last_ptr = h->ptr;
+        p->top_last_ptr = ptr;
     } else {
-        if (h->cfg.max_b_frames) {
-            qp = enc_get_hgop_qp((p->top_fwd_qp + p->top_bwd_qp * 3) / 4, temporal_id, h->cfg.max_b_frames);
-        } else {
-            qp = enc_get_hgop_qp(p->top_bwd_qp, temporal_id, h->cfg.max_b_frames);
+        if (h->info.sqh.low_delay) {
+            qp = enc_get_hgop_qp(p->top_bwd_qp, layer_id, 1);
+        }else {
+            qp = enc_get_hgop_qp((p->top_fwd_qp + p->top_bwd_qp * 3) / 4, layer_id, 0);
         }
     }
     return COM_CLIP3(h->cfg.rc_min_qp, h->cfg.rc_max_qp, (int)(qp + 0.5));

@@ -43,13 +43,14 @@
 
 /* maximum pico_img count */
 #define ENC_MAX_INPUT_BUF      32
+#define MAX_REORDER_BUF        33
 
 /* maximum cost value */
 #define MAX_COST                (1.7e+308)
 #define MAX_COST_EXT            (MAX_COST * 0.999999999)
 
 /* virtual frame depth B picture */
-#define FRM_DEPTH_0                   0
+#define FRM_DEPTH_0                   0 // only for I frame
 #define FRM_DEPTH_1                   1
 #define FRM_DEPTH_2                   2
 #define FRM_DEPTH_3                   3
@@ -63,7 +64,7 @@ typedef struct uavs3e_enc_rc_handle_t enc_rc_handle_t;
 typedef struct uavs3e_enc_ctrl_t enc_ctrl_t;
 
 typedef void*(*rc_frame_init_t   )(enc_cfg_t *param);
-typedef int  (*rc_frame_get_qp_t )(void *rc_handle, enc_ctrl_t *h);
+typedef int  (*rc_frame_get_qp_t )(void *rc_handle, enc_ctrl_t *h, com_pic_t *pic);
 typedef void (*rc_frame_update_t )(void *rc_handle, com_pic_t *pic, char *ext_info, int info_buf_size);
 typedef void (*rc_frame_destroy_t)(void *rc_handle);
 
@@ -79,10 +80,12 @@ struct uavs3e_enc_rc_handle_t {
 /*****************************************************************************
  * input picture buffer structure
  *****************************************************************************/
-typedef struct uavs3e_enc_input_pic_t {
-    com_pic_t  pic;      /* original picture store     */
-    u8         is_used;  /* be used for encoding input */
-} enc_input_pic_t;
+typedef struct uavs3e_input_node_t {
+    com_img_t *img;      /* original picture store     */
+    int        b_ref;
+    int        layer_id;
+    int        type;
+} input_node_t;
 
 /*****************************************************************************
  * inter prediction structure
@@ -378,8 +381,6 @@ typedef struct uavs3e_pic_thd_param_t {
     com_ref_pic_t     refp[MAX_REFS][REFP_NUM];  /* reference picture (0: foward, 1: backward) */
     s64               ptr;                       /* current picture's presentation temporal reference */
 
-    enc_input_pic_t  *pic_input;
-
     /*** coding results ***/
     int           total_bytes;
     int           user_bytes;
@@ -393,33 +394,29 @@ typedef struct uavs3e_pic_thd_param_t {
  * All have to be stored are in this structure.
  *****************************************************************************/
 struct uavs3e_enc_ctrl_t {
-    enc_cfg_t cfg;                                  /* encoding parameter */
+    enc_cfg_t cfg;                                   /* encoding parameter */
 
-    enc_input_pic_t   pic_ibuf[ENC_MAX_INPUT_BUF];    /* address of current input picture, ref_picture  buffer structure */
-    enc_input_pic_t  *pic_input;                           /* address of current input picture buffer structure */
+    com_img_t        *img_ilist[MAX_REORDER_BUF];
+    int               img_isize;
+    input_node_t      node_list[MAX_REORDER_BUF];
+    int               node_size;
+    long long         lastI_ptr;
 
     int               ilist_size;       
-    com_img_t       **ilist_imgs;                      /* address of inbufs */
+    com_img_t       **ilist_imgs;                    /* image buffer for input, include used and idle */
                       
     u8                prev_dtr;                      /* dtr % DOI_CYCLE_LENGTH */
-    s64               pic_cnt;                       /* current encoding picture count(Just count of encoded picture correctly) */
-    s64               pic_icnt;                      /* current picture input count (only update when CTX0) */
-    s64               pic_ticnt;                     /* total input picture count (only used for bumping process) */
+    s64               dtr;                           /* index of decoder order */
+    s64               ptr;                           /* index of play order    */
                       
-    s64               prev_pts;
-    s64               prev_ptr;
+    s64               prev_pts;                      /* used to calculate dts */
+    s64               prev_ptr;                      /* used to calculate dts */
                       
-    u8                force_slice;                   /* remaining pictures is encoded to p or b slice (only used for bumping process) */
-    int               force_ignored_cnt;             /* ignored pictures for force slice count (unavailable pictures cnt in gop, only used for bumping process) */
-    int               force_output;
-    com_pic_t        *pic_org;
-
     /*** copy to enc_pic_t ***/
     com_info_t        info;
     com_pic_header_t  pichdr;
-    com_ref_pic_t     refp[MAX_REFS][REFP_NUM];         /* reference picture (0: foward, 1: backward) */
-    s64               ptr;                                      /* current picture's presentation temporal reference */
-    com_pic_manager_t rpm;                                      /* reference picture manager */
+    com_ref_pic_t     refp[MAX_REFS][REFP_NUM];      /* reference picture (0: foward, 1: backward) */
+    com_pic_manager_t rpm;                           /* reference picture manager */
 
     /*** parallel data ***/
     threadpool_t   *frm_threads_pool;

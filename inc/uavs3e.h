@@ -76,6 +76,7 @@ typedef struct uavs3e_enc_cfg_t {
     int            use_pic_sign;
     int            max_b_frames;
     int            disable_hgop;
+    int            close_gop;
     int            amvr_enable;
     int            affine_enable;
     int            smvd_enable;

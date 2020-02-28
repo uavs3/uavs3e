@@ -41,7 +41,7 @@ typedef struct uavs3e_com_pic_t {
     u8          b_ref;                  /* [rec] - 0: not used for reference buffer, reference picture type */
     s16         dtr;                    /* [rec] - decoding temporal reference of this picture, (-256 ~255) */
     s64         ptr;                    /* [rec] - playing  temporal reference of this picture              */
-    u8          temporal_id;            /* [org] - scalable layer id                                        */
+    u8          layer_id;               /* [org] - scalable layer id                                        */
     
     /*** extension info **/
     double      picture_satd;                   /* [org] */
@@ -140,7 +140,6 @@ typedef struct uavs3e_com_pic_header_t {
     int              rpl_l1_idx;         //-1 means this slice does not use RPL candidate in SPS for RPL1
     com_rpl_t        rpl_l0;
     com_rpl_t        rpl_l1;
-    int              temporal_id;
     u8               num_ref_idx_active_override_flag;
     u8               ref_pic_list_sps_flag[2];
 

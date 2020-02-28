@@ -864,7 +864,7 @@ int ec_write_pichdr(bs_t *bs, com_pic_header_t *pichdr, com_seqh_t *sqh, com_pic
     bs_write(bs, pichdr->dtr % DOI_CYCLE_LENGTH, 8); 
 
     if (sqh->temporal_id_enable_flag == 1) {
-        bs_write(bs, pic->temporal_id, 3);
+        bs_write(bs, pic->layer_id, 3);
     }
     if (sqh->low_delay == 0) {
         bs_write_ue(bs, pichdr->picture_output_delay);

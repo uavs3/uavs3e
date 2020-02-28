@@ -755,5 +755,7 @@ int main(int argc, const char **argv)
 
     image_free(tmp_img);
 
+    getchar();
+
     return 0;
 }
