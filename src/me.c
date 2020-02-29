@@ -124,26 +124,29 @@ static int search_diamond(inter_search_t *pi, int x, int y, int w, int h, s8 ref
     int shift          = 16 - bi - (bit_depth - 8); // sad << 16 for u64 cost
     int core_size      = (bi ? 5 : 2);
     int core_step      = 1;
+    s16 mv_best_x      = mv[MV_X];
+    s16 mv_best_y      = mv[MV_Y];
+
+    get_diamond_range(pi, ref_pic, mv, range, COM_ABS((int)(pi->ptr - ref_pic->ptr)));
+
+    mv_best_x = COM_CLIP3(pi->min_mv[MV_X], pi->max_mv[MV_X], mv_best_x);
+    mv_best_y = COM_CLIP3(pi->min_mv[MV_Y], pi->max_mv[MV_Y], mv_best_y);
 
     if (pi->curr_mvr > 2) {
-        com_mv_rounding_s16(mv[MV_X] + x, mv[MV_Y] + y, &mv[MV_X], &mv[MV_Y], pi->curr_mvr - 2);
-        mv[MV_X] -= x;
-        mv[MV_Y] -= y;
+        com_mv_rounding_s16(mv_best_x + x, mv_best_y + y, &mv_best_x, &mv_best_y, pi->curr_mvr - 2);
+        mv_best_x -= x;
+        mv_best_y -= y;
         core_size += bi;
         core_size <<= (pi->curr_mvr - 2);
         core_step <<= (pi->curr_mvr - 2);
     } 
 
-    s16 center_x = mv[MV_X];
-    s16 center_y = mv[MV_Y];
-
-    /* Step1: search core-square */
-    get_diamond_range(pi, ref_pic, mv, range, COM_ABS((int)(pi->ptr - ref_pic->ptr)));
-
-    int min_cmv_x = mv[MV_X] - core_size;
-    int min_cmv_y = mv[MV_Y] - core_size;
-    int max_cmv_x = mv[MV_X] + core_size;
-    int max_cmv_y = mv[MV_Y] + core_size;
+    s16 center_x = mv_best_x;
+    s16 center_y = mv_best_y;
+    int min_cmv_x = mv_best_x - core_size;
+    int min_cmv_y = mv_best_y - core_size;
+    int max_cmv_x = mv_best_x + core_size;
+    int max_cmv_y = mv_best_y + core_size;
 
     while (min_cmv_x <= range[MV_RANGE_MIN][MV_X]) min_cmv_x += core_step;
     while (min_cmv_y <= range[MV_RANGE_MIN][MV_Y]) min_cmv_y += core_step;
@@ -159,14 +162,18 @@ static int search_diamond(inter_search_t *pi, int x, int y, int w, int h, s8 ref
             u64 cost = MV_COST64(mv_bits) + block_pel_sad(w, h, shift, org, p + mv_x, i_org, i_ref, bit_depth, bi);
 
             if (cost < *cost_best) {
-                mv[MV_X] = mv_x;
-                mv[MV_Y] = mv_y;
+                mv_best_x = mv_x;
+                mv_best_y = mv_y;
                 best_step = 2;
                 *cost_best = cost;
                 best_mv_bits = mv_bits;
             }
         }
     }
+
+    mv[MV_X] = mv_best_x;
+    mv[MV_Y] = mv_best_y;
+
     if (bi) {
         return best_step;
     }
@@ -191,14 +198,14 @@ static int search_diamond(inter_search_t *pi, int x, int y, int w, int h, s8 ref
             s16 mv_x = center_x + ((s16)(step_scale >> search_idx) * tbl_diapos_partial[search_idx][i][MV_X]);
             s16 mv_y = center_y + ((s16)(step_scale >> search_idx) * tbl_diapos_partial[search_idx][i][MV_Y]);
 
-            if (mv_x < range[MV_RANGE_MAX][MV_X] && mv_x > range[MV_RANGE_MIN][MV_X] &&
-                mv_y < range[MV_RANGE_MAX][MV_Y] && mv_y > range[MV_RANGE_MIN][MV_Y]) {
+            if (mv_x <= range[MV_RANGE_MAX][MV_X] && mv_x >= range[MV_RANGE_MIN][MV_X] &&
+                mv_y <= range[MV_RANGE_MAX][MV_Y] && mv_y >= range[MV_RANGE_MIN][MV_Y]) {
                 int mv_bits = GET_MVBITS_IPEL_X(mv_x) + GET_MVBITS_IPEL_Y(mv_y);
                 u64 cost = MV_COST64(mv_bits) + block_pel_sad(w, h, shift, org, ref + mv_x + mv_y * i_ref, i_org, i_ref, bit_depth, bi);
 
                 if (cost < *cost_best) {
-                    mv[MV_X] = mv_x;
-                    mv[MV_Y] = mv_y;
+                    mv_best_x = mv_x;
+                    mv_best_y = mv_y;
                     best_step = step;
                     *cost_best = cost;
                     best_mv_bits = mv_bits;
@@ -206,6 +213,10 @@ static int search_diamond(inter_search_t *pi, int x, int y, int w, int h, s8 ref
             }
         }
     }
+
+    mv[MV_X] = mv_best_x;
+    mv[MV_Y] = mv_best_y;
+
     if (best_mv_bits) {
         pi->mot_bits[lidx] = best_mv_bits;
     }
@@ -324,13 +335,8 @@ u32 me_search_tz(inter_search_t *pi, int x, int y, int w, int h, int pic_width, 
     if (!bi) {
         CP32(mv, mvp);
     }
-    mv[MV_X] = COM_CLIP3(pi->min_mv[MV_X], pi->max_mv[MV_X], mv[MV_X] >> 2);
-    mv[MV_Y] = COM_CLIP3(pi->min_mv[MV_Y], pi->max_mv[MV_Y], mv[MV_Y] >> 2);
-
-    if (pi->curr_mvr > 2) {
-        com_mv_rounding_s16(mv[0] + x, mv[1] + y, &mv[0], &mv[1], pi->curr_mvr - 2);
-        mv[0] -= x; mv[1] -= y;
-    }
+    mv[MV_X] = mv[MV_X] >> 2;
+    mv[MV_Y] = mv[MV_Y] >> 2;
 
     u64 cost_best = COM_UINT64_MAX;
     int best_step = search_diamond(pi, x, y, w, h, refi, lidx, range, mvp, mv, &cost_best, bi, MAX_FIRST_SEARCH_STEP);
@@ -346,9 +352,14 @@ u32 me_search_tz(inter_search_t *pi, int x, int y, int w, int h, int pic_width, 
                 CP32(mv, mvt);
             }
         }
-        search_diamond(pi, x, y, w, h, refi, lidx, range, mvp, mv, &cost_best, bi, MAX_REFINE_SEARCH_STEP);
+        s16 mvt[2] = { mv[0], mv[1] };
+        u64 cost = COM_UINT64_MAX;
+        search_diamond(pi, x, y, w, h, refi, lidx, range, mvp, mvt, &cost, bi, MAX_REFINE_SEARCH_STEP);
+        if (cost < cost_best) {
+            cost_best = cost;
+            CP32(mv, mvt);
+        }
     }
-
     mv[0] <<= 2, mv[1] <<= 2;
 
     if (pi->curr_mvr < 2) {

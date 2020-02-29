@@ -197,7 +197,8 @@ static int rdoq_quant_block(core_t *core, int slice_type, int qp, double d_lambd
 #define FAST_RDOQ_INTER_RND_OFST  153 
 
     int offset = ((slice_type == SLICE_I) ? FAST_RDOQ_INTRA_RND_OFST : FAST_RDOQ_INTER_RND_OFST) << (q_bits - 9);
-    int nz_threshold = ((1 << q_bits) - offset - 1) / q_value + 1;
+    int nz_threshold = ((((1 << q_bits) - offset) << 10) / q_value - 1) >> 10;
+
     const int max_used_coef = 1 << (cu_width_log2 + COM_MIN(5, cu_height_log2));
 
     if (uavs3e_funs_handle.quant_check(coef, max_used_coef, nz_threshold)) {
