@@ -18,6 +18,7 @@
 
 #include "avx2.h"
 
+#if (BIT_DEPTH == 8)
 void uavs3e_funs_init_avx2()
 {
     uavs3e_funs_handle.ipcpy[3] = uavs3e_if_cpy_w32_avx2;
@@ -190,3 +191,106 @@ void uavs3e_funs_init_avx2()
     uavs3e_funs_handle.affine_sobel_flt_ver = affine_sobel_flt_ver_avx2;
     uavs3e_funs_handle.affine_coef_computer = affine_coef_computer_avx2;
 }
+
+#elif (BIT_DEPTH == 10)
+void uavs3e_funs_init_avx2()
+{
+    uavs3e_funs_handle.ipcpy[3] = uavs3e_if_cpy_w32_avx2;
+    uavs3e_funs_handle.ipcpy[4] = uavs3e_if_cpy_w64_avx2;
+    uavs3e_funs_handle.ipcpy[5] = uavs3e_if_cpy_w128_avx2;
+
+    uavs3e_funs_handle.ipflt[IPFILTER_H_8][2] = uavs3e_if_hor_luma_w16_avx2;
+    uavs3e_funs_handle.ipflt[IPFILTER_H_8][3] = uavs3e_if_hor_luma_w16x_avx2;
+    uavs3e_funs_handle.ipflt[IPFILTER_H_8][4] = uavs3e_if_hor_luma_w16x_avx2;
+    uavs3e_funs_handle.ipflt[IPFILTER_H_8][5] = uavs3e_if_hor_luma_w16x_avx2;
+
+    uavs3e_funs_handle.ipflt[IPFILTER_V_8][2] = uavs3e_if_ver_luma_w16_avx2;
+    uavs3e_funs_handle.ipflt[IPFILTER_V_8][3] = uavs3e_if_ver_luma_w16x_avx2;
+    uavs3e_funs_handle.ipflt[IPFILTER_V_8][4] = uavs3e_if_ver_luma_w16x_avx2;
+    uavs3e_funs_handle.ipflt[IPFILTER_V_8][5] = uavs3e_if_ver_luma_w16x_avx2;
+
+    uavs3e_funs_handle.ipflt_ext[IPFILTER_EXT_8][2] = uavs3e_if_hor_ver_luma_w16x_avx2;
+    uavs3e_funs_handle.ipflt_ext[IPFILTER_EXT_8][3] = uavs3e_if_hor_ver_luma_w16x_avx2;
+    uavs3e_funs_handle.ipflt_ext[IPFILTER_EXT_8][4] = uavs3e_if_hor_ver_luma_w16x_avx2;
+    uavs3e_funs_handle.ipflt_ext[IPFILTER_EXT_8][5] = uavs3e_if_hor_ver_luma_w16x_avx2;
+
+    uavs3e_funs_handle.itrans_dct2[1][2] = uavs3e_itrans_dct2_h4_w8_avx2;
+    uavs3e_funs_handle.itrans_dct2[1][3] = uavs3e_itrans_dct2_h4_w16_avx2;
+    uavs3e_funs_handle.itrans_dct2[1][4] = uavs3e_itrans_dct2_h4_w32_avx2;
+
+    uavs3e_funs_handle.itrans_dct2[2][1] = uavs3e_itrans_dct2_h8_w4_avx2;
+    uavs3e_funs_handle.itrans_dct2[2][2] = uavs3e_itrans_dct2_h8_w8_avx2;
+    uavs3e_funs_handle.itrans_dct2[2][3] = uavs3e_itrans_dct2_h8_w16_avx2;
+    uavs3e_funs_handle.itrans_dct2[2][4] = uavs3e_itrans_dct2_h8_w32_avx2;
+    uavs3e_funs_handle.itrans_dct2[2][5] = uavs3e_itrans_dct2_h8_w64_avx2;
+
+    uavs3e_funs_handle.itrans_dct2[3][1] = uavs3e_itrans_dct2_h16_w4_avx2;
+    uavs3e_funs_handle.itrans_dct2[3][2] = uavs3e_itrans_dct2_h16_w8_avx2;
+    uavs3e_funs_handle.itrans_dct2[3][3] = uavs3e_itrans_dct2_h16_w16_avx2;
+    uavs3e_funs_handle.itrans_dct2[3][4] = uavs3e_itrans_dct2_h16_w32_avx2;
+    uavs3e_funs_handle.itrans_dct2[3][5] = uavs3e_itrans_dct2_h16_w64_avx2;
+
+    uavs3e_funs_handle.itrans_dct2[4][1] = uavs3e_itrans_dct2_h32_w4_avx2;
+    uavs3e_funs_handle.itrans_dct2[4][2] = uavs3e_itrans_dct2_h32_w8_avx2;
+    uavs3e_funs_handle.itrans_dct2[4][3] = uavs3e_itrans_dct2_h32_w16_avx2;
+    uavs3e_funs_handle.itrans_dct2[4][4] = uavs3e_itrans_dct2_h32_w32_avx2;
+    uavs3e_funs_handle.itrans_dct2[4][5] = uavs3e_itrans_dct2_h32_w64_avx2;
+
+    uavs3e_funs_handle.itrans_dct2[5][2] = uavs3e_itrans_dct2_h64_w8_avx2;
+    uavs3e_funs_handle.itrans_dct2[5][3] = uavs3e_itrans_dct2_h64_w16_avx2;
+    uavs3e_funs_handle.itrans_dct2[5][4] = uavs3e_itrans_dct2_h64_w32_avx2;
+    uavs3e_funs_handle.itrans_dct2[5][5] = uavs3e_itrans_dct2_h64_w64_avx2;
+
+    uavs3e_funs_handle.itrans_dct8_dst7[0][1] = uavs3e_itrans_dct8_pb4_avx2;
+    uavs3e_funs_handle.itrans_dct8_dst7[0][2] = uavs3e_itrans_dct8_pb8_avx2;
+    uavs3e_funs_handle.itrans_dct8_dst7[0][3] = uavs3e_itrans_dct8_pb16_avx2;
+
+    uavs3e_funs_handle.itrans_dct8_dst7[1][1] = uavs3e_itrans_dst7_pb4_avx2;
+    uavs3e_funs_handle.itrans_dct8_dst7[1][2] = uavs3e_itrans_dst7_pb8_avx2;
+    uavs3e_funs_handle.itrans_dct8_dst7[1][3] = uavs3e_itrans_dst7_pb16_avx2;
+
+    uavs3e_funs_handle.trans_dct2[1][1] = uavs3e_trans_dct2_w4_h4_avx2;
+    uavs3e_funs_handle.trans_dct2[1][2] = uavs3e_trans_dct2_w4_h8_avx2;
+    uavs3e_funs_handle.trans_dct2[1][3] = uavs3e_trans_dct2_w4_h16_avx2;
+    uavs3e_funs_handle.trans_dct2[1][4] = uavs3e_trans_dct2_w4_h32_avx2;
+
+    uavs3e_funs_handle.trans_dct2[2][1] = uavs3e_trans_dct2_w8_h4_avx2;
+    uavs3e_funs_handle.trans_dct2[2][2] = uavs3e_trans_dct2_w8_h8_avx2;
+    uavs3e_funs_handle.trans_dct2[2][3] = uavs3e_trans_dct2_w8_h16_avx2;
+    uavs3e_funs_handle.trans_dct2[2][4] = uavs3e_trans_dct2_w8_h32_avx2;
+    uavs3e_funs_handle.trans_dct2[2][5] = uavs3e_trans_dct2_w8_h64_avx2;
+
+    uavs3e_funs_handle.trans_dct2[3][1] = uavs3e_trans_dct2_w16_h4_avx2;
+    uavs3e_funs_handle.trans_dct2[3][2] = uavs3e_trans_dct2_w16_h8_avx2;
+    uavs3e_funs_handle.trans_dct2[3][3] = uavs3e_trans_dct2_w16_h16_avx2;
+    uavs3e_funs_handle.trans_dct2[3][4] = uavs3e_trans_dct2_w16_h32_avx2;
+    uavs3e_funs_handle.trans_dct2[3][5] = uavs3e_trans_dct2_w16_h64_avx2;
+
+    uavs3e_funs_handle.trans_dct2[4][1] = uavs3e_trans_dct2_w32_h4_avx2;
+    uavs3e_funs_handle.trans_dct2[4][2] = uavs3e_trans_dct2_w32_h8_avx2;
+    uavs3e_funs_handle.trans_dct2[4][3] = uavs3e_trans_dct2_w32_h16_avx2;
+    uavs3e_funs_handle.trans_dct2[4][4] = uavs3e_trans_dct2_w32_h32_avx2;
+    uavs3e_funs_handle.trans_dct2[4][5] = uavs3e_trans_dct2_w32_h64_avx2;
+
+    uavs3e_funs_handle.trans_dct2[5][2] = uavs3e_trans_dct2_w64_h8_avx2;
+    uavs3e_funs_handle.trans_dct2[5][3] = uavs3e_trans_dct2_w64_h16_avx2;
+    uavs3e_funs_handle.trans_dct2[5][4] = uavs3e_trans_dct2_w64_h32_avx2;
+    uavs3e_funs_handle.trans_dct2[5][5] = uavs3e_trans_dct2_w64_h64_avx2;
+
+    uavs3e_funs_handle.trans_dct8_dst7[0][1] = trans_dct8_pb4_avx2;
+    uavs3e_funs_handle.trans_dct8_dst7[0][2] = trans_dct8_pb8_avx2;
+    uavs3e_funs_handle.trans_dct8_dst7[0][3] = trans_dct8_pb16_avx2;
+
+    uavs3e_funs_handle.trans_dct8_dst7[1][1] = trans_dst7_pb4_avx2;
+    uavs3e_funs_handle.trans_dct8_dst7[1][2] = trans_dst7_pb8_avx2;
+    uavs3e_funs_handle.trans_dct8_dst7[1][3] = trans_dst7_pb16_avx2;
+
+    uavs3e_funs_handle.sao = uavs3e_sao_on_lcu_avx2;
+    uavs3e_funs_handle.alf = uavs3e_alf_one_lcu_avx2;
+
+    uavs3e_funs_handle.affine_sobel_flt_hor = affine_sobel_flt_hor_avx2;
+    uavs3e_funs_handle.affine_sobel_flt_ver = affine_sobel_flt_ver_avx2;
+    uavs3e_funs_handle.affine_coef_computer = affine_coef_computer_avx2;
+}
+
+#endif
