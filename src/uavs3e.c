@@ -1215,7 +1215,7 @@ void push_sub_gop(enc_ctrl_t *h, int start, int num, int level)
     }
 }
 
-int enc_push_frm(enc_ctrl_t *h, com_img_t *img)
+static int enc_push_frm(enc_ctrl_t *h, com_img_t *img)
 {
     img->ptr = h->ptr++;
 

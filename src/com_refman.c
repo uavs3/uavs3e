@@ -189,6 +189,21 @@ ERR:
     return NULL;
 }
 
+void print_pm(com_pic_manager_t *pm, char type)
+{
+#if 0
+    printf("%c pb:%2d(%2d)  ==> ",type, pm->cur_num_ref_pics, pm->max_pb_size);
+
+    for (int i = 0; i < pm->max_pb_size; i++) {
+        if (pm->pic[i] == NULL) printf("-");
+        else if (pm->pic[i]->b_ref) printf("R");
+        else if (1 == com_img_getref(pm->pic[i]->img)) printf("0");
+        else printf("*");
+    }
+    printf("\n");
+#endif
+}
+
 int com_refm_mark_ref_pic(com_pic_manager_t *pm, com_pic_header_t *pichdr)
 {
     for (int i = 0; i < pm->cur_num_ref_pics; i++) {
@@ -210,6 +225,7 @@ int com_refm_mark_ref_pic(com_pic_manager_t *pm, com_pic_header_t *pichdr)
                 }
             }
             if (!in_rpl) {
+                print_pm(pm, ' ');
                 pic->b_ref = 0;
 
                 for (int j = i; j < pm->max_pb_size - 1; j++) {
@@ -218,7 +234,8 @@ int com_refm_mark_ref_pic(com_pic_manager_t *pm, com_pic_header_t *pichdr)
                 pm->pic[pm->max_pb_size - 1] = pic;
 
                 pm->cur_num_ref_pics--;
-                i--;           
+                i--;       
+                print_pm(pm, '-');
             }
         }
     }
@@ -226,24 +243,12 @@ int com_refm_mark_ref_pic(com_pic_manager_t *pm, com_pic_header_t *pichdr)
     return COM_OK;
 }
 
-void print_pm(com_pic_manager_t *pm)
-{
-    for (int i = 0; i < pm->max_pb_size; i++) {
-        if (pm->pic[i] == NULL) printf("-");
-        else if (pm->pic[i]->b_ref) printf("#");
-        else if (1 == com_img_getref(pm->pic[i]->img)) printf("0");
-        else printf("*");
-    }
-    printf("\n");
-}
-
 int com_refm_insert_rec_pic(com_pic_manager_t *pm, com_pic_t *pic, int slice_type, s64 ptr, s64 dtr, com_ref_pic_t(*refp)[REFP_NUM])
 {
     pic->ptr = ptr;
     pic->dtr = (s32)(dtr % DOI_CYCLE_LENGTH); 
 
-    //printf("pb:%2d  ==> ", pm->cur_num_ref_pics);
-    //print_pm(pm);
+    print_pm(pm, ' ');
 
     for (int i = 0; i < pm->num_refp[REFP_0]; i++) {
         pic->list_ptr[i] = refp[i][REFP_0].ptr;
@@ -262,7 +267,9 @@ int com_refm_insert_rec_pic(com_pic_manager_t *pm, com_pic_t *pic, int slice_typ
 
     pm->pic[pm->cur_num_ref_pics] = pic;
 
-    pm->cur_num_ref_pics++;
+    pm->cur_num_ref_pics += pic->b_ref;
+
+    print_pm(pm, '+');
 
     return COM_OK;
 }
