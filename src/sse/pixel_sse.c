@@ -18,6 +18,7 @@
 
 #include "sse.h"
 
+#if (BIT_DEPTH == 8)
 void uavs3e_pel_avrg_4_sse(pel *dst, int i_dst, pel *src1, pel *src2, int height)
 {
     int i_dst2 = i_dst << 1;
@@ -759,3 +760,68 @@ void uavs3e_conv_fmt_16to8bit_sse(unsigned char *src_y, unsigned char *src_uv, u
         p_dst_v += dst_stride[2];
     }
 }
+
+#elif (BIT_DEPTH == 10)
+
+void uavs3e_recon_w4_sse(s16 *resi, pel *pred, int i_pred, int width, int height, pel *rec, int i_rec, int cbf, int bit_depth)
+{
+    int i;
+    int i_rec2 = i_rec << 1;
+    int i_pred2 = i_pred << 1;
+
+    if (cbf == 0) {
+        for (i = 0; i < height; i += 2) {
+            CP64(rec, pred);
+            CP64(rec + i_rec, pred + i_pred);
+            rec += i_rec2;
+            pred += i_pred2;
+        }
+    }
+    else {
+        __m128i p0, r0;
+        __m128i min = _mm_setzero_si128();
+        __m128i max = _mm_set1_epi16((1 << bit_depth) - 1);
+        for (i = 0; i < height; i += 2) {
+            p0 = _mm_set_epi64x(*(s64*)(pred + i_pred), *(s64*)(pred));
+            r0 = _mm_load_si128((const __m128i *)(resi));
+
+            p0 = _mm_adds_epi16(p0, r0);
+            
+            p0 = _mm_max_epi16(p0, min);
+            p0 = _mm_min_epi16(p0, max);
+
+            _mm_storel_epi64((__m128i *)(rec), p0);
+            _mm_storel_epi64((__m128i *)(rec + i_rec), _mm_srli_si128(p0, 8));
+
+            pred += i_pred2;
+            rec += i_rec2;
+            resi += 8;
+        }
+    }
+}
+
+void uavs3e_pel_diff_4_sse(pel *p_org, int i_org, pel *p_pred, int i_pred, s16 *p_resi, int i_resi, int height)
+{
+    while (height--) {
+        __m128i A = _mm_loadl_epi64((__m128i *)p_org);
+        __m128i B = _mm_loadl_epi64((__m128i *)p_pred);
+        _mm_storel_epi64((__m128i *)p_resi, _mm_sub_epi16(A, B));
+        p_org += i_org;
+        p_pred += i_pred;
+        p_resi += i_resi;
+    }
+}
+
+void uavs3e_pel_diff_8_sse(pel *p_org, int i_org, pel *p_pred, int i_pred, s16 *p_resi, int i_resi, int height)
+{
+    while (height--) {
+        __m128i A = _mm_loadu_si128((__m128i *)p_org);
+        __m128i B = _mm_loadu_si128((__m128i *)p_pred);
+        _mm_storeu_si128((__m128i *)p_resi, _mm_sub_epi16(A, B));
+        p_org += i_org;
+        p_pred += i_pred;
+        p_resi += i_resi;
+    }
+}
+
+#endif

@@ -386,12 +386,6 @@ void uavs3e_funs_init_sse()
     //uavs3e_funs_handle.ipflt_ext[IPFILTER_EXT_4][0] = uavs3e_if_hor_ver_chroma_w4_sse;
     //uavs3e_funs_handle.ipflt_ext[IPFILTER_EXT_4][1] = uavs3e_if_hor_ver_chroma_w8_sse;
 
-    //uavs3e_funs_handle.recon[0] = uavs3e_recon_w4_sse;
-    //uavs3e_funs_handle.recon[1] = uavs3e_recon_w8_sse;
-    //uavs3e_funs_handle.recon[2] = uavs3e_recon_w16_sse;
-    //uavs3e_funs_handle.recon[3] = uavs3e_recon_w32_sse;
-    //uavs3e_funs_handle.recon[4] = uavs3e_recon_w64_sse;
-
     uavs3e_funs_handle.itrans_dct2[1][1] = uavs3e_itrans_dct2_h4_w4_sse;
     uavs3e_funs_handle.itrans_dct2[1][2] = uavs3e_itrans_dct2_h4_w8_sse;
     uavs3e_funs_handle.itrans_dct2[1][3] = uavs3e_itrans_dct2_h4_w16_sse;
@@ -430,19 +424,10 @@ void uavs3e_funs_init_sse()
 
     uavs3e_funs_handle.cost_satd[0][0] = uavs3e_had_4x4_sse;
 
-    //uavs3e_funs_handle.pel_diff[0] = uavs3e_pel_diff_4_sse;
-    //uavs3e_funs_handle.pel_diff[1] = uavs3e_pel_diff_8_sse;
-    //uavs3e_funs_handle.pel_diff[2] = uavs3e_pel_diff_16_sse;
-    //uavs3e_funs_handle.pel_diff[3] = uavs3e_pel_diff_32_sse;
-    //uavs3e_funs_handle.pel_diff[4] = uavs3e_pel_diff_64_sse;
-    //uavs3e_funs_handle.pel_diff[5] = uavs3e_pel_diff_128_sse;
-    //
-    //uavs3e_funs_handle.pel_avrg[0] = uavs3e_pel_avrg_4_sse;
-    //uavs3e_funs_handle.pel_avrg[1] = uavs3e_pel_avrg_8_sse;
-    //uavs3e_funs_handle.pel_avrg[2] = uavs3e_pel_avrg_16_sse;
-    //uavs3e_funs_handle.pel_avrg[3] = uavs3e_pel_avrg_32_sse;
-    //uavs3e_funs_handle.pel_avrg[4] = uavs3e_pel_avrg_64_sse;
-    //uavs3e_funs_handle.pel_avrg[5] = uavs3e_pel_avrg_128_sse;
+    uavs3e_funs_handle.recon[0] = uavs3e_recon_w4_sse;
+
+    uavs3e_funs_handle.pel_diff[0] = uavs3e_pel_diff_4_sse;
+    uavs3e_funs_handle.pel_diff[1] = uavs3e_pel_diff_8_sse;
 
     uavs3e_funs_handle.affine_sobel_flt_hor = affine_sobel_flt_hor_sse;
     uavs3e_funs_handle.affine_sobel_flt_ver = affine_sobel_flt_ver_sse;

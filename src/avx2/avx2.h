@@ -121,6 +121,7 @@ void uavs3e_ipred_ver_avx2(pel *src, pel *dst, int i_dst, int width, int height)
 void uavs3e_ipred_hor_avx2(pel *src, pel *dst, int i_dst, int width, int height);
 void uavs3e_ipred_dc_avx2(pel *src, pel *dst, int i_dst, int width, int height, u16 avail_cu, int bit_depth);
 
+void uavs3e_recon_w8_avx2(s16 *resi, pel *pred, int i_pred, int width, int height, pel *rec, int i_rec, int cbf, int bit_depth);
 void uavs3e_recon_w16_avx2(s16 *resi, pel *pred, int i_pred, int width, int height, pel *rec, int i_rec, int cbf, int bit_depth);
 void uavs3e_recon_w32_avx2(s16 *resi, pel *pred, int i_pred, int width, int height, pel *rec, int i_rec, int cbf, int bit_depth);
 void uavs3e_recon_w64_avx2(s16 *resi, pel *pred, int i_pred, int width, int height, pel *rec, int i_rec, int cbf, int bit_depth);
@@ -215,6 +216,7 @@ void uavs3e_pel_diff_32_avx2(pel *p_org, int i_org, pel *p_pred, int i_pred, s16
 void uavs3e_pel_diff_64_avx2(pel *p_org, int i_org, pel *p_pred, int i_pred, s16 *p_resi, int i_resi, int height);
 void uavs3e_pel_diff_128_avx2(pel *p_org, int i_org, pel *p_pred, int i_pred, s16 *p_resi, int i_resi, int height);
 
+void uavs3e_pel_avrg_4_avx2(pel *dst, int i_dst, pel *src1, pel *src2, int height);
 void uavs3e_pel_avrg_8_avx2(pel *dst, int i_dst, pel *src1, pel *src2, int height);
 void uavs3e_pel_avrg_16_avx2(pel *dst, int i_dst, pel *src1, pel *src2, int height);
 void uavs3e_pel_avrg_32_avx2(pel *dst, int i_dst, pel *src1, pel *src2, int height);
