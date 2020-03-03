@@ -190,6 +190,7 @@ int uavs3e_simd_avx_level(int *phwavx)
     return SIMD_AVX_NONE;
 }
 
+#if (BIT_DEPTH == 8)
 void uavs3e_funs_init_sse()
 {
     int i;
@@ -351,3 +352,102 @@ void uavs3e_funs_init_sse()
     //uavs3e_funs_handle.intra_pred_ang[31] = uavs3e_ipred_ang_y_31_sse;
     uavs3e_funs_handle.intra_pred_ang[32] = uavs3e_ipred_ang_y_32_sse;
 }
+
+#elif (BIT_DEPTH == 10)
+void uavs3e_funs_init_sse()
+{
+    int i;
+    for (i = 0; i < CU_SIZE_NUM; i++) {
+        uavs3e_funs_handle.ipcpy[i] = uavs3e_if_cpy_w16x_sse;
+        uavs3e_funs_handle.ipflt[IPFILTER_H_8][i] = uavs3e_if_hor_luma_w8x_sse;
+        uavs3e_funs_handle.ipflt[IPFILTER_V_8][i] = uavs3e_if_ver_luma_w8x_sse;
+        uavs3e_funs_handle.ipflt_ext[IPFILTER_EXT_8][i] = uavs3e_if_hor_ver_luma_w8x_sse;
+
+        //uavs3e_funs_handle.ipflt[IPFILTER_H_4][i] = uavs3e_if_hor_chroma_w8x_sse;
+        //uavs3e_funs_handle.ipflt[IPFILTER_V_4][i] = uavs3e_if_ver_chroma_w16x_sse;
+        //uavs3e_funs_handle.ipflt_ext[IPFILTER_EXT_4][i] = uavs3e_if_hor_ver_chroma_w8x_sse;
+    }
+
+    uavs3e_funs_handle.ipcpy[0] = uavs3e_if_cpy_w4_sse;
+    uavs3e_funs_handle.ipcpy[1] = uavs3e_if_cpy_w8_sse;
+    uavs3e_funs_handle.ipcpy[2] = uavs3e_if_cpy_w16_sse;
+    uavs3e_funs_handle.ipflt[IPFILTER_H_8][0] = uavs3e_if_hor_luma_w4_sse;
+    uavs3e_funs_handle.ipflt[IPFILTER_H_8][1] = uavs3e_if_hor_luma_w8_sse;
+    uavs3e_funs_handle.ipflt[IPFILTER_V_8][0] = uavs3e_if_ver_luma_w4_sse;
+    uavs3e_funs_handle.ipflt[IPFILTER_V_8][1] = uavs3e_if_ver_luma_w8_sse;
+    uavs3e_funs_handle.ipflt_ext[IPFILTER_EXT_8][0] = uavs3e_if_hor_ver_luma_w4_sse;
+    uavs3e_funs_handle.ipflt_ext[IPFILTER_EXT_8][1] = uavs3e_if_hor_ver_luma_w8_sse;
+
+    //uavs3e_funs_handle.ipflt[IPFILTER_H_4][0] = uavs3e_if_hor_chroma_w4_sse;
+    //uavs3e_funs_handle.ipflt[IPFILTER_H_4][1] = uavs3e_if_hor_chroma_w8_sse;
+    //uavs3e_funs_handle.ipflt[IPFILTER_V_4][0] = uavs3e_if_ver_chroma_w4_sse;
+    //uavs3e_funs_handle.ipflt[IPFILTER_V_4][1] = uavs3e_if_ver_chroma_w8_sse;
+    //uavs3e_funs_handle.ipflt[IPFILTER_V_4][2] = uavs3e_if_ver_chroma_w16_sse;
+    //uavs3e_funs_handle.ipflt_ext[IPFILTER_EXT_4][0] = uavs3e_if_hor_ver_chroma_w4_sse;
+    //uavs3e_funs_handle.ipflt_ext[IPFILTER_EXT_4][1] = uavs3e_if_hor_ver_chroma_w8_sse;
+
+    //uavs3e_funs_handle.recon[0] = uavs3e_recon_w4_sse;
+    //uavs3e_funs_handle.recon[1] = uavs3e_recon_w8_sse;
+    //uavs3e_funs_handle.recon[2] = uavs3e_recon_w16_sse;
+    //uavs3e_funs_handle.recon[3] = uavs3e_recon_w32_sse;
+    //uavs3e_funs_handle.recon[4] = uavs3e_recon_w64_sse;
+
+    uavs3e_funs_handle.itrans_dct2[1][1] = uavs3e_itrans_dct2_h4_w4_sse;
+    uavs3e_funs_handle.itrans_dct2[1][2] = uavs3e_itrans_dct2_h4_w8_sse;
+    uavs3e_funs_handle.itrans_dct2[1][3] = uavs3e_itrans_dct2_h4_w16_sse;
+    uavs3e_funs_handle.itrans_dct2[1][4] = uavs3e_itrans_dct2_h4_w32_sse;
+
+    uavs3e_funs_handle.itrans_dct2[2][1] = uavs3e_itrans_dct2_h8_w4_sse;
+    uavs3e_funs_handle.itrans_dct2[2][2] = uavs3e_itrans_dct2_h8_w8_sse;
+    uavs3e_funs_handle.itrans_dct2[2][3] = uavs3e_itrans_dct2_h8_w16_sse;
+    uavs3e_funs_handle.itrans_dct2[2][4] = uavs3e_itrans_dct2_h8_w32_sse;
+    uavs3e_funs_handle.itrans_dct2[2][5] = uavs3e_itrans_dct2_h8_w64_sse;
+
+    uavs3e_funs_handle.itrans_dct2[3][1] = uavs3e_itrans_dct2_h16_w4_sse;
+    uavs3e_funs_handle.itrans_dct2[3][2] = uavs3e_itrans_dct2_h16_w8_sse;
+    uavs3e_funs_handle.itrans_dct2[3][3] = uavs3e_itrans_dct2_h16_w16_sse;
+    uavs3e_funs_handle.itrans_dct2[3][4] = uavs3e_itrans_dct2_h16_w32_sse;
+    uavs3e_funs_handle.itrans_dct2[3][5] = uavs3e_itrans_dct2_h16_w64_sse;
+
+    uavs3e_funs_handle.itrans_dct2[4][1] = uavs3e_itrans_dct2_h32_w4_sse;
+    uavs3e_funs_handle.itrans_dct2[4][2] = uavs3e_itrans_dct2_h32_w8_sse;
+    uavs3e_funs_handle.itrans_dct2[4][3] = uavs3e_itrans_dct2_h32_w16_sse;
+    uavs3e_funs_handle.itrans_dct2[4][4] = uavs3e_itrans_dct2_h32_w32_sse;
+    uavs3e_funs_handle.itrans_dct2[4][5] = uavs3e_itrans_dct2_h32_w64_sse;
+
+    uavs3e_funs_handle.itrans_dct2[5][2] = uavs3e_itrans_dct2_h64_w8_sse;
+    uavs3e_funs_handle.itrans_dct2[5][3] = uavs3e_itrans_dct2_h64_w16_sse;
+    uavs3e_funs_handle.itrans_dct2[5][4] = uavs3e_itrans_dct2_h64_w32_sse;
+    uavs3e_funs_handle.itrans_dct2[5][5] = uavs3e_itrans_dct2_h64_w64_sse;
+
+    uavs3e_funs_handle.deblock_luma[0] = uavs3e_deblock_ver_luma_sse;
+    uavs3e_funs_handle.deblock_luma[1] = uavs3e_deblock_hor_luma_sse;
+    //uavs3e_funs_handle.deblock_chroma[0] = uavs3e_deblock_ver_chroma_sse;
+    //uavs3e_funs_handle.deblock_chroma[1] = uavs3e_deblock_hor_chroma_sse;
+
+    uavs3e_funs_handle.sao = uavs3e_sao_on_lcu_sse;
+    //uavs3e_funs_handle.alf = uavs3e_alf_one_lcu_sse; // ERROR
+
+    uavs3e_funs_handle.cost_satd[0][0] = uavs3e_had_4x4_sse;
+
+    //uavs3e_funs_handle.pel_diff[0] = uavs3e_pel_diff_4_sse;
+    //uavs3e_funs_handle.pel_diff[1] = uavs3e_pel_diff_8_sse;
+    //uavs3e_funs_handle.pel_diff[2] = uavs3e_pel_diff_16_sse;
+    //uavs3e_funs_handle.pel_diff[3] = uavs3e_pel_diff_32_sse;
+    //uavs3e_funs_handle.pel_diff[4] = uavs3e_pel_diff_64_sse;
+    //uavs3e_funs_handle.pel_diff[5] = uavs3e_pel_diff_128_sse;
+    //
+    //uavs3e_funs_handle.pel_avrg[0] = uavs3e_pel_avrg_4_sse;
+    //uavs3e_funs_handle.pel_avrg[1] = uavs3e_pel_avrg_8_sse;
+    //uavs3e_funs_handle.pel_avrg[2] = uavs3e_pel_avrg_16_sse;
+    //uavs3e_funs_handle.pel_avrg[3] = uavs3e_pel_avrg_32_sse;
+    //uavs3e_funs_handle.pel_avrg[4] = uavs3e_pel_avrg_64_sse;
+    //uavs3e_funs_handle.pel_avrg[5] = uavs3e_pel_avrg_128_sse;
+
+    uavs3e_funs_handle.affine_sobel_flt_hor = affine_sobel_flt_hor_sse;
+    uavs3e_funs_handle.affine_sobel_flt_ver = affine_sobel_flt_ver_sse;
+    uavs3e_funs_handle.affine_coef_computer = affine_coef_computer_sse;
+
+}
+
+#endif

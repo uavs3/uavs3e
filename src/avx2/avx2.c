@@ -288,6 +288,43 @@ void uavs3e_funs_init_avx2()
     uavs3e_funs_handle.sao = uavs3e_sao_on_lcu_avx2;
     uavs3e_funs_handle.alf = uavs3e_alf_one_lcu_avx2;
 
+    uavs3e_funs_handle.cost_sad[0] = uavs3e_get_sad_4_avx2;
+    uavs3e_funs_handle.cost_sad[1] = uavs3e_get_sad_8_avx2;
+    uavs3e_funs_handle.cost_sad[2] = uavs3e_get_sad_16_avx2;
+    uavs3e_funs_handle.cost_sad[3] = uavs3e_get_sad_32_avx2;
+    uavs3e_funs_handle.cost_sad[4] = uavs3e_get_sad_64_avx2;
+    uavs3e_funs_handle.cost_sad[5] = uavs3e_get_sad_128_avx2;
+
+    uavs3e_funs_handle.cost_ssd[0] = uavs3e_get_ssd_4_avx2;
+    uavs3e_funs_handle.cost_ssd[1] = uavs3e_get_ssd_8_avx2;
+    uavs3e_funs_handle.cost_ssd[2] = uavs3e_get_ssd_16_avx2;
+    uavs3e_funs_handle.cost_ssd[3] = uavs3e_get_ssd_32_avx2;
+    uavs3e_funs_handle.cost_ssd[4] = uavs3e_get_ssd_64_avx2;
+    uavs3e_funs_handle.cost_ssd[5] = uavs3e_get_ssd_128_avx2;
+    
+    //uavs3e_funs_handle.pel_diff[2] = uavs3e_pel_diff_16_avx2;
+    //uavs3e_funs_handle.pel_diff[3] = uavs3e_pel_diff_32_avx2;
+    //uavs3e_funs_handle.pel_diff[4] = uavs3e_pel_diff_64_avx2;
+    //uavs3e_funs_handle.pel_diff[5] = uavs3e_pel_diff_128_avx2;
+    //
+    //uavs3e_funs_handle.pel_avrg[1] = uavs3e_pel_avrg_8_avx2;
+    //uavs3e_funs_handle.pel_avrg[2] = uavs3e_pel_avrg_16_avx2;
+    //uavs3e_funs_handle.pel_avrg[3] = uavs3e_pel_avrg_32_avx2;
+    //uavs3e_funs_handle.pel_avrg[4] = uavs3e_pel_avrg_64_avx2;
+    //uavs3e_funs_handle.pel_avrg[5] = uavs3e_pel_avrg_128_avx2;
+    //
+    //uavs3e_funs_handle.intra_pred_dc = uavs3e_ipred_dc_avx2;
+    //uavs3e_funs_handle.intra_pred_ver = uavs3e_ipred_ver_avx2;
+    //uavs3e_funs_handle.intra_pred_hor = uavs3e_ipred_hor_avx2;
+    //
+    //uavs3e_funs_handle.quant_check = quant_check_avx2;
+    //uavs3e_funs_handle.quant_rdoq = quant_rdoq_avx2;
+    
+    uavs3e_funs_handle.cost_satd[1][0] = uavs3e_had_8x4_avx2;
+    uavs3e_funs_handle.cost_satd[1][1] = uavs3e_had_8x8_avx2;
+    uavs3e_funs_handle.cost_satd[2][1] = uavs3e_had_16x8_avx2;
+    uavs3e_funs_handle.cost_satd[1][2] = uavs3e_had_8x16_avx2;
+
     uavs3e_funs_handle.affine_sobel_flt_hor = affine_sobel_flt_hor_avx2;
     uavs3e_funs_handle.affine_sobel_flt_ver = affine_sobel_flt_ver_avx2;
     uavs3e_funs_handle.affine_coef_computer = affine_coef_computer_avx2;

@@ -22,6 +22,8 @@
 // SAD
 // --------------------------------------------------------------------------------------------------------------------
 
+#if (BIT_DEPTH == 8)
+
 u32 uavs3e_get_sad_4_sse(pel *p_org, int i_org, pel *p_pred, int i_pred, int height)
 {
     __m128i sum = _mm_setzero_si128();
@@ -283,7 +285,6 @@ u32 uavs3e_had_4x4_sse(pel *org, int s_org, pel *cur, int s_cur)
     int satd = 0;
     __m128i sum;
 
-#if (BIT_DEPTH == 8)
     __m128i r0 = _mm_cvtepu8_epi16(_mm_setr_epi32(*(int *)(org), *(int *)(org + s_org), 0, 0));
     __m128i r1 = _mm_srli_si128(r0, 8);
     __m128i r2 = _mm_cvtepu8_epi16(_mm_setr_epi32(*(int *)(org + 2 * s_org), *(int *)(org + 3 * s_org), 0, 0));
@@ -292,16 +293,6 @@ u32 uavs3e_had_4x4_sse(pel *org, int s_org, pel *cur, int s_cur)
     __m128i r5 = _mm_srli_si128(r4, 8);
     __m128i r6 = _mm_cvtepu8_epi16(_mm_setr_epi32(*(int *)(cur + 2 * s_cur), *(int *)(cur + 3 * s_cur), 0, 0));
     __m128i r7 = _mm_srli_si128(r6, 8);
-#else
-    __m128i r0 = (_mm_loadl_epi64((const __m128i *)&org[0]));
-    __m128i r1 = (_mm_loadl_epi64((const __m128i *)&org[s_org]));
-    __m128i r2 = (_mm_loadl_epi64((const __m128i *)&org[2 * s_org]));
-    __m128i r3 = (_mm_loadl_epi64((const __m128i *)&org[3 * s_org]));
-    __m128i r4 = (_mm_loadl_epi64((const __m128i *)&cur[0]));
-    __m128i r5 = (_mm_loadl_epi64((const __m128i *)&cur[s_cur]));
-    __m128i r6 = (_mm_loadl_epi64((const __m128i *)&cur[2 * s_cur]));
-    __m128i r7 = (_mm_loadl_epi64((const __m128i *)&cur[3 * s_cur]));
-#endif
 
     r0 = _mm_sub_epi16(r0, r4);
     r1 = _mm_sub_epi16(r1, r5);
@@ -871,3 +862,75 @@ u32 uavs3e_had_4x8_sse(pel *org, int s_org, pel *cur, int s_cur)
     satd = (int)(satd / com_tbl_sqrt[0] * 2);
     return satd;
 }
+
+#elif (BIT_DEPTH == 10)
+
+u32 uavs3e_had_4x4_sse(pel *org, int s_org, pel *cur, int s_cur)
+{
+    int satd = 0;
+    __m128i sum;
+    __m128i r0 = (_mm_loadl_epi64((const __m128i *)&org[0]));
+    __m128i r1 = (_mm_loadl_epi64((const __m128i *)&org[s_org]));
+    __m128i r2 = (_mm_loadl_epi64((const __m128i *)&org[2 * s_org]));
+    __m128i r3 = (_mm_loadl_epi64((const __m128i *)&org[3 * s_org]));
+    __m128i r4 = (_mm_loadl_epi64((const __m128i *)&cur[0]));
+    __m128i r5 = (_mm_loadl_epi64((const __m128i *)&cur[s_cur]));
+    __m128i r6 = (_mm_loadl_epi64((const __m128i *)&cur[2 * s_cur]));
+    __m128i r7 = (_mm_loadl_epi64((const __m128i *)&cur[3 * s_cur]));
+
+    r0 = _mm_sub_epi16(r0, r4);
+    r1 = _mm_sub_epi16(r1, r5);
+    r2 = _mm_sub_epi16(r2, r6);
+    r3 = _mm_sub_epi16(r3, r7);
+
+    // first stage
+    r4 = r0;
+    r5 = r1;
+    r0 = _mm_add_epi16(r0, r3);
+    r1 = _mm_add_epi16(r1, r2);
+    r4 = _mm_sub_epi16(r4, r3);
+    r5 = _mm_sub_epi16(r5, r2);
+    r2 = r0;
+    r3 = r4;
+    r0 = _mm_add_epi16(r0, r1);
+    r2 = _mm_sub_epi16(r2, r1);
+    r3 = _mm_sub_epi16(r3, r5);
+    r5 = _mm_add_epi16(r5, r4);
+    // shuffle - flip matrix for vertical transform
+    r0 = _mm_unpacklo_epi16(r0, r5);
+    r2 = _mm_unpacklo_epi16(r2, r3);
+    r3 = r0;
+    r0 = _mm_unpacklo_epi32(r0, r2);
+    r3 = _mm_unpackhi_epi32(r3, r2);
+    r1 = r0;
+    r2 = r3;
+    r1 = _mm_srli_si128(r1, 8);
+    r3 = _mm_srli_si128(r3, 8);
+    // second stage
+    r4 = r0;
+    r5 = r1;
+    r0 = _mm_add_epi16(r0, r3);
+    r1 = _mm_add_epi16(r1, r2);
+    r4 = _mm_sub_epi16(r4, r3);
+    r5 = _mm_sub_epi16(r5, r2);
+    r2 = r0;
+    r3 = r4;
+    r0 = _mm_add_epi16(r0, r1);
+    r2 = _mm_sub_epi16(r2, r1);
+    r3 = _mm_sub_epi16(r3, r5);
+    r5 = _mm_add_epi16(r5, r4);
+    // abs
+    sum = _mm_abs_epi16(r0);
+    sum = _mm_add_epi16(sum, _mm_abs_epi16(r2));
+    sum = _mm_add_epi16(sum, _mm_abs_epi16(r3));
+    sum = _mm_add_epi16(sum, _mm_abs_epi16(r5));
+
+    sum = _mm_cvtepu16_epi32(sum);
+    sum = _mm_hadd_epi32(sum, sum);
+    sum = _mm_hadd_epi32(sum, sum);
+    satd = _mm_cvtsi128_si32(sum);
+    satd = ((satd + 1) >> 1);
+    return satd;
+}
+
+#endif

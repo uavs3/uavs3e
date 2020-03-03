@@ -1400,9 +1400,12 @@ void *uavs3e_create(enc_cfg_t *cfg, int *err)
     }
 #endif
 #elif (BIT_DEPTH == 10)
+#if defined(ENABLE_FUNCTION_X86)
+    uavs3e_funs_init_sse();
     if (uavs3e_simd_avx_level(NULL) >= 2) {
         uavs3e_funs_init_avx2();
     }
+#endif
 #endif
 
     com_scan_tbl_init();

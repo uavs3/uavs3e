@@ -196,6 +196,8 @@ void trans_dst7_pb4_avx2(s16 *src, s16 *dst, int shift, int line);
 void trans_dst7_pb8_avx2(s16 *src, s16 *dst, int shift, int line);
 void trans_dst7_pb16_avx2(s16 *src, s16 *dst, int shift, int line);
 
+u32 uavs3e_get_sad_4_avx2(pel *p_org, int i_org, pel *p_pred, int i_pred, int height);
+u32 uavs3e_get_sad_8_avx2(pel *p_org, int i_org, pel *p_pred, int i_pred, int height);
 u32 uavs3e_get_sad_16_avx2(pel *p_org, int i_org, pel *p_pred, int i_pred, int height);
 u32 uavs3e_get_sad_32_avx2(pel *p_org, int i_org, pel *p_pred, int i_pred, int height);
 u32 uavs3e_get_sad_64_avx2(pel *p_org, int i_org, pel *p_pred, int i_pred, int height);
