@@ -243,6 +243,75 @@ u64 uavs3e_get_ssd_128_avx2(pel *p_org, int i_org, pel *p_pred, int i_pred, int 
     return total;
 }
 
+u32 uavs3e_had_4x8_avx2(pel *org, int s_org, pel *cur, int s_cur)
+{
+    int k;
+    __m256i m1[4], m2[8];
+    __m256i sum;
+    int satd = 0;
+    
+    for (k = 0; k < 4; k++) {
+        __m256i r0 = _mm256_cvtepu8_epi16(_mm_set_epi32(0, *(s32*)(org + s_org), 0, *(s32*)(org)));
+        __m256i r1 = _mm256_cvtepu8_epi16(_mm_set_epi32(0, *(s32*)(cur + s_cur), 0, *(s32*)(cur)));
+        m2[k] = _mm256_sub_epi16(r0, r1);
+        org += s_org << 1;
+        cur += s_cur << 1;
+    }
+    // vertical
+    m1[0] = _mm256_add_epi16(m2[0], m2[2]);
+    m1[1] = _mm256_add_epi16(m2[1], m2[3]);
+    m1[2] = _mm256_sub_epi16(m2[0], m2[2]);
+    m1[3] = _mm256_sub_epi16(m2[1], m2[3]);
+    m2[0] = _mm256_add_epi16(m1[0], m1[1]);
+    m2[1] = _mm256_sub_epi16(m1[0], m1[1]);
+    m2[2] = _mm256_add_epi16(m1[2], m1[3]);
+    m2[3] = _mm256_sub_epi16(m1[2], m1[3]);
+    m2[4] = _mm256_permute2x128_si256(m2[0], m2[1], 0x02);
+    m2[5] = _mm256_permute2x128_si256(m2[0], m2[1], 0x13);
+    m2[6] = _mm256_permute2x128_si256(m2[2], m2[3], 0x02);
+    m2[7] = _mm256_permute2x128_si256(m2[2], m2[3], 0x13);
+    m1[0] = _mm256_add_epi16(m2[4], m2[5]);     // 02
+    m1[1] = _mm256_sub_epi16(m2[4], m2[5]);     // 13
+    m1[2] = _mm256_add_epi16(m2[6], m2[7]);
+    m1[3] = _mm256_sub_epi16(m2[6], m2[7]);
+
+    // horizontal
+    // transpose
+    m2[0] = _mm256_unpacklo_epi16(m1[0], m1[1]);
+    m2[1] = _mm256_unpacklo_epi16(m1[2], m1[3]);
+    m2[2] = _mm256_permute2x128_si256(m2[0], m2[1], 0x02);
+    m2[3] = _mm256_permute2x128_si256(m2[0], m2[1], 0x13);
+    m1[0] = _mm256_unpacklo_epi32(m2[2], m2[3]);
+    m1[1] = _mm256_unpackhi_epi32(m2[2], m2[3]);
+    m1[2] = _mm256_permute2x128_si256(m1[0], m1[1], 0x02);
+    m1[3] = _mm256_permute2x128_si256(m1[0], m1[1], 0x13);
+    m2[0] = _mm256_unpacklo_epi64(m1[2], m1[3]);
+    m2[1] = _mm256_unpackhi_epi64(m1[2], m1[3]);
+    m2[2] = _mm256_permute2x128_si256(m2[0], m2[1], 0x02);
+    m2[3] = _mm256_permute2x128_si256(m2[0], m2[1], 0x13);
+
+    m1[0] = _mm256_add_epi16(m2[2], m2[3]);
+    m1[1] = _mm256_sub_epi16(m2[2], m2[3]);
+    m1[2] = _mm256_permute2x128_si256(m1[0], m1[1], 0x02);
+    m1[3] = _mm256_permute2x128_si256(m1[0], m1[1], 0x13);
+
+    m2[0] = _mm256_add_epi16(m1[2], m1[3]);
+    m2[1] = _mm256_sub_epi16(m1[2], m1[3]);
+    m2[0] = _mm256_abs_epi16(m2[0]);
+    m2[1] = _mm256_abs_epi16(m2[1]);
+
+    sum = _mm256_add_epi16(m2[0], m2[1]);
+    {
+        __m256i C = _mm256_set1_epi16(1);
+        sum = _mm256_madd_epi16(sum, C);
+        sum = _mm256_hadd_epi32(sum, sum);
+        sum = _mm256_hadd_epi32(sum, sum);
+    }
+    
+    satd = (int)((_mm256_extract_epi32(sum, 0) + _mm256_extract_epi32(sum, 4)) / com_tbl_sqrt[0] * 2);
+    return satd;
+}
+
 u32 uavs3e_had_8x4_avx2(pel *p_org, int i_org, pel *p_pred, int i_pred)
 {
     __m256i T01, T23;
@@ -1114,6 +1183,76 @@ u64 uavs3e_get_ssd_128_avx2(pel* p_org, int i_org, pel* p_pred, int i_pred, int 
     return ((u64)_mm256_extract_epi64(sum, 0)) + ((u64)_mm256_extract_epi64(sum, 1)) + ((u64)_mm256_extract_epi64(sum, 2)) + ((u64)_mm256_extract_epi64(sum, 3));
 }
 
+
+u32 uavs3e_had_4x8_avx2(pel *org, int s_org, pel *cur, int s_cur)
+{
+    int k;
+    __m256i m1[4], m2[8];
+    __m256i sum;
+    int satd = 0;
+
+    for (k = 0; k < 4; k++) {
+        __m256i r0 = _mm256_set_m128i(_mm_loadl_epi64((const __m128i*)(org + s_org)), _mm_loadl_epi64((const __m128i*)(org)));
+        __m256i r1 = _mm256_set_m128i(_mm_loadl_epi64((const __m128i*)(cur + s_cur)), _mm_loadl_epi64((const __m128i*)(cur)));
+        m2[k] = _mm256_sub_epi16(r0, r1);
+        org += s_org << 1;
+        cur += s_cur << 1;
+    }
+    // vertical
+    m1[0] = _mm256_add_epi16(m2[0], m2[2]);
+    m1[1] = _mm256_add_epi16(m2[1], m2[3]);
+    m1[2] = _mm256_sub_epi16(m2[0], m2[2]);
+    m1[3] = _mm256_sub_epi16(m2[1], m2[3]);
+    m2[0] = _mm256_add_epi16(m1[0], m1[1]);
+    m2[1] = _mm256_sub_epi16(m1[0], m1[1]);
+    m2[2] = _mm256_add_epi16(m1[2], m1[3]);
+    m2[3] = _mm256_sub_epi16(m1[2], m1[3]);
+    m2[4] = _mm256_permute2x128_si256(m2[0], m2[1], 0x02);
+    m2[5] = _mm256_permute2x128_si256(m2[0], m2[1], 0x13);
+    m2[6] = _mm256_permute2x128_si256(m2[2], m2[3], 0x02);
+    m2[7] = _mm256_permute2x128_si256(m2[2], m2[3], 0x13);
+    m1[0] = _mm256_add_epi16(m2[4], m2[5]);     // 02
+    m1[1] = _mm256_sub_epi16(m2[4], m2[5]);     // 13
+    m1[2] = _mm256_add_epi16(m2[6], m2[7]);
+    m1[3] = _mm256_sub_epi16(m2[6], m2[7]);
+
+    // horizontal
+    // transpose
+    m2[0] = _mm256_unpacklo_epi16(m1[0], m1[1]);
+    m2[1] = _mm256_unpacklo_epi16(m1[2], m1[3]);
+    m2[2] = _mm256_permute2x128_si256(m2[0], m2[1], 0x02);
+    m2[3] = _mm256_permute2x128_si256(m2[0], m2[1], 0x13);
+    m1[0] = _mm256_unpacklo_epi32(m2[2], m2[3]);
+    m1[1] = _mm256_unpackhi_epi32(m2[2], m2[3]);
+    m1[2] = _mm256_permute2x128_si256(m1[0], m1[1], 0x02);
+    m1[3] = _mm256_permute2x128_si256(m1[0], m1[1], 0x13);
+    m2[0] = _mm256_unpacklo_epi64(m1[2], m1[3]);
+    m2[1] = _mm256_unpackhi_epi64(m1[2], m1[3]);
+    m2[2] = _mm256_permute2x128_si256(m2[0], m2[1], 0x02);
+    m2[3] = _mm256_permute2x128_si256(m2[0], m2[1], 0x13);
+
+    m1[0] = _mm256_add_epi16(m2[2], m2[3]);
+    m1[1] = _mm256_sub_epi16(m2[2], m2[3]);
+    m1[2] = _mm256_permute2x128_si256(m1[0], m1[1], 0x02);
+    m1[3] = _mm256_permute2x128_si256(m1[0], m1[1], 0x13);
+
+    m2[0] = _mm256_add_epi16(m1[2], m1[3]);
+    m2[1] = _mm256_sub_epi16(m1[2], m1[3]);
+    m2[0] = _mm256_abs_epi16(m2[0]);
+    m2[1] = _mm256_abs_epi16(m2[1]);
+
+    {
+        __m256i C = _mm256_set1_epi16(1);
+        m2[0] = _mm256_madd_epi16(m2[0], C);
+        m2[1] = _mm256_madd_epi16(m2[1], C);
+        sum = _mm256_add_epi32(m2[0], m2[1]);
+        sum = _mm256_hadd_epi32(sum, sum);
+        sum = _mm256_hadd_epi32(sum, sum);
+    }
+
+    satd = (int)((_mm256_extract_epi32(sum, 0) + _mm256_extract_epi32(sum, 4)) / com_tbl_sqrt[0] * 2);
+    return satd;
+}
 
 u32 uavs3e_had_8x4_avx2(pel *p_org, int i_org, pel *p_pred, int i_pred)
 {

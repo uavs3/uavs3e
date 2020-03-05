@@ -189,6 +189,7 @@ void uavs3e_funs_init_avx2()
     uavs3e_funs_handle.quant_check = quant_check_avx2;
     uavs3e_funs_handle.quant_rdoq  = quant_rdoq_avx2;
 
+    uavs3e_funs_handle.cost_satd[0][1] = uavs3e_had_4x8_avx2;
     uavs3e_funs_handle.cost_satd[1][0] = uavs3e_had_8x4_avx2;
     uavs3e_funs_handle.cost_satd[1][1] = uavs3e_had_8x8_avx2;
     uavs3e_funs_handle.cost_satd[2][1] = uavs3e_had_16x8_avx2;
@@ -353,7 +354,8 @@ void uavs3e_funs_init_avx2()
     
     uavs3e_funs_handle.quant_check = quant_check_avx2;
     uavs3e_funs_handle.quant_rdoq = quant_rdoq_avx2;
-    
+
+    uavs3e_funs_handle.cost_satd[0][1] = uavs3e_had_4x8_avx2;
     uavs3e_funs_handle.cost_satd[1][0] = uavs3e_had_8x4_avx2;
     uavs3e_funs_handle.cost_satd[1][1] = uavs3e_had_8x8_avx2;
     uavs3e_funs_handle.cost_satd[2][1] = uavs3e_had_16x8_avx2;
