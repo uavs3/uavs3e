@@ -21,6 +21,7 @@
 #if (BIT_DEPTH == 8)
 void uavs3e_funs_init_avx2()
 {
+    int i;
     uavs3e_funs_handle.ipcpy[3] = uavs3e_if_cpy_w32_avx2;
     uavs3e_funs_handle.ipcpy[4] = uavs3e_if_cpy_w64_avx2;
     uavs3e_funs_handle.ipcpy[5] = uavs3e_if_cpy_w128_avx2;
@@ -174,6 +175,12 @@ void uavs3e_funs_init_avx2()
     uavs3e_funs_handle.pel_avrg[3] = uavs3e_pel_avrg_32_avx2;
     uavs3e_funs_handle.pel_avrg[4] = uavs3e_pel_avrg_64_avx2;
     uavs3e_funs_handle.pel_avrg[5] = uavs3e_pel_avrg_128_avx2;
+
+    for (i = IPD_BI + 1; i < IPD_VER; i++) {
+        uavs3e_funs_handle.intra_pred_ang[i] = uavs3e_ipred_ang_x_avx2;
+    }
+    uavs3e_funs_handle.intra_pred_ang[4] = uavs3e_ipred_ang_x_4_avx2;
+    uavs3e_funs_handle.intra_pred_ang[8] = uavs3e_ipred_ang_x_8_avx2;
 
     uavs3e_funs_handle.intra_pred_dc = uavs3e_ipred_dc_avx2;
     uavs3e_funs_handle.intra_pred_ver = uavs3e_ipred_ver_avx2;

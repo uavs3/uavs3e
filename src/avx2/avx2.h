@@ -120,6 +120,9 @@ void uavs3e_conv_fmt_16to8bit_avx2(unsigned char *src_y, unsigned char *src_uv, 
 void uavs3e_ipred_ver_avx2(pel *src, pel *dst, int i_dst, int width, int height);
 void uavs3e_ipred_hor_avx2(pel *src, pel *dst, int i_dst, int width, int height);
 void uavs3e_ipred_dc_avx2(pel *src, pel *dst, int i_dst, int width, int height, u16 avail_cu, int bit_depth);
+void uavs3e_ipred_ang_x_avx2(pel *pSrc, pel *dst, int i_dst, int mode, int width, int height);
+void uavs3e_ipred_ang_x_4_avx2(pel *pSrc, pel *dst, int i_dst, int mode, int width, int height);
+void uavs3e_ipred_ang_x_8_avx2(pel *pSrc, pel *dst, int i_dst, int mode, int width, int height);
 
 void uavs3e_recon_w8_avx2(s16 *resi, pel *pred, int i_pred, int width, int height, pel *rec, int i_rec, int cbf, int bit_depth);
 void uavs3e_recon_w16_avx2(s16 *resi, pel *pred, int i_pred, int width, int height, pel *rec, int i_rec, int cbf, int bit_depth);

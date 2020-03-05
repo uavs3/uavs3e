@@ -268,8 +268,8 @@ void uavs3e_funs_init_sse()
 
     uavs3e_funs_handle.deblock_luma[0] = uavs3e_deblock_ver_luma_sse;
     uavs3e_funs_handle.deblock_luma[1] = uavs3e_deblock_hor_luma_sse;
-    //uavs3e_funs_handle.deblock_chroma[0] = uavs3e_deblock_ver_chroma_sse;
-    //uavs3e_funs_handle.deblock_chroma[1] = uavs3e_deblock_hor_chroma_sse;
+    uavs3e_funs_handle.deblock_chroma[0] = uavs3e_deblock_ver_chroma_sse;
+    uavs3e_funs_handle.deblock_chroma[1] = uavs3e_deblock_hor_chroma_sse;
 
     uavs3e_funs_handle.sao = uavs3e_sao_on_lcu_sse;
     //uavs3e_funs_handle.alf = uavs3e_alf_one_lcu_sse; // ERROR
