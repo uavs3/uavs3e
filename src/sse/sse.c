@@ -362,10 +362,6 @@ void uavs3e_funs_init_sse()
         uavs3e_funs_handle.ipflt[IPFILTER_H_8][i] = uavs3e_if_hor_luma_w8x_sse;
         uavs3e_funs_handle.ipflt[IPFILTER_V_8][i] = uavs3e_if_ver_luma_w8x_sse;
         uavs3e_funs_handle.ipflt_ext[IPFILTER_EXT_8][i] = uavs3e_if_hor_ver_luma_w8x_sse;
-
-        //uavs3e_funs_handle.ipflt[IPFILTER_H_4][i] = uavs3e_if_hor_chroma_w8x_sse;
-        //uavs3e_funs_handle.ipflt[IPFILTER_V_4][i] = uavs3e_if_ver_chroma_w16x_sse;
-        //uavs3e_funs_handle.ipflt_ext[IPFILTER_EXT_4][i] = uavs3e_if_hor_ver_chroma_w8x_sse;
     }
 
     uavs3e_funs_handle.ipcpy[0] = uavs3e_if_cpy_w4_sse;
@@ -377,14 +373,6 @@ void uavs3e_funs_init_sse()
     uavs3e_funs_handle.ipflt[IPFILTER_V_8][1] = uavs3e_if_ver_luma_w8_sse;
     uavs3e_funs_handle.ipflt_ext[IPFILTER_EXT_8][0] = uavs3e_if_hor_ver_luma_w4_sse;
     uavs3e_funs_handle.ipflt_ext[IPFILTER_EXT_8][1] = uavs3e_if_hor_ver_luma_w8_sse;
-
-    //uavs3e_funs_handle.ipflt[IPFILTER_H_4][0] = uavs3e_if_hor_chroma_w4_sse;
-    //uavs3e_funs_handle.ipflt[IPFILTER_H_4][1] = uavs3e_if_hor_chroma_w8_sse;
-    //uavs3e_funs_handle.ipflt[IPFILTER_V_4][0] = uavs3e_if_ver_chroma_w4_sse;
-    //uavs3e_funs_handle.ipflt[IPFILTER_V_4][1] = uavs3e_if_ver_chroma_w8_sse;
-    //uavs3e_funs_handle.ipflt[IPFILTER_V_4][2] = uavs3e_if_ver_chroma_w16_sse;
-    //uavs3e_funs_handle.ipflt_ext[IPFILTER_EXT_4][0] = uavs3e_if_hor_ver_chroma_w4_sse;
-    //uavs3e_funs_handle.ipflt_ext[IPFILTER_EXT_4][1] = uavs3e_if_hor_ver_chroma_w8_sse;
 
     uavs3e_funs_handle.itrans_dct2[1][1] = uavs3e_itrans_dct2_h4_w4_sse;
     uavs3e_funs_handle.itrans_dct2[1][2] = uavs3e_itrans_dct2_h4_w8_sse;
@@ -416,8 +404,8 @@ void uavs3e_funs_init_sse()
 
     uavs3e_funs_handle.deblock_luma[0] = uavs3e_deblock_ver_luma_sse;
     uavs3e_funs_handle.deblock_luma[1] = uavs3e_deblock_hor_luma_sse;
-    //uavs3e_funs_handle.deblock_chroma[0] = uavs3e_deblock_ver_chroma_sse;
-    //uavs3e_funs_handle.deblock_chroma[1] = uavs3e_deblock_hor_chroma_sse;
+    uavs3e_funs_handle.deblock_chroma[0] = uavs3e_deblock_ver_chroma_sse;
+    uavs3e_funs_handle.deblock_chroma[1] = uavs3e_deblock_hor_chroma_sse;
 
     uavs3e_funs_handle.sao = uavs3e_sao_on_lcu_sse;
     //uavs3e_funs_handle.alf = uavs3e_alf_one_lcu_sse; // ERROR

@@ -1130,9 +1130,8 @@ void uavs3e_deblock_ver_luma_sse(pel *src, int stride, int alpha, int beta, int 
     _mm_storeu_si128((__m128i *)(p_src), M7);
 }
 
-void uavs3e_deblock_ver_chroma_sse(pel *src_uv, int stride, int alpha_u, int beta_u, int alpha_v, int beta_v, int flt_flag)
+void uavs3e_deblock_ver_chroma_sse(pel *src_u, pel *src_v, int stride, int alpha_u, int beta_u, int alpha_v, int beta_v, int flt_flag)
 {
-    pel *p_src;
     int flag0 = -((flt_flag >> 1) & 1);
     int flag1 = -((flt_flag >> 9) & 1);
 
@@ -1148,41 +1147,52 @@ void uavs3e_deblock_ver_chroma_sse(pel *src_uv, int stride, int alpha_u, int bet
     __m128i ALPHAV = _mm_set1_epi16((short)alpha_v);
     __m128i BETAU = _mm_set1_epi16((short)beta_u);
     __m128i BETAV = _mm_set1_epi16((short)beta_v);
-    __m128i ALPHA = _mm_unpacklo_epi16(ALPHAU, ALPHAV);
-    __m128i BETA = _mm_unpacklo_epi16(BETAU, BETAV);
+    __m128i ALPHA = _mm_unpacklo_epi64(ALPHAU, ALPHAV);
+    __m128i BETA = _mm_unpacklo_epi64(BETAU, BETAV);
     __m128i c_8 = _mm_set1_epi16(8);
     int stride2 = stride << 1;
     int stride3 = stride2 + stride;
 
-    p_src = src_uv - 8;
-    T0 = _mm_loadu_si128((__m128i *)(p_src));
-    T4 = _mm_loadu_si128((__m128i *)(src_uv));
-    T1 = _mm_loadu_si128((__m128i *)(p_src + stride));
-    T5 = _mm_loadu_si128((__m128i *)(src_uv + stride));
-    T2 = _mm_loadu_si128((__m128i *)(p_src + stride2));
-    T6 = _mm_loadu_si128((__m128i *)(src_uv + stride2));
-    T3 = _mm_loadu_si128((__m128i *)(p_src + stride3));
-    T7 = _mm_loadu_si128((__m128i *)(src_uv + stride3));
+    src_u -= 4;
+    src_v -= 4;
 
-    P0 = _mm_unpacklo_epi32(T0, T1);
-    P1 = _mm_unpackhi_epi32(T0, T1);
-    P2 = _mm_unpacklo_epi32(T2, T3);
-    P3 = _mm_unpackhi_epi32(T2, T3);
-    P4 = _mm_unpacklo_epi32(T4, T5);
-    P5 = _mm_unpackhi_epi32(T4, T5);
-    P6 = _mm_unpacklo_epi32(T6, T7);
-    P7 = _mm_unpackhi_epi32(T6, T7);
+    T0 = _mm_loadu_si128((__m128i *)(src_u));
+    T4 = _mm_loadu_si128((__m128i *)(src_v));
+    T1 = _mm_loadu_si128((__m128i *)(src_u + stride));
+    T5 = _mm_loadu_si128((__m128i *)(src_v + stride));
+    T2 = _mm_loadu_si128((__m128i *)(src_u + stride2));
+    T6 = _mm_loadu_si128((__m128i *)(src_v + stride2));
+    T3 = _mm_loadu_si128((__m128i *)(src_u + stride3));
+    T7 = _mm_loadu_si128((__m128i *)(src_v + stride3));
 
-    TL3 = _mm_unpacklo_epi64(P0, P2);
-    TL2 = _mm_unpackhi_epi64(P0, P2);
-    TL1 = _mm_unpacklo_epi64(P1, P3);
-    TL0 = _mm_unpackhi_epi64(P1, P3);
-    TR0 = _mm_unpacklo_epi64(P4, P6);
-    TR1 = _mm_unpackhi_epi64(P4, P6);
-    TR2 = _mm_unpacklo_epi64(P5, P7);
-    TR3 = _mm_unpackhi_epi64(P5, P7);
+    P0 = _mm_unpacklo_epi16(T0, T1);
+    P1 = _mm_unpackhi_epi16(T0, T1);
+    P2 = _mm_unpacklo_epi16(T2, T3);
+    P3 = _mm_unpackhi_epi16(T2, T3);
+    P4 = _mm_unpacklo_epi16(T4, T5);
+    P5 = _mm_unpackhi_epi16(T4, T5);
+    P6 = _mm_unpacklo_epi16(T6, T7);
+    P7 = _mm_unpackhi_epi16(T6, T7);
 
-    M0 = _mm_set_epi32(flag1, flag1, flag0, flag0);
+    T0 = _mm_unpacklo_epi32(P0, P2);
+    T1 = _mm_unpackhi_epi32(P0, P2);
+    T2 = _mm_unpacklo_epi32(P1, P3);
+    T3 = _mm_unpackhi_epi32(P1, P3);
+    T4 = _mm_unpacklo_epi32(P4, P6);
+    T5 = _mm_unpackhi_epi32(P4, P6);
+    T6 = _mm_unpacklo_epi32(P5, P7);
+    T7 = _mm_unpackhi_epi32(P5, P7);
+
+    TL3 = _mm_unpacklo_epi64(T0, T4);
+    TL2 = _mm_unpackhi_epi64(T0, T4);
+    TL1 = _mm_unpacklo_epi64(T1, T5);
+    TL0 = _mm_unpackhi_epi64(T1, T5);
+    TR0 = _mm_unpacklo_epi64(T2, T6);
+    TR1 = _mm_unpackhi_epi64(T2, T6);
+    TR2 = _mm_unpacklo_epi64(T3, T7);
+    TR3 = _mm_unpackhi_epi64(T3, T7);
+
+    M0 = _mm_set_epi32(flag1, flag0, flag1, flag0);
 
     T0 = _mm_subabs_epu16(TL1, TL0);
     T1 = _mm_subabs_epu16(TR1, TR0);
@@ -1256,33 +1266,41 @@ void uavs3e_deblock_ver_chroma_sse(pel *src_uv, int stride, int alpha_u, int bet
     TR0 = _mm_blendv_epi8(TR0, V1, FLT0);
 
     /* stroe result */
-    P0 = _mm_unpacklo_epi32(TL3, TL2);
-    P1 = _mm_unpackhi_epi32(TL3, TL2);
-    P2 = _mm_unpacklo_epi32(TL1, TL0);
-    P3 = _mm_unpackhi_epi32(TL1, TL0);
-    P4 = _mm_unpacklo_epi32(TR0, TR1);
-    P5 = _mm_unpackhi_epi32(TR0, TR1);
-    P6 = _mm_unpacklo_epi32(TR2, TR3);
-    P7 = _mm_unpackhi_epi32(TR2, TR3);
+    P0 = _mm_unpacklo_epi16(TL3, TL2);
+    P1 = _mm_unpackhi_epi16(TL3, TL2);
+    P2 = _mm_unpacklo_epi16(TL1, TL0);
+    P3 = _mm_unpackhi_epi16(TL1, TL0);
+    P4 = _mm_unpacklo_epi16(TR0, TR1);
+    P5 = _mm_unpackhi_epi16(TR0, TR1);
+    P6 = _mm_unpacklo_epi16(TR2, TR3);
+    P7 = _mm_unpackhi_epi16(TR2, TR3);
 
-    T0 = _mm_unpacklo_epi64(P0, P2);
-    T1 = _mm_unpackhi_epi64(P0, P2);
-    T2 = _mm_unpacklo_epi64(P1, P3);
-    T3 = _mm_unpackhi_epi64(P1, P3);
-    T4 = _mm_unpacklo_epi64(P4, P6);
-    T5 = _mm_unpackhi_epi64(P4, P6);
-    T6 = _mm_unpacklo_epi64(P5, P7);
-    T7 = _mm_unpackhi_epi64(P5, P7);
+    T0 = _mm_unpacklo_epi32(P0, P2);
+    T1 = _mm_unpackhi_epi32(P0, P2);
+    T2 = _mm_unpacklo_epi32(P1, P3);
+    T3 = _mm_unpackhi_epi32(P1, P3);
+    T4 = _mm_unpacklo_epi32(P4, P6);
+    T5 = _mm_unpackhi_epi32(P4, P6);
+    T6 = _mm_unpacklo_epi32(P5, P7);
+    T7 = _mm_unpackhi_epi32(P5, P7);
 
-    p_src = src_uv - 8;
-    _mm_storeu_si128((__m128i *)(p_src), T0);
-    _mm_storeu_si128((__m128i *)(src_uv), T4);
-    _mm_storeu_si128((__m128i *)(p_src + stride), T1);
-    _mm_storeu_si128((__m128i *)(src_uv + stride), T5);
-    _mm_storeu_si128((__m128i *)(p_src + stride2), T2);
-    _mm_storeu_si128((__m128i *)(src_uv + stride2), T6);
-    _mm_storeu_si128((__m128i *)(p_src + stride3), T3);
-    _mm_storeu_si128((__m128i *)(src_uv + stride3), T7);
+    P0 = _mm_unpacklo_epi64(T0, T4);
+    P1 = _mm_unpackhi_epi64(T0, T4);
+    P2 = _mm_unpacklo_epi64(T1, T5);
+    P3 = _mm_unpackhi_epi64(T1, T5);
+    P4 = _mm_unpacklo_epi64(T2, T6);
+    P5 = _mm_unpackhi_epi64(T2, T6);
+    P6 = _mm_unpacklo_epi64(T3, T7);
+    P7 = _mm_unpackhi_epi64(T3, T7);
+
+    _mm_storeu_si128((__m128i *)(src_u), P0);
+    _mm_storeu_si128((__m128i *)(src_v), P4);
+    _mm_storeu_si128((__m128i *)(src_u + stride), P1);
+    _mm_storeu_si128((__m128i *)(src_v + stride), P5);
+    _mm_storeu_si128((__m128i *)(src_u + stride2), P2);
+    _mm_storeu_si128((__m128i *)(src_v + stride2), P6);
+    _mm_storeu_si128((__m128i *)(src_u + stride3), P3);
+    _mm_storeu_si128((__m128i *)(src_v + stride3), P7);
 
 }
 
@@ -1530,7 +1548,7 @@ void uavs3e_deblock_hor_luma_sse(pel *src, int stride, int alpha, int beta, int 
 
 }
 
-void uavs3e_deblock_hor_chroma_sse(pel *src_uv, int stride, int alpha_u, int beta_u, int alpha_v, int beta_v, int flt_flag)
+void uavs3e_deblock_hor_chroma_sse(pel *src_u, pel *src_v, int stride, int alpha_u, int beta_u, int alpha_v, int beta_v, int flt_flag)
 {
     int inc = stride;
     int inc2 = inc << 1;
@@ -1548,20 +1566,20 @@ void uavs3e_deblock_hor_chroma_sse(pel *src_uv, int stride, int alpha_u, int bet
 
     __m128i ALPHAU = _mm_set1_epi16((short)alpha_u);
     __m128i ALPHAV = _mm_set1_epi16((short)alpha_v);
-    __m128i ALPHA = _mm_unpacklo_epi16(ALPHAU, ALPHAV);
+    __m128i ALPHA = _mm_unpacklo_epi64(ALPHAU, ALPHAV);
     __m128i BETAU = _mm_set1_epi16((short)beta_u);
     __m128i BETAV = _mm_set1_epi16((short)beta_v);
-    __m128i BETA = _mm_unpacklo_epi16(BETAU, BETAV);
+    __m128i BETA = _mm_unpacklo_epi64(BETAU, BETAV);
     __m128i c_8 = _mm_set1_epi16(8);
 
-    TL2 = _mm_load_si128((__m128i *)(src_uv - inc3));
-    TL1 = _mm_load_si128((__m128i *)(src_uv - inc2));
-    TL0 = _mm_load_si128((__m128i *)(src_uv - inc));
-    TR0 = _mm_load_si128((__m128i *)(src_uv + 0));
-    TR1 = _mm_load_si128((__m128i *)(src_uv + inc));
-    TR2 = _mm_load_si128((__m128i *)(src_uv + inc2));
+    TL2 = _mm_unpacklo_epi64(_mm_loadl_epi64((__m128i *)(src_u - inc3)), _mm_loadl_epi64((__m128i *)(src_v - inc3)));
+    TL1 = _mm_unpacklo_epi64(_mm_loadl_epi64((__m128i *)(src_u - inc2)), _mm_loadl_epi64((__m128i *)(src_v - inc2)));
+    TL0 = _mm_unpacklo_epi64(_mm_loadl_epi64((__m128i *)(src_u - inc)) , _mm_loadl_epi64((__m128i *)(src_v - inc)));
+    TR0 = _mm_unpacklo_epi64(_mm_loadl_epi64((__m128i *)(src_u + 0))   , _mm_loadl_epi64((__m128i *)(src_v + 0)));
+    TR1 = _mm_unpacklo_epi64(_mm_loadl_epi64((__m128i *)(src_u + inc)) , _mm_loadl_epi64((__m128i *)(src_v + inc)));
+    TR2 = _mm_unpacklo_epi64(_mm_loadl_epi64((__m128i *)(src_u + inc2)), _mm_loadl_epi64((__m128i *)(src_v + inc2)));
 
-    M0 = _mm_set_epi32(flag1, flag1, flag0, flag0);
+    M0 = _mm_set_epi32(flag1, flag0, flag1, flag0);
 
     T0 = _mm_subabs_epu16(TL1, TL0);
     T1 = _mm_subabs_epu16(TR1, TR0);
@@ -1635,10 +1653,20 @@ void uavs3e_deblock_hor_chroma_sse(pel *src_uv, int stride, int alpha_u, int bet
     TR0 = _mm_blendv_epi8(TR0, V1, FLT0);
 
     /* stroe result */
-    _mm_store_si128((__m128i *)(src_uv - inc2), TL1);
-    _mm_store_si128((__m128i *)(src_uv - inc), TL0);
-    _mm_store_si128((__m128i *)(src_uv), TR0);
-    _mm_store_si128((__m128i *)(src_uv + inc), TR1);
+    _mm_storel_epi64((__m128i *)(src_u - inc2), TL1);
+    _mm_storel_epi64((__m128i *)(src_u - inc), TL0);
+    _mm_storel_epi64((__m128i *)(src_u), TR0);
+    _mm_storel_epi64((__m128i *)(src_u + inc), TR1);
+
+    TL1 = _mm_srli_si128(TL1, 8);
+    TL0 = _mm_srli_si128(TL0, 8);
+    TR0 = _mm_srli_si128(TR0, 8);
+    TR1 = _mm_srli_si128(TR1, 8);
+
+    _mm_storel_epi64((__m128i *)(src_v - inc2), TL1);
+    _mm_storel_epi64((__m128i *)(src_v - inc), TL0);
+    _mm_storel_epi64((__m128i *)(src_v), TR0);
+    _mm_storel_epi64((__m128i *)(src_v + inc), TR1);
 }
 
 #endif
