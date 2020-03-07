@@ -421,7 +421,8 @@ struct uavs3e_enc_ctrl_t {
     /*** parallel data ***/
     threadpool_t   *frm_threads_pool;
     pic_thd_param_t *pic_thd_params;
-    int              pic_thd_idx;
+    int              pic_thd_head;
+    int              pic_thd_tail;
     int              pic_thd_active;
 
     /*** RC data ***/

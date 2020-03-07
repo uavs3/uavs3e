@@ -1366,7 +1366,9 @@ void *uavs3e_create(enc_cfg_t *cfg, int *err)
     for (int i = 0; i < h->cfg.frm_threads; i++) {
         h->pic_thd_params[i].bs_buf = com_malloc(MAX_BS_BUF);
     }
-    h->pic_thd_idx    = 0;
+
+    h->pic_thd_head   = 0;
+    h->pic_thd_tail   = 0;
     h->pic_thd_active = 0;
 
     uavs3e_threadpool_init(&h->frm_threads_pool, h->cfg.frm_threads, h->cfg.frm_threads, (void * (*)(void *))pic_enc_alloc, &h->info, (void(*)(void *))pic_enc_free);
@@ -1471,11 +1473,9 @@ int uavs3e_enc(void *id, enc_stat_t *stat, com_img_t *img_enc)
         /* check whether input pictures are remaining or not in node_input[] */
         if (!h->node_size) { // bumping
             if (h->pic_thd_active) {
-                h->pic_thd_idx = (h->pic_thd_idx + 1) % h->cfg.frm_threads;
-                pic_thd_param_t *pic_thd_param = &h->pic_thd_params[h->pic_thd_idx];
-
+                pic_thd_param_t *pic_thd_param = &h->pic_thd_params[h->pic_thd_tail];
+                h->pic_thd_tail = (h->pic_thd_tail + 1) % h->cfg.frm_threads;
                 uavs3e_threadpool_wait(h->frm_threads_pool, pic_thd_param);
-
                 enc_pic_finish(h, pic_thd_param, stat);
                 h->pic_thd_active--;
 
@@ -1568,7 +1568,7 @@ int uavs3e_enc(void *id, enc_stat_t *stat, com_img_t *img_enc)
     h->prev_ptr = img_org->ptr;
     h->prev_pts = img_org->pts;
 
-    pic_thd_param_t *pic_thd_param = &h->pic_thd_params[h->pic_thd_idx];
+    pic_thd_param_t *pic_thd_param = &h->pic_thd_params[h->pic_thd_head];
     pic_thd_param->param     = &h->cfg;
     pic_thd_param->pic_rec   = pic_rec;
     pic_thd_param->ptr       = img_org->ptr;
@@ -1584,11 +1584,12 @@ int uavs3e_enc(void *id, enc_stat_t *stat, com_img_t *img_enc)
 
     uavs3e_threadpool_run(h->frm_threads_pool, (void*(*)(void *, void*))enc_pic_thread, pic_thd_param, 1);
 
-    h->pic_thd_idx = (h->pic_thd_idx + 1) % h->cfg.frm_threads;
+    h->pic_thd_head = (h->pic_thd_head + 1) % h->cfg.frm_threads;
     h->pic_thd_active++;
 
     if (h->pic_thd_active == h->cfg.frm_threads) {
-        pic_thd_param = &h->pic_thd_params[h->pic_thd_idx];
+        pic_thd_param = &h->pic_thd_params[h->pic_thd_tail];
+        h->pic_thd_tail = (h->pic_thd_tail + 1) % h->cfg.frm_threads;
         uavs3e_threadpool_wait(h->frm_threads_pool, pic_thd_param);
         enc_pic_finish(h, pic_thd_param, stat);
 
