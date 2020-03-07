@@ -1050,6 +1050,7 @@ static void analyze_bi(core_t *core, lbac_t *sbac_best, s16 mv_L0L1[REFP_NUM][MV
         SWAP(refi[lidx_ref], refi[lidx_cnd], t0);
         SWAP(lidx_ref, lidx_cnd, t0);
         changed = 0;
+        pi->num_refp = (u8)core->num_refp[lidx_ref];
 
         for (refi_cur = 0; refi_cur < pi->num_refp; refi_cur++) {
             mecost = me_search_tz(pi, x, y, cu_width, cu_height, core->info->pic_width, core->info->pic_height, refi_cur, lidx_ref, pi->mvp_scale[lidx_ref][refi_cur], pi->mv_scale[lidx_ref][refi_cur], 1);
@@ -1866,6 +1867,8 @@ static void analyze_affine_bi(core_t *core, lbac_t *sbac_best, CPMV aff_mv_L0L1[
         SWAP(refi[lidx_ref], refi[lidx_cnd], t0);
         SWAP(lidx_ref, lidx_cnd, t0);
         changed = 0;
+        pi->num_refp = (u8)core->num_refp[lidx_ref];
+
         for (refi_cur = 0; refi_cur < pi->num_refp; refi_cur++) {
             refi[lidx_ref] = refi_cur;
             mecost = affine_me_gradient(pi, x, y, cu_width_log2, cu_height_log2, &refi[lidx_ref], lidx_ref, \
