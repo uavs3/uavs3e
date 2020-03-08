@@ -86,19 +86,6 @@ struct uavs3e_com_img_t {
     int        refcnt;
 };
 
-/* rpl structure */
-#define MAX_RPLS  32
-#define MAX_REFS  17
-
-typedef struct uavs3e_com_rpl_t {
-    int slice_type;
-    int poc;
-    int num;
-    int active;
-    int ref_poc[MAX_REFS];
-    int delta_doi[MAX_REFS];
-} com_rpl_t;
-
 #ifdef __cplusplus
 }
 #endif

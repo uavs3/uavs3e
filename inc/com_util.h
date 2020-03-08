@@ -388,10 +388,10 @@ static void __inline wait_ref_available(com_pic_t *pic, int lines)
     int real_lines = COM_MAX(0, lines);
     real_lines = COM_MIN(pic->height_luma, real_lines);
 
-    if (pic->finished_line < real_lines) {
+    if (pic->end_line < real_lines) {
         uavs3e_pthread_mutex_lock(&pic->mutex);
 
-        while (pic->finished_line < real_lines) {
+        while (pic->end_line < real_lines) {
             uavs3e_pthread_cond_wait(&pic->cv, &pic->mutex);
         }
 

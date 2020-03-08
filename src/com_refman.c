@@ -31,16 +31,15 @@ static void set_refp(com_ref_pic_t *refp, com_pic_t *pic_ref)
     com_img_addref(pic_ref->img);
 }
 
-void com_refm_build_ref_buf(com_pic_manager_t *pm)
+void com_refm_build_ref_buf(com_pic_manager_t *pm, com_pic_t *pic_ref[MAX_REFS])
 {
     int cnt = 0;
     com_pic_t **pic = pm->pic;
-    com_pic_t **pic_ref = pm->pic_ref;
 
     memset(pic_ref, 0, sizeof(com_pic_t*) * MAX_REFS);
 
     for (int i = 0; i < pm->max_pb_size; i++) {
-        if (pic[i] && IS_REF(pic[i])) {
+        if (pic[i] && pic[i]->b_ref) {
             pic_ref[cnt++] = pic[i];
         }
     }
@@ -48,7 +47,7 @@ void com_refm_build_ref_buf(com_pic_manager_t *pm)
     /* sort by ptr */
     for (int i = 0; i < cnt - 1; i++) {
         for (int j = i + 1; j < cnt; j++) {
-            if (pic_ref[i]->ptr < pic_ref[j]->ptr) {
+            if (pic_ref[i]->ptr > pic_ref[j]->ptr) {
                 com_pic_t *pic_t = pic_ref[i];
                 pic_ref[i] = pic_ref[j];
                 pic_ref[j] = pic_t;
@@ -57,46 +56,64 @@ void com_refm_build_ref_buf(com_pic_manager_t *pm)
     }
 }
 
-int com_refm_get_active_ref(com_pic_manager_t *pm, com_pic_header_t *pichdr, com_ref_pic_t(*refp)[REFP_NUM])
+int com_refm_create_rpl(com_pic_manager_t *pm, com_pic_t *pic_ref[MAX_REFS], com_pic_header_t *pichdr, com_ref_pic_t(*refp)[REFP_NUM], int top_pic)
 {
-    if ((pichdr->slice_type == SLICE_I) && (pichdr->poc == 0)) {
-        return COM_OK;
+    int idx_nearest_l0;
+    int num0 = 0, num1 = 0;
+    com_pic_t *pic_ref_l0[MAX_REFS];
+    com_pic_t *pic_ref_l1[MAX_REFS];
+    com_rpl_t *rpl;
+
+    for (int i = 0; i < pm->cur_num_ref_pics; i++) {
+        com_pic_t *pic = pic_ref[i];
+        if (pic->ptr < pichdr->poc) {
+            idx_nearest_l0 = i;
+        } else {
+            break;
+        }
+    }
+    if (top_pic) {
+        for (int i = idx_nearest_l0; i >= 0; i--) {
+            if (pic_ref[i]->layer_id < FRM_DEPTH_2) {
+                pic_ref_l0[num0++] = pic_ref[i];
+                pic_ref[i] = NULL;
+            }
+        }
+        for (int i = idx_nearest_l0; i >= 0; i--) {
+            if (pic_ref[i]) {
+                pic_ref_l0[num0++] = pic_ref[i];
+                pic_ref[i] = NULL;
+            }
+        }
+    } else {
+        for (int i = idx_nearest_l0; i >= 0; i--) {
+            pic_ref_l0[num0++] = pic_ref[i];
+        }
+    }
+    for (int i = idx_nearest_l0 + 1; i < pm->cur_num_ref_pics; i++) {
+        pic_ref_l1[num1++] = pic_ref[i];
+    }
+    for (int i = 0; num0 < pichdr->rpl_l0.active && i < num1; i++, num0++) {
+        pic_ref_l0[num0] = pic_ref_l1[i];
+    }
+    for (int i = 0; num1 < pichdr->rpl_l1.active && i < num0; i++, num1++) {
+        pic_ref_l1[num1] = pic_ref_l0[i];
     }
 
-    if (pichdr->slice_type != SLICE_I) {
-        com_assert_rv(pm->cur_num_ref_pics > 0, COM_ERR_UNEXPECTED);
-    }
-    for (int i = 0; i < MAX_REFS; i++) {
-        refp[i][REFP_0].pic = refp[i][REFP_1].pic = NULL;
-    }
     pm->num_refp[REFP_0] = pm->num_refp[REFP_1] = 0;
 
     /********************************************************************************************/
     /* L0 list */
-    
-    for (int i = 0; i < MAX_REFS; i++) {
-        int j = 0;
-        s64 refPicPoc = pichdr->poc - pichdr->rpl_l0.ref_poc[i];
-  
-        if (pichdr->rpl_l0.ref_poc[i] <= 0 && i >= pichdr->rpl_l0.active) {
-            continue;
-        }
+    rpl = &pichdr->rpl_l0;
+    rpl->num = num0;
+    rpl->active = pm->num_refp[REFP_0] = COM_MIN(rpl->active, num0);
 
-        while (j < pm->cur_num_ref_pics && pm->pic_ref[j]->ptr != refPicPoc) j++;
+    for (int i = 0; i < num0; i++) {
+        com_pic_t *pic = pic_ref_l0[i];
+        rpl->delta_doi[i] = (int)(pichdr->dtr % DOI_CYCLE_LENGTH - pic->dtr);
 
-        if (i < pichdr->rpl_l0.active) {
-            com_assert_rv(j < pm->cur_num_ref_pics && pm->pic_ref[j]->ptr == refPicPoc, COM_ERR);
-            set_refp(&refp[i][REFP_0], pm->pic_ref[j]);
-            pm->num_refp[REFP_0]++;
-        }
-
-        if (j < pm->cur_num_ref_pics && pm->pic_ref[j]->ptr == refPicPoc) {
-            int diff = (int)(pichdr->dtr % DOI_CYCLE_LENGTH - pm->pic_ref[j]->dtr);
-
-            if (diff != pichdr->rpl_l0.delta_doi[i]) { // make sure delta doi of RPL0 correct,in case of last incomplete GOP
-                pichdr->ref_pic_list_sps_flag[0] = 0;
-                pichdr->rpl_l0.delta_doi[i] = diff;
-            }
+        if (i < rpl->active) {
+            set_refp(&refp[i][REFP_0], pic);
         }
     }
 
@@ -107,33 +124,72 @@ int com_refm_get_active_ref(com_pic_manager_t *pm, com_pic_header_t *pichdr, com
     /********************************************************************************************/
     /* L1 list */
 	
-    for (int i = 0; i < MAX_REFS; i++) {
-        int j = 0;
-        s64 refPicPoc = pichdr->poc - pichdr->rpl_l1.ref_poc[i];
-      
-        if (pichdr->rpl_l1.ref_poc[i] <= 0 && i >= pichdr->rpl_l1.active) {
-            continue;
-        }
+    rpl = &pichdr->rpl_l1;
+    rpl->num = num1;
+    rpl->active = pm->num_refp[REFP_1] = COM_MIN(rpl->active, num1);
 
-        while (j < pm->cur_num_ref_pics && pm->pic_ref[j]->ptr != refPicPoc) j++;
+    for (int i = 0; i < num1; i++) {
+        com_pic_t *pic = pic_ref_l1[i];
+        rpl->delta_doi[i] = (int)(pichdr->dtr % DOI_CYCLE_LENGTH - pic->dtr);
 
-        if (i < pichdr->rpl_l1.active) {
-            com_assert_rv(j < pm->cur_num_ref_pics && pm->pic_ref[j]->ptr == refPicPoc, COM_ERR);
-            set_refp(&refp[i][REFP_1], pm->pic_ref[j]);
-            pm->num_refp[REFP_1]++;
-        }
-
-        if (j < pm->cur_num_ref_pics && pm->pic_ref[j]->ptr == refPicPoc) {
-            int diff = (int)(pichdr->dtr % DOI_CYCLE_LENGTH - pm->pic_ref[j]->dtr); 
-
-            if (diff != pichdr->rpl_l1.delta_doi[i]) { //make sure delta doi of RPL0 correct
-                pichdr->ref_pic_list_sps_flag[1] = 0;
-                pichdr->rpl_l1.delta_doi[i] = diff;
-            }
+        if (i < rpl->active) {
+            set_refp(&refp[i][REFP_1], pic);
         }
     }
 
     return COM_OK;
+}
+
+void com_refm_pick_seqhdr_idx(com_seqh_t *seqhdr, com_pic_header_t *pichdr)
+{
+    int ref_num;
+    int *delta_doi;
+    int idx;
+
+    pichdr->ref_pic_list_sps_flag[0] = 0;
+    pichdr->ref_pic_list_sps_flag[1] = 0;
+
+    ref_num   = pichdr->rpl_l0.num;
+    delta_doi = pichdr->rpl_l0.delta_doi;
+
+    for (int i = 0; i < seqhdr->rpls_l0_num; i++) {
+        com_rpl_t *rpl = seqhdr->rpls_l0 + i;
+
+        if (ref_num != rpl->num) {
+            continue;
+        }
+        for (idx = 0; idx < rpl->num; idx++) {
+            if (rpl->delta_doi[idx] != delta_doi[idx]) {
+                break;
+            }
+        }
+        if (idx == ref_num) {
+            pichdr->ref_pic_list_sps_flag[0] = 1;
+            pichdr->rpl_l0_idx = i;
+            break;
+        }
+    }
+
+    ref_num   = pichdr->rpl_l1.num;
+    delta_doi = pichdr->rpl_l1.delta_doi;
+
+    for (int i = 0; i < seqhdr->rpls_l1_num; i++) {
+        com_rpl_t *rpl = seqhdr->rpls_l1 + i;
+
+        if (ref_num != rpl->num) {
+            continue;
+        }
+        for (idx = 0; idx < rpl->num; idx++) {
+            if (rpl->delta_doi[idx] != delta_doi[idx]) {
+                break;
+            }
+        }
+        if (idx == ref_num) {
+            pichdr->ref_pic_list_sps_flag[1] = 1;
+            pichdr->rpl_l1_idx = i;
+            break;
+        }
+    }
 }
 
 com_pic_t *com_refm_find_free_pic(com_pic_manager_t *pm, int *err)
@@ -142,7 +198,7 @@ com_pic_t *com_refm_find_free_pic(com_pic_manager_t *pm, int *err)
     com_pic_t *pic = NULL;
 
     for (int i = 0; i < pm->max_pb_size; i++) {
-        if (pm->pic[i] != NULL && !IS_REF(pm->pic[i])) {
+        if (pm->pic[i] != NULL && !pm->pic[i]->b_ref) {
             com_img_t *img = pm->pic[i]->img;
             com_assert(img != NULL);
 
@@ -204,71 +260,143 @@ void print_pm(com_pic_manager_t *pm, char type)
 #endif
 }
 
-int com_refm_mark_ref_pic(com_pic_manager_t *pm, com_pic_header_t *pichdr)
+static void remove_ref_pic(com_pic_manager_t *pm, int idx)
 {
-    for (int i = 0; i < pm->cur_num_ref_pics; i++) {
-        com_pic_t * pic = pm->pic[i];
-        if (pic && IS_REF(pic)) {
-            int in_rpl = 0;
-            for (int j = 0; j < pichdr->rpl_l0.num; j++) {
-                if (pic->ptr == (pichdr->poc - pichdr->rpl_l0.ref_poc[j])) { //NOTE: we need to put POC also in com_pic_t
-                    in_rpl = 1;
-                    break;
-                }
-            }
-            if (!in_rpl) {
-                for (int j = 0; j < pichdr->rpl_l1.num; j++) {
-                    if (pic->ptr == (pichdr->poc - pichdr->rpl_l1.ref_poc[j])) { //NOTE: we need to put POC also in com_pic_t
-                        in_rpl = 1;
-                        break;
-                    }
-                }
-            }
-            if (!in_rpl) {
-                print_pm(pm, ' ');
-                pic->b_ref = 0;
-
-                for (int j = i; j < pm->max_pb_size - 1; j++) {
-                    pm->pic[j] = pm->pic[j + 1];
-                }
-                pm->pic[pm->max_pb_size - 1] = pic;
-
-                pm->cur_num_ref_pics--;
-                i--;       
-                print_pm(pm, '-');
-            }
-        }
-    }
-
-    return COM_OK;
-}
-
-int com_refm_insert_rec_pic(com_pic_manager_t *pm, com_pic_t *pic, int slice_type, s64 ptr, s64 dtr, com_ref_pic_t(*refp)[REFP_NUM])
-{
-    pic->ptr = ptr;
-    pic->dtr = (s32)(dtr % DOI_CYCLE_LENGTH); 
+    com_pic_t *pic = pm->pic[idx];
 
     print_pm(pm, ' ');
 
-    for (int i = 0; i < pm->num_refp[REFP_0]; i++) {
-        pic->list_ptr[i] = refp[i][REFP_0].ptr;
+    pic->b_ref = 0;
+
+    for (int j = idx; j < pm->max_pb_size - 1; j++) {
+        pm->pic[j] = pm->pic[j + 1];
     }
-    if (pm->pic[pm->cur_num_ref_pics]) {
-        for (int i = pm->cur_num_ref_pics + 1; i < pm->max_pb_size; i++) {
+    pm->pic[pm->max_pb_size - 1] = pic;
+
+    pm->cur_num_ref_pics--;
+
+    print_pm(pm, '-');
+}
+
+void com_refm_remove_ref_pic(com_pic_manager_t *pm, com_pic_header_t *pichdr, com_pic_t *pic, int close_gop, int is_ld)
+{
+    if (close_gop && pichdr->slice_type == SLICE_I) {
+        for (int i = 0; i < pm->max_pb_size - 1; i++) {
+            com_pic_t *ref = pm->pic[i];
+            if (ref && ref->b_ref) {
+                remove_ref_pic(pm, i--);
+            }
+        }
+        pm->ptr_l_l_ip = pm->ptr_l_ip = pic->ptr;
+        com_assert(pm->cur_num_ref_pics == 0);
+        return;
+    }
+    if (is_ld) {
+        if (pm->cur_num_ref_pics <= MAX_LD_ACTIVE) {
+            return;
+        }
+        for (int i = 0; i < pm->max_pb_size - 1; i++) {
+            com_pic_t * ref = pm->pic[i];
+            if (ref && ref->b_ref) {
+                if (ref->ptr < pic->ptr - 1 && ref->layer_id >= FRM_DEPTH_2) {
+                    remove_ref_pic(pm, i--);
+                }
+            }
+        }
+        if (pm->cur_num_ref_pics <= MAX_LD_ACTIVE) {
+            return;
+        }
+
+        s64 oldest_ref = pic->ptr;
+        int oldest_idx = 0;
+
+        for (int i = 0; i < pm->max_pb_size - 1; i++) {
+            com_pic_t * ref = pm->pic[i];
+            if (ref && ref->b_ref && ref->ptr < oldest_ref) {
+                oldest_ref = ref->ptr;
+                oldest_idx = i;
+            }
+        }
+        remove_ref_pic(pm, oldest_idx);
+    } else {
+        if (pic->layer_id < FRM_DEPTH_2) { // top frames
+            for (int i = 0; i < pm->max_pb_size - 1; i++) {
+                com_pic_t * ref = pm->pic[i];
+                if (ref && ref->b_ref && ref->ptr < pm->ptr_l_ip && ref->layer_id > FRM_DEPTH_2) {
+                    remove_ref_pic(pm, i--);
+                }
+            }
+            pm->ptr_l_l_ip = pm->ptr_l_ip;
+            pm->ptr_l_ip = pic->ptr;
+        } else {
+            s64 nearest_before_l_l_ip = -1;
+            int ref_num_in_cur_subgop = 1;
+
+            for (int i = 0; i < pm->max_pb_size - 1; i++) {
+                com_pic_t * ref = pm->pic[i];
+                if (ref && ref->b_ref && ref->ptr < pic->ptr) {
+                    if (ref->ptr > pm->ptr_l_l_ip) {
+                        if (ref->layer_id >= pic->layer_id) {
+                            remove_ref_pic(pm, i--); // delete deeper pic (include current depth) in current subgop
+                        }
+                        else {
+                            ref_num_in_cur_subgop++;
+                        }
+                    }
+                    if (ref->ptr < pm->ptr_l_l_ip && ref->ptr > nearest_before_l_l_ip) {
+                        nearest_before_l_l_ip = ref->ptr;
+                    }
+                }
+            }
+            for (int i = 0; i < pm->max_pb_size - 1; i++) {
+                com_pic_t * ref = pm->pic[i];
+                if (ref && ref->b_ref && ref->ptr < pm->ptr_l_l_ip && (ref->ptr < nearest_before_l_l_ip || ref_num_in_cur_subgop >= 2)) {
+                    remove_ref_pic(pm, i--);
+                }
+            }
+            if (!pic->b_ref) {
+                for (int i = 0; i < pm->max_pb_size - 1; i++) {
+                    com_pic_t * ref = pm->pic[i];
+                    if (ref && ref->b_ref && ref->ptr + 4 < pm->ptr_l_l_ip) {
+                        remove_ref_pic(pm, i--);
+                    }
+                }
+            }
+            return;
+        }
+    }
+}
+
+int com_refm_insert_rec_pic(com_pic_manager_t *pm, com_pic_t *pic, com_ref_pic_t(*refp)[REFP_NUM])
+{
+    print_pm(pm, ' ');
+
+    if (pic->b_ref) {
+        for (int i = 0; i < pm->num_refp[REFP_0]; i++) {
+            pic->list_ptr[i] = refp[i][REFP_0].ptr;
+        }
+        if (pm->pic[pm->cur_num_ref_pics]) {
+            for (int i = pm->cur_num_ref_pics + 1; i < pm->max_pb_size; i++) {
+                if (pm->pic[i] == NULL) {
+                    pm->pic[i] = pm->pic[pm->cur_num_ref_pics];
+                    pm->pic[pm->cur_num_ref_pics] = NULL;
+                    break;
+                }
+            }
+        }
+        com_assert(pm->pic[pm->cur_num_ref_pics] == NULL);
+        pm->pic[pm->cur_num_ref_pics] = pic;
+        pm->cur_num_ref_pics++;
+    } else {
+        for (int i = pm->max_pb_size - 1; i >= pm->cur_num_ref_pics; i--) {
             if (pm->pic[i] == NULL) {
-                pm->pic[i] = pm->pic[pm->cur_num_ref_pics];
-                pm->pic[pm->cur_num_ref_pics] = NULL;
+                pm->pic[i] = pic;
+                pic = NULL;
                 break;
             }
         }
+        com_assert(pic == NULL);
     }
-
-    com_assert(pm->pic[pm->cur_num_ref_pics] == NULL);
-
-    pm->pic[pm->cur_num_ref_pics] = pic;
-
-    pm->cur_num_ref_pics += pic->b_ref;
-
     print_pm(pm, '+');
 
     return COM_OK;

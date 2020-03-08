@@ -49,17 +49,6 @@
 #define MAX_COST                (1.7e+308)
 #define MAX_COST_EXT            (MAX_COST * 0.999999999)
 
-/* virtual frame depth B picture */
-#define FRM_DEPTH_0                   0 // only for I frame
-#define FRM_DEPTH_1                   1
-#define FRM_DEPTH_2                   2
-#define FRM_DEPTH_3                   3
-#define FRM_DEPTH_4                   4
-#define FRM_DEPTH_5                   5
-#define FRM_DEPTH_MAX                 FRM_DEPTH_5
-
-
-
 typedef struct uavs3e_enc_rc_handle_t enc_rc_handle_t;
 typedef struct uavs3e_enc_ctrl_t enc_ctrl_t;
 

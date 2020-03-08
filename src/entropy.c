@@ -920,12 +920,10 @@ int ec_write_pichdr(bs_t *bs, com_pic_header_t *pichdr, com_seqh_t *sqh, com_pic
     }
 
     if (pichdr->slice_type != SLICE_I) {
-        bs_write1(bs, pichdr->num_ref_idx_active_override_flag);
-        if (pichdr->num_ref_idx_active_override_flag) {
-            bs_write_ue(bs, (u32)(pichdr->rpl_l0).active - 1);
-            if (pichdr->slice_type == SLICE_B) {
-                bs_write_ue(bs, (u32)(pichdr->rpl_l1).active - 1);
-            }
+        bs_write1(bs, 1); // num_ref_idx_active_override_flag
+        bs_write_ue(bs, (u32)(pichdr->rpl_l0).active - 1);
+        if (pichdr->slice_type == SLICE_B) {
+            bs_write_ue(bs, (u32)(pichdr->rpl_l1).active - 1);
         }
     }
 

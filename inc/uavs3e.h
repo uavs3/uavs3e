@@ -44,7 +44,7 @@ extern "C"
 #define PIC_ALIGN_SIZE 8
 
 typedef struct uavs3e_enc_stat_t {
-    void          *buf;                // [ in] bitstream buffer                                       
+    void          *buf;                // [out] bitstream buffer                                       
     int            bytes;              // [out] size of bitstream
     int            user_bytes;
     int            bytes_seq_hdr;
@@ -75,7 +75,6 @@ typedef struct uavs3e_enc_cfg_t {
     int            bit_depth_internal;
     int            use_pic_sign;
     int            max_b_frames;
-    int            disable_hgop;
     int            close_gop;
     int            amvr_enable;
     int            affine_enable;
@@ -102,10 +101,6 @@ typedef struct uavs3e_enc_cfg_t {
     int            pbt_enable;
     int            dqp_enable;
     int            chroma_format;
-    com_rpl_t      rpls_l0[MAX_RPLS];
-    com_rpl_t      rpls_l1[MAX_RPLS];
-    int            rpls_l0_cfg_num;
-    int            rpls_l1_cfg_num;
     int            filter_cross_patch;
     int            colocated_patch;
     int            patch_width;

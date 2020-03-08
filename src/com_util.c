@@ -154,7 +154,7 @@ com_pic_t *com_picbuf_create(int width, int height, int pad_l, int pad_c, int *e
     GIVE_BUFFER(pic->map_refi, buf, sizeof( s8) * f_scu * REFP_NUM       ); pic->map_refi += i_scu + 1;
     GIVE_BUFFER(pic->map_mv  , buf, sizeof(s16) * f_scu * REFP_NUM * MV_D); pic->map_mv   += i_scu + 1;
 
-    pic->finished_line = 0;
+    pic->end_line = 0;
     uavs3e_pthread_mutex_init(&pic->mutex, NULL);
     uavs3e_pthread_cond_init(&pic->cv, NULL);
 

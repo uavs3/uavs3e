@@ -361,7 +361,6 @@ static void print_config(void *h, enc_cfg_t param)
     printf("\tbitdepth coding          : %d\n", param.bit_depth_internal);
     printf("\tframe rate               : %d / %d\n", param.fps_num, param.fps_den);
     printf("\tintra picture period     : %d\n", param.i_period);
-    printf("\thierarchical GOP         : %d\n", !param.disable_hgop);
     printf("\tmax b frames             : %d\n", param.max_b_frames);
     printf("\tsignature                : %d\n", param.use_pic_sign);
 
@@ -509,7 +508,6 @@ void enc_cfg_init(enc_cfg_t *cfg)
     cfg->bit_depth_internal  =   8;
     cfg->use_pic_sign        =   0;
     cfg->max_b_frames        =  15;
-    cfg->disable_hgop        =   0;
     cfg->amvr_enable         =   1;
     cfg->affine_enable       =   1;
     cfg->smvd_enable         =   1;
@@ -527,8 +525,6 @@ void enc_cfg_init(enc_cfg_t *cfg)
     cfg->pbt_enable          =   1;
     cfg->dqp_enable          =   0;
     cfg->chroma_format       =   1;
-    cfg->rpls_l0_cfg_num     =   0;
-    cfg->rpls_l1_cfg_num     =   0;
     cfg->filter_cross_patch  =   1;
     cfg->colocated_patch     =   0;
     cfg->ctu_size            = 128;
@@ -573,10 +569,6 @@ int main(int argc, const char **argv)
     /* parse options */
     if (app_parse_all(argc, argv, options) < 0) {
         print_log(0, "Configuration error, please refer to the usage.\n");
-        print_usage();
-        return -1;
-    }
-    if (parse_rpl_cfg(&cfg)) {
         print_usage();
         return -1;
     }

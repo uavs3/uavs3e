@@ -56,24 +56,31 @@ typedef struct uavs3e_com_pic_t {
     s8        (*map_refi)[REFP_NUM];            /* [rec] */
 
     /*** frame parallel ***/
-    int         finished_line;
+    int         end_line;
     uavs3e_pthread_mutex_t mutex;
     uavs3e_pthread_cond_t  cv;
 
 } com_pic_t;
+
+typedef struct uavs3e_com_rpl_t {
+    int num;
+    int active;
+    int delta_doi[MAX_REFS];
+} com_rpl_t;
 
 /*****************************************************************************
  * picture manager for DPB in decoder and RPB in encoder
  *****************************************************************************/
 typedef struct uavs3e_com_pic_manager_t {
     com_pic_t        **pic;                       /* picture store (including reference and non-reference) */
-    com_pic_t         *pic_ref[MAX_REFS];         /* address of reference pictures */
     int                max_num_ref_pics;          /* maximum reference picture count */
     int                cur_num_ref_pics;          /* current count of available reference pictures in PB */
     int                num_refp[REFP_NUM];        /* number of reference pictures */
     int                ptr_next_output;           /* next output POC */
     int                ptr_increase;              /* POC increment */
     int                max_pb_size;               /* max number of picture buffer */
+    long long          ptr_l_ip;                  /* ptr of last I/P/top-B frame */
+    long long          ptr_l_l_ip;                /* ptr of last last I/P/top-B frame */
 
     int                pic_width;
     int                pic_height;
@@ -140,7 +147,6 @@ typedef struct uavs3e_com_pic_header_t {
     int              rpl_l1_idx;         //-1 means this slice does not use RPL candidate in SPS for RPL1
     com_rpl_t        rpl_l0;
     com_rpl_t        rpl_l1;
-    u8               num_ref_idx_active_override_flag;
     u8               ref_pic_list_sps_flag[2];
 
     u8               slice_type;

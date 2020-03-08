@@ -1663,6 +1663,7 @@ static void analyze_affine_uni(core_t *core, lbac_t *sbac_best, CPMV aff_mv_L0L1
     get_part_info(info->i_scu, core->cu_scu_x << 2, core->cu_scu_y << 2, cu_width, cu_height, cur_info->tb_part, &cur_info->tb_info);
     cur_info->cu_mode = MODE_INTER;
     cur_info->affine_flag = 1;
+
     for (lidx = 0; lidx <= ((core->slice_type == SLICE_P) ? PRED_L0 : PRED_L1); lidx++) {
         init_inter_data(core);
         refi = cur_info->refi;

@@ -96,14 +96,6 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <None Include="..\..\cfg\encode_AI.cfg" />
-    <None Include="..\..\cfg\encode_LD.cfg" />
-    <None Include="..\..\cfg\encode_LDP.cfg" />
-    <None Include="..\..\cfg\encode_RA.cfg" />
-    <None Include="..\..\cfg\rpl_lowdelay.cfg" />
-    <None Include="..\..\cfg\rpl_randomaccess.cfg" />
-  </ItemGroup>
-  <ItemGroup>
     <ProjectReference Include="common.vcxproj">
       <Project>{3f9c7116-c287-40d7-865c-d8c89cf4ff31}</Project>
     </ProjectReference>
@@ -116,6 +108,9 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\test\utest.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\bin\config.txt" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

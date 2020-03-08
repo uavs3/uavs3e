@@ -77,6 +77,18 @@
 #define LBAC_CTX_LAST2                      12
 #define LBAC_CTX_LAST                       2
 
+/************************* virtual frame depth B *********************************/
+#define FRM_DEPTH_0                   0 // only for I frame
+#define FRM_DEPTH_1                   1
+#define FRM_DEPTH_2                   2
+#define FRM_DEPTH_3                   3
+
+/* rpl structure */
+#define MAX_RPLS  16
+#define MAX_REFS  17
+#define MAX_RA_ACTIVE 2
+#define MAX_LD_ACTIVE 4
+
 /************************* QUANT ************************************************/
 #define MIN_QUANT                          0
 #define MAX_QUANT_BASE                     63

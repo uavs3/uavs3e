@@ -221,7 +221,6 @@ static int refine_input_cfg(enc_cfg_t *param, enc_cfg_t *cfg_org)
     com_assert_rv(param->bit_depth_internal == 8 || param->bit_depth_internal == 10, COM_ERR_INVALID_ARGUMENT);
     com_assert_rv(param->emvr_enable == 0 || (param->amvr_enable && param->num_of_hmvp), COM_ERR_INVALID_ARGUMENT);
 
-
     com_assert_rv(param->ctu_size == 32 || param->ctu_size == 64 || param->ctu_size == 128, COM_ERR_INVALID_ARGUMENT);
     com_assert_rv(param->min_cu_size == 4, COM_ERR_INVALID_ARGUMENT);
     com_assert_rv(param->max_part_ratio == 8, COM_ERR_INVALID_ARGUMENT);
@@ -232,16 +231,6 @@ static int refine_input_cfg(enc_cfg_t *param, enc_cfg_t *cfg_org)
     com_assert_rv(param->max_dt_size == 16 || param->max_dt_size == 32 || param->max_dt_size == 64, COM_ERR_INVALID_ARGUMENT);
     com_assert_rv(param->min_cu_size <= param->ctu_size, COM_ERR_INVALID_ARGUMENT);
 
-    if (!param->disable_hgop) {
-        com_assert_rv(param->max_b_frames == 0 || param->max_b_frames == 1 || \
-                      param->max_b_frames == 3 || param->max_b_frames == 7 || \
-                      param->max_b_frames == 15, COM_ERR_INVALID_ARGUMENT);
-        if (param->max_b_frames != 0) {
-            if (param->i_period % (param->max_b_frames + 1) != 0) {
-                com_assert_rv(0, COM_ERR_INVALID_ARGUMENT);
-            }
-        }
-    }
 
 #if (BIT_DEPTH == 8)
     if (param->bit_depth_internal == 10) {
@@ -307,13 +296,63 @@ static void set_sqh(enc_ctrl_t *h, com_seqh_t *sqh)
     sqh->bbv_buffer_size            = (1 << 18) - 1;
     sqh->max_dpb_size               = 7; 
 
-    sqh->rpls_l0_num                = h->cfg.rpls_l0_cfg_num;
-    sqh->rpls_l1_num                = h->cfg.rpls_l1_cfg_num;
     sqh->rpl1_index_exist_flag      = 1;
-    sqh->rpl1_same_as_rpl0_flag     = 0;
 
-    memcpy(sqh->rpls_l0, h->cfg.rpls_l0, h->cfg.rpls_l0_cfg_num * sizeof(sqh->rpls_l0[0]));
-    memcpy(sqh->rpls_l1, h->cfg.rpls_l1, h->cfg.rpls_l1_cfg_num * sizeof(sqh->rpls_l1[0]));
+    if (h->cfg.max_b_frames) {
+        static com_rpl_t rpl_l0[MAX_RPLS] = {
+            { 3, MAX_RA_ACTIVE, { 16, 32, 15,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  }},
+            { 2, MAX_RA_ACTIVE, { 17, 16,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  }},
+            { 2, MAX_RA_ACTIVE, { 18, 17,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  }},
+            { 2, MAX_RA_ACTIVE, { 19, 18,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  }},
+            { 2, MAX_RA_ACTIVE, { 20,  1,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  }},
+            { 2, MAX_RA_ACTIVE, {  2, 21,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  }},
+            { 2, MAX_RA_ACTIVE, {  4, 22,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  }},
+            { 2, MAX_RA_ACTIVE, {  5, 23,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  }},
+            { 3, MAX_RA_ACTIVE, {  2,  6, 24,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  }},
+            { 2, MAX_RA_ACTIVE, {  8, 25,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  }},
+            { 2, MAX_RA_ACTIVE, {  9, 26,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  }},
+            { 2, MAX_RA_ACTIVE, { 10, 27,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  }},
+            { 3, MAX_RA_ACTIVE, {  2, 11, 28,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  }},
+            { 3, MAX_RA_ACTIVE, {  4, 12, 29,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  }},
+            { 3, MAX_RA_ACTIVE, {  5, 13, 30,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  }},
+            { 4, MAX_RA_ACTIVE, {  2,  6, 14, 31,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  }}        
+        };
+        static com_rpl_t rpl_l1[MAX_RPLS] = {
+            { 2, MAX_RA_ACTIVE, { 16, 32,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  }},
+            { 2, MAX_RA_ACTIVE, {  1, 33,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  }},
+            { 2, MAX_RA_ACTIVE, {  1,  2,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  }},
+            { 3, MAX_RA_ACTIVE, {  1,  2,  3,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  }},
+            { 4, MAX_RA_ACTIVE, {  1,  2,  3,  4,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  }},
+            { 3, MAX_RA_ACTIVE, {  3,  4,  5,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  }},
+            { 2, MAX_RA_ACTIVE, {  5,  6,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  }},
+            { 3, MAX_RA_ACTIVE, {  1,  6,  7,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  }},
+            { 2, MAX_RA_ACTIVE, {  7,  8,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  }},
+            { 2, MAX_RA_ACTIVE, {  9,  8,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  }},
+            { 2, MAX_RA_ACTIVE, {  1, 10,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  }},
+            { 3, MAX_RA_ACTIVE, {  1,  2, 11,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  }},
+            { 2, MAX_RA_ACTIVE, {  3, 12,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  }},
+            { 2, MAX_RA_ACTIVE, { 13,  4,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  }},
+            { 2, MAX_RA_ACTIVE, {  1, 14,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  }},
+            { 2, MAX_RA_ACTIVE, { 15,  2,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  }}        
+        };
+        sqh->rpl1_same_as_rpl0_flag = 0;
+        sqh->rpls_l0_num = MAX_RPLS;
+        sqh->rpls_l1_num = MAX_RPLS;
+        memcpy(sqh->rpls_l0, &rpl_l0, sizeof(rpl_l0));
+        memcpy(sqh->rpls_l1, &rpl_l1, sizeof(rpl_l1));
+    } else {
+        static com_rpl_t rpl[4] = {
+            { MAX_LD_ACTIVE, MAX_LD_ACTIVE, { 1, 5, 9, 13,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  }},
+            { MAX_LD_ACTIVE, MAX_LD_ACTIVE, { 1, 2, 6, 10,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  }},
+            { MAX_LD_ACTIVE, MAX_LD_ACTIVE, { 1, 3, 7, 11,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  }},
+            { MAX_LD_ACTIVE, MAX_LD_ACTIVE, { 1, 4, 8, 12,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  }}
+        };
+        sqh->rpl1_same_as_rpl0_flag = 1;
+        sqh->rpls_l0_num = 4;
+        sqh->rpls_l1_num = 4;
+        memcpy(sqh->rpls_l0, &rpl, sizeof(rpl));
+        memcpy(sqh->rpls_l1, &rpl, sizeof(rpl));
+    }
 
     sqh->horizontal_size  = h->cfg.horizontal_size;
     sqh->vertical_size    = h->cfg.vertical_size;
@@ -362,7 +401,15 @@ static void set_sqh(enc_ctrl_t *h, com_seqh_t *sqh)
     } else {
         //for random access mode, GOP 16
         sqh->output_reorder_delay = com_tbl_log2[h->cfg.max_b_frames + 1];//log2(GopSize)
-        assert(com_tbl_log2[h->cfg.max_b_frames + 1] != -1);
+        if (com_tbl_log2[h->cfg.max_b_frames + 1] == -1) {
+            for (int i = h->cfg.max_b_frames + 1; i < 257; i++) {
+                if (com_tbl_log2[i] != -1) {
+                    sqh->output_reorder_delay = com_tbl_log2[i];
+                    break;
+                }
+            }
+        }
+        assert(sqh->output_reorder_delay != -1);
     }
 
     sqh->colocated_patch        = h->cfg.colocated_patch;
@@ -371,204 +418,7 @@ static void set_sqh(enc_ctrl_t *h, com_seqh_t *sqh)
     sqh->patch_height           = h->cfg.patch_height == 0 ? h->info.pic_height_in_lcu : h->cfg.patch_height;
 }
 
-static void decision_rpl_of_pic(enc_ctrl_t *h, com_pic_header_t *pichdr)
-{
-    int rpl_idx = -1;
-    int gop_num = h->info.gop_size;
-
-    if ((h->cfg.max_b_frames == 0) || (h->info.gop_size == 1)) {
-        gop_num = 4;
-    }
-
-    //normal GOP
-    memset(&pichdr->rpl_l0, 0, sizeof(pichdr->rpl_l0));
-    memset(&pichdr->rpl_l1, 0, sizeof(pichdr->rpl_l1));
-
-    int rpl_num = COM_MIN(h->cfg.rpls_l0_cfg_num, gop_num);
-    int idx = pichdr->poc % gop_num;
-
-    idx = (idx == 0 ? gop_num : idx);
-
-    for (int i = 0; i < rpl_num; i++) {
-        if (idx == h->cfg.rpls_l0[i].poc) {
-            rpl_idx = i;
-            break;
-        }
-    }
-
-    //first GOP 
-    if (h->cfg.i_period <= 0) {
-        if (pichdr->poc <= (h->cfg.rpls_l0_cfg_num - gop_num)) {
-            rpl_idx = (int)(pichdr->poc + gop_num - 1);
-        }
-    } else {  
-        int idx = pichdr->poc % h->cfg.i_period;
-        idx = (idx == 0 ? h->cfg.i_period : idx);
-
-        for (int i = h->info.gop_size; i < h->cfg.rpls_l0_cfg_num; i++) {
-            if (idx == h->cfg.rpls_l0[i].poc) {
-                rpl_idx = i;
-                break;
-            }
-        }
-    }
-
-    pichdr->rpl_l0.num    = h->cfg.rpls_l0[rpl_idx].num;
-    pichdr->rpl_l0.active = h->cfg.rpls_l0[rpl_idx].active;
-    pichdr->rpl_l1.num    = h->cfg.rpls_l1[rpl_idx].num;
-    pichdr->rpl_l1.active = h->cfg.rpls_l1[rpl_idx].active;
-
-    for (int i = 0; i < pichdr->rpl_l0.num; i++) {
-        pichdr->rpl_l0.ref_poc  [i] = h->cfg.rpls_l0[rpl_idx].ref_poc[i];
-        pichdr->rpl_l0.delta_doi[i] = h->cfg.rpls_l0[rpl_idx].delta_doi[i];
-    }
-    for (int i = 0; i < pichdr->rpl_l1.num; i++) {
-        pichdr->rpl_l1.ref_poc  [i] = h->cfg.rpls_l1[rpl_idx].ref_poc[i];
-        pichdr->rpl_l1.delta_doi[i] = h->cfg.rpls_l1[rpl_idx].delta_doi[i];
-    }
-
-    if (rpl_idx != -1) {
-        pichdr->ref_pic_list_sps_flag[0] = pichdr->ref_pic_list_sps_flag[1] = 1;
-    }
-
-    pichdr->rpl_l0_idx = pichdr->rpl_l1_idx = rpl_idx;
-}
-
-static int check_refpic_available(s64 poc, com_pic_manager_t *pm, com_rpl_t *rpl)
-{
-    for (int i = 0; i < rpl->num; i++) {
-        int exist = 0;
-        for (int j = 0; !exist && j < pm->max_pb_size; j++) {
-            if (pm->pic[j] && pm->pic[j]->b_ref && pm->pic[j]->ptr == (poc - rpl->ref_poc[i])) {
-                exist = 1;
-            }
-        }
-        if (!exist) { // missing, return 1
-            return 1;
-        }
-    }
-    return 0;
-}
-
-static int create_explicit_rpl(com_pic_manager_t *pm, com_pic_header_t *pichdr)
-{
-    s64 poc = pichdr->poc;
-    com_rpl_t *rpl0 = &pichdr->rpl_l0;
-    com_rpl_t *rpl1 = &pichdr->rpl_l1;
-
-    if (!check_refpic_available(poc, pm, rpl0) && !check_refpic_available(poc, pm, rpl1)) {
-        return 0;
-    }
-
-    int changed = 0;
-
-    for (int i = 0; i < rpl0->num; i++) {
-        int exist = 0;
-        for (int j = 0; !exist && j < pm->cur_num_ref_pics; j++) {
-            com_pic_t *pic = pm->pic[j];
-            if (pic && pic->b_ref && pic->ptr == (poc - rpl0->ref_poc[i])) {
-                exist = 1;
-            }
-        }
-        if (!exist) {
-            for (int j = i; j < rpl0->num - 1; j++) {
-                rpl0->ref_poc  [j] = rpl0->ref_poc  [j + 1];
-                rpl0->delta_doi[j] = rpl0->delta_doi[j + 1];
-            }
-            i--;
-            rpl0->num--;
-            changed = 1;
-        }
-    }
-    if (changed) {
-        pichdr->rpl_l0_idx = -1;
-    }
-
-    changed = 0;
-    for (int i = 0; i < rpl1->num; i++) {
-        int exist = 0;
-        for (int j = 0; !exist && j < pm->cur_num_ref_pics; j++) {
-            com_pic_t *pic = pm->pic[j];
-
-            if (pic && pic->b_ref && pic->ptr == (poc - rpl1->ref_poc[i])) {
-                exist = 1;
-            }
-        }
-        if (!exist) {
-            for (int j = i; j < rpl1->num - 1; j++) {
-                rpl1->ref_poc[j] = rpl1->ref_poc[j + 1];
-                rpl1->delta_doi[j] = rpl1->delta_doi[j + 1];
-            }
-            i--;
-            rpl1->num--;
-            changed = 1;
-        }
-    }
-    if (changed) {
-        pichdr->rpl_l1_idx = -1;
-    }
-
-    if (rpl0->num < rpl0->active) {
-        for (int i = rpl0->num; i < rpl0->active; i++) {
-            int already_active = 1;
-            int idx = -1;
-            int status = 0;
-            do {
-                status = 0;
-                idx++;
-                for (int mm = 0; mm < rpl0->num && idx < rpl1->num; mm++) {
-                    if (rpl1->ref_poc[idx] == rpl0->ref_poc[mm]) {
-                        status = 1;
-                    }
-                }
-                if (!status) {
-                    already_active = 0;
-                }
-            } while (already_active && idx < rpl1->num);
-
-            if (idx < rpl1->num) {
-                rpl0->ref_poc  [i] = rpl1->ref_poc  [idx];
-                rpl0->delta_doi[i] = rpl1->delta_doi[idx];
-                rpl0->num++;
-            }
-        }
-        if (rpl0->num < rpl0->active) {
-            rpl0->active = rpl0->num;
-        }
-    }
-
-    if (rpl1->num < rpl1->active) {
-        for (int i = rpl1->num; i < rpl1->active; i++) {
-            int already_active = 1;
-            int idx = -1;
-            int status = 0;
-            do {
-                status = 0;
-                idx++;
-                for (int mm = 0; mm < rpl1->num && idx < rpl0->num; mm++) {
-                    if (rpl0->ref_poc[idx] == rpl1->ref_poc[mm]) {
-                        status = 1;
-                    }
-                }
-                if (!status) {
-                    already_active = 0;
-                }
-            } while (already_active && idx < rpl0->num);
-
-            if (idx < rpl0->num) {
-                rpl1->ref_poc  [i] = rpl0->ref_poc  [idx];
-                rpl1->delta_doi[i] = rpl0->delta_doi[idx];
-                rpl1->num++;
-            }
-        }
-        if (rpl1->num < rpl1->active) {
-            rpl1->active = rpl1->num;
-        }
-    }
-    return 1;
-}
-
-static void set_pic_header(enc_ctrl_t *h)
+static void set_pic_header(enc_ctrl_t *h, com_pic_t *pic_rec)
 {
     com_pic_header_t *pichdr = &h->pichdr;
     pichdr->bbv_delay =  0xFFFFFFFF;
@@ -634,23 +484,6 @@ static void set_pic_header(enc_ctrl_t *h)
     pichdr->affine_subblk_size_idx = 0; // 0->4X4, 1->8X8
     pichdr->picture_output_delay = (int)(pichdr->poc - h->pichdr.dtr + h->info.sqh.output_reorder_delay);
 
-    decision_rpl_of_pic(h, pichdr);
-    pichdr->num_ref_idx_active_override_flag = 1;
-
-    if (pichdr->slice_type == SLICE_I) {
-        pichdr->rpl_l0.active = 0;
-        pichdr->rpl_l1.active = 0;
-    }
-    if (pichdr->slice_type != SLICE_I && pichdr->poc != 0) {
-        if (create_explicit_rpl(&h->rpm, pichdr)) {
-            if (pichdr->rpl_l0_idx == -1) {
-                pichdr->ref_pic_list_sps_flag[0] = 0;
-            }
-            if (pichdr->rpl_l1_idx == -1) {
-                pichdr->ref_pic_list_sps_flag[1] = 0;
-            }
-        }
-    }
     if ((pichdr->dtr % DOI_CYCLE_LENGTH) < h->prev_dtr) {
         for (int i = 0; i < h->rpm.max_pb_size; i++) {
             com_pic_t *pic = h->rpm.pic[i];
@@ -660,11 +493,37 @@ static void set_pic_header(enc_ctrl_t *h)
             }
         }
     }
-    com_refm_mark_ref_pic(&h->rpm, pichdr);
 
-    com_refm_build_ref_buf(&h->rpm);
+    if (pichdr->poc == 0) {
+        pichdr->ref_pic_list_sps_flag[0] = 1;
+        pichdr->ref_pic_list_sps_flag[1] = 1;
+        pichdr->rpl_l0_idx = 0;
+        pichdr->rpl_l0_idx = 0;
+        pichdr->rpl_l0.active = 0;
+        pichdr->rpl_l1.active = 0;
+        h->rpm.ptr_l_ip = 0;
+        h->rpm.ptr_l_l_ip = 0;
+    } else {
+        com_pic_t *pic_ref[MAX_REFS];
+        int is_ld = h->info.sqh.low_delay;
+        int top_pic = pic_rec->layer_id < FRM_DEPTH_2 && !is_ld;
+        com_refm_remove_ref_pic(&h->rpm, pichdr, pic_rec, h->cfg.close_gop, is_ld);
+        com_refm_build_ref_buf (&h->rpm, pic_ref);
 
-    com_refm_get_active_ref(&h->rpm, pichdr, h->refp);
+        if (pichdr->slice_type == SLICE_I) {
+            pichdr->rpl_l0.active = 0;
+            pichdr->rpl_l1.active = 0;
+        } else if (is_ld) {
+            pichdr->rpl_l0.active = MAX_LD_ACTIVE;
+            pichdr->rpl_l1.active = MAX_LD_ACTIVE;
+        } else {
+            pichdr->rpl_l0.active = MAX_RA_ACTIVE;
+            pichdr->rpl_l1.active = MAX_RA_ACTIVE;
+        }
+        com_refm_create_rpl(&h->rpm, pic_ref, pichdr, h->refp, top_pic);
+        com_refm_pick_seqhdr_idx(&h->info.sqh, pichdr);
+    }
+    com_refm_insert_rec_pic(&h->rpm, pic_rec, h->refp);
 }
 
 static int lbac_enc_tree(core_t *core, lbac_t *lbac, bs_t *bs, int x0, int y0, int cup, int cu_width, int cu_height, int cud
@@ -937,7 +796,7 @@ void *enc_lcu_row(core_t *core, enc_lcu_row_t *row)
 
         safe_sem_wait(sem_up);
         uavs3e_pthread_mutex_lock(&pic_rec->mutex);
-        pic_rec->finished_line = end_y;
+        pic_rec->end_line = end_y;
         uavs3e_pthread_cond_broadcast(&pic_rec->cv);
         uavs3e_pthread_mutex_unlock(&pic_rec->mutex);
         safe_sem_post(sem_curr);
@@ -1049,7 +908,7 @@ void *enc_pic_thread(enc_pic_t *ep, pic_thd_param_t *p)
             }
 
             uavs3e_pthread_mutex_lock(&pic_rec->mutex);
-            pic_rec->finished_line = info->pic_height;
+            pic_rec->end_line = info->pic_height;
             uavs3e_pthread_cond_broadcast(&pic_rec->cv);
             uavs3e_pthread_mutex_unlock(&pic_rec->mutex);
         }
@@ -1228,7 +1087,7 @@ static int enc_push_frm(enc_ctrl_t *h, com_img_t *img)
         node->layer_id = FRM_DEPTH_0;
         node->type = SLICE_I;
         h->lastI_ptr = img->ptr;
-    } else if (h->cfg.max_b_frames == 0) { // LD
+    } else if (h->info.sqh.low_delay) { // LD
         input_node_t *node = &h->node_list[h->node_size++];
         node->img = img;
         node->b_ref = 1;
@@ -1239,13 +1098,8 @@ static int enc_push_frm(enc_ctrl_t *h, com_img_t *img)
             h->lastI_ptr = img->ptr;
         } else {
             node->type = SLICE_B;
-
-            if (!h->cfg.disable_hgop) {
-                static tab_s8 tbl_slice_depth_P[4] = { FRM_DEPTH_3,  FRM_DEPTH_2, FRM_DEPTH_3, FRM_DEPTH_1 };
-                node->layer_id = tbl_slice_depth_P[(img->ptr - h->lastI_ptr - 1) % 4];
-            } else {
-                node->layer_id = FRM_DEPTH_1;
-            }
+            static tab_s8 tbl_slice_depth_P[4] = { FRM_DEPTH_3,  FRM_DEPTH_2, FRM_DEPTH_3, FRM_DEPTH_1 };
+            node->layer_id = tbl_slice_depth_P[(img->ptr - h->lastI_ptr - 1) % 4];
         }
     } else { // RA
         h->img_ilist[h->img_isize++] = img;
@@ -1262,17 +1116,7 @@ static int enc_push_frm(enc_ctrl_t *h, com_img_t *img)
                     node->type = SLICE_B;
 
                     if (h->img_isize > 2) {
-                        if (!h->cfg.disable_hgop) {
-                            push_sub_gop(h, 0, h->img_isize - 2, FRM_DEPTH_2);
-                        } else {
-                            for (int i = 0; i < h->img_isize - 2; i++) {
-                                input_node_t *node = &h->node_list[h->node_size++];
-                                node->img = h->img_ilist[i];
-                                node->b_ref = 0;
-                                node->layer_id = FRM_DEPTH_2;
-                                node->type = SLICE_B;
-                            }
-                        }
+                        push_sub_gop(h, 0, h->img_isize - 2, FRM_DEPTH_2);
                     }
                 }
                 input_node_t *node = &h->node_list[h->node_size++];
@@ -1512,7 +1356,7 @@ int uavs3e_enc(void *id, enc_stat_t *stat, com_img_t *img_enc)
     pic_org.stride_luma   = STRIDE_IMGB2PIC(img_org->stride[0]);
     pic_org.stride_chroma = STRIDE_IMGB2PIC(img_org->stride[1]);
     pic_org.img           = img_org;
-    pic_org.layer_id   = node.layer_id;
+    pic_org.layer_id      = node.layer_id;
     pic_org.b_ref         = node.b_ref;
 
     com_info_t *info         = &h->info;
@@ -1524,13 +1368,17 @@ int uavs3e_enc(void *id, enc_stat_t *stat, com_img_t *img_enc)
     pichdr->dtr = h->dtr++;
 
     /* Set picture header */
-    set_pic_header(h);
+    pic_rec->b_ref    = pic_org.b_ref;
+    pic_rec->layer_id = pic_org.layer_id;
+    pic_rec->ptr      = img_org->ptr;
+    pic_rec->dtr      = (s32)(h->pichdr.dtr % DOI_CYCLE_LENGTH);
+    pic_rec->end_line = 0;
+
+    set_pic_header(h, pic_rec);
 
     if (h->cfg.rc_type == RC_TYPE_NULL) {
         int qp = COM_CLIP3(MIN_QUANT - h->info.qp_offset_bit_depth, MAX_QUANT_BASE, h->cfg.qp);
-        if (!h->cfg.disable_hgop) {
-            qp = (int)(enc_get_hgop_qp(qp, pic_org.layer_id, h->info.sqh.low_delay) + 0.5);
-        }
+        qp = (int)(enc_get_hgop_qp(qp, pic_org.layer_id, h->info.sqh.low_delay) + 0.5);
         pic_org.picture_qp = (u8)COM_CLIP3(MIN_QUANT, (MAX_QUANT_BASE + h->info.qp_offset_bit_depth), qp + h->info.qp_offset_bit_depth);
     } else {
         pic_org.picture_satd = cal_pic_cost(h, node.img, pic_rec->map_mv);
@@ -1577,10 +1425,6 @@ int uavs3e_enc(void *id, enc_stat_t *stat, com_img_t *img_enc)
     memcpy(&pic_thd_param->pichdr,   &h->pichdr,       sizeof(com_pic_header_t));
     memcpy(&pic_thd_param->num_refp, &h->rpm.num_refp, sizeof(h->rpm.num_refp));
     memcpy(&pic_thd_param->refp,     &h->refp,         sizeof(h->refp));
-
-    pic_rec->b_ref = pic_org.b_ref;
-    pic_rec->finished_line = 0;
-    com_refm_insert_rec_pic(&h->rpm, pic_rec, h->pichdr.slice_type, img_org->ptr, h->pichdr.dtr, h->refp);
 
     uavs3e_threadpool_run(h->frm_threads_pool, (void*(*)(void *, void*))enc_pic_thread, pic_thd_param, 1);
 
