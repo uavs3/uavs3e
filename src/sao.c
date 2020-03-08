@@ -32,7 +32,7 @@ static double sao_rdcost_merge(core_t *core, const lbac_t *lbac, int lcu_pos, in
     double curdist = 0;
     int currate;
     double curcost, mincost;
-    mincost = MAX_COST;
+    mincost = MAX_D_COST;
     getSaoMergeNeighbor(info, core->map->map_patch, info->pic_width_in_scu, info->pic_width_in_lcu, lcu_pos, mb_y, mb_x, sao_blk_params, merge_avail, merge_candidate);
     *MergeLeftAvail = merge_avail[SAO_MERGE_LEFT];
     *MergeUpAvail = merge_avail[SAO_MERGE_ABOVE];
@@ -120,7 +120,7 @@ static int sao_offset_estimation(int typeIdx, int classIdx, double lambda, int o
             exit(-1);
         }
     }
-    mincost = MAX_COST;
+    mincost = MAX_D_COST;
     for (temp_offset = start_offset; temp_offset <= end_offset; temp_offset += offset_step) {
         int offset = temp_offset;
         assert(offset >= -7 && offset <= 7);

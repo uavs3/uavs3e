@@ -75,7 +75,7 @@ double cal_pic_cost(enc_ctrl_t *h, com_img_t *img_org, s16(*map_mv)[REFP_NUM][MV
 
     for (int y = 0; y < info->pic_height - UNIT_SIZE + 1; y += UNIT_SIZE) {
         for (int x = 0; x < info->pic_width - UNIT_SIZE + 1; x += UNIT_SIZE) {
-            u32 min_cost = COM_UINT32_MAX;
+            u64 min_cost = COM_UINT64_MAX;
             pel nb_buf[INTRA_NEIB_SIZE];
             pel *org = (pel*)img_org->planes[0] + y * img_org->stride[0] + x;
             int i_org = img_org->stride[0];

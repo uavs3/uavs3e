@@ -851,8 +851,8 @@ static double mode_coding_unit(core_t *core, lbac_t *sbac_best, int x, int y, in
     }
 
     //**************** inter ********************
-    double cost_best = MAX_COST;
-    core->cost_best = MAX_COST;
+    double cost_best = MAX_D_COST;
+    core->cost_best  = MAX_D_COST;
 
     if (core->slice_type != SLICE_I && cons_pred_mode != ONLY_INTRA) {
         analyze_inter_cu(core, sbac_best);
@@ -864,13 +864,13 @@ static double mode_coding_unit(core_t *core, lbac_t *sbac_best, int x, int y, in
     }
 
     //**************** intra ********************
-    if ((core->slice_type == SLICE_I || is_cu_nz(bst_info->num_nz) || cost_best > MAX_COST_EXT) && cons_pred_mode != ONLY_INTER) {
+    if ((core->slice_type == SLICE_I || is_cu_nz(bst_info->num_nz) || cost_best > MAX_D_COST_EXT) && cons_pred_mode != ONLY_INTER) {
         if (cu_width <= 64 && cu_height <= 64) {
-            core->dist_cu_best = COM_INT32_MAX;
-            if (core->cost_best < MAX_COST_EXT) {
+            core->dist_cu_best = COM_UINT64_MAX;
+            if (core->cost_best < MAX_D_COST_EXT) {
                 core->inter_satd = block_pel_satd(cu_width_log2, cu_height_log2, pic_org->y + (y * pic_org->stride_luma) + x, bst_info->pred[0], pic_org->stride_luma, 1 << cu_width_log2, bit_depth);
             } else {
-                core->inter_satd = COM_UINT32_MAX;
+                core->inter_satd = COM_UINT64_MAX;
             }
 
             for (ipf_flag = 0; ipf_flag < ipf_passes_num; ++ipf_flag) {
@@ -897,7 +897,7 @@ static double mode_coding_unit(core_t *core, lbac_t *sbac_best, int x, int y, in
 static void check_run_split(core_t *core, int cu_width_log2, int cu_height_log2, int cup, int *split_allow)
 {
     int i;
-    double min_cost = MAX_COST;
+    double min_cost = MAX_D_COST;
     int run_list[NUM_SPLIT_MODE];
     enc_history_t *p_bef_data = &core->bef_data[cu_width_log2 - 2][cu_height_log2 - 2][cup];
 
@@ -909,7 +909,7 @@ static void check_run_split(core_t *core, int cu_width_log2, int cu_height_log2,
                     min_cost = p_bef_data->split_cost[i];
                 }
             }
-            if (min_cost > MAX_COST_EXT) {
+            if (min_cost > MAX_D_COST_EXT) {
                 run_list[0] = 1;
                 for (i = 1; i < NUM_SPLIT_MODE; i++) {
                     run_list[i] = 0;
@@ -949,7 +949,7 @@ static void check_run_split(core_t *core, int cu_width_log2, int cu_height_log2,
     } else {
         for (i = 0; i < NUM_SPLIT_MODE; i++) {
             run_list[i] = 1;
-            p_bef_data->split_cost[i] = MAX_COST;
+            p_bef_data->split_cost[i] = MAX_D_COST;
         }
     }
 }
@@ -1068,11 +1068,11 @@ static double mode_coding_tree(core_t *core, lbac_t *sbac_cur, int x0, int y0, i
     s8 best_split_mode = NO_SPLIT;
     u8 best_cons_pred_mode = NO_MODE_CONS;
     int bit_cnt;
-    double cost_best = MAX_COST;
+    double cost_best = MAX_D_COST;
     int boundary = !(x0 + cu_width <= info->pic_width && y0 + cu_height <= info->pic_height);
     int boundary_r = 0, boundary_b = 0;
     int split_allow[SPLIT_QUAD + 1]; 
-    double best_curr_cost = MAX_COST;
+    double best_curr_cost = MAX_D_COST;
     int num_split_tried = 0;
     int num_split_to_try = 0;
     int next_split = 1; //early termination flag
@@ -1159,7 +1159,7 @@ static double mode_coding_tree(core_t *core, lbac_t *sbac_cur, int x0, int y0, i
             best_cons_pred_mode = cons_pred_mode;
             p_bef_data->visit = 1;
         } else {
-            cost_temp = MAX_COST;
+            cost_temp = MAX_D_COST;
         }
         if (!p_bef_data->split_visit) {
             p_bef_data->split_cost[NO_SPLIT] = cost_temp;
@@ -1167,17 +1167,17 @@ static double mode_coding_tree(core_t *core, lbac_t *sbac_cur, int x0, int y0, i
         }
     }
 #if ENC_ECU_ADAPTIVE
-    if (cost_best < MAX_COST && cud >= (core->ptr % 2 ? ENC_ECU_DEPTH - 1 : ENC_ECU_DEPTH)
+    if (cost_best < MAX_D_COST && cud >= (core->ptr % 2 ? ENC_ECU_DEPTH - 1 : ENC_ECU_DEPTH)
 #else
-    if (cost_best < MAX_COST && cud >= ENC_ECU_DEPTH
+    if (cost_best < MAX_D_COST && cud >= ENC_ECU_DEPTH
 #endif
         && bst_info->cu_mode == MODE_SKIP) {
         next_split = 0;
     }
 
-    if (cost_best < MAX_COST) {
+    if (cost_best < MAX_D_COST) {
         if (slice_type == SLICE_I) {
-            if (bst_info->ipm[PB0][0] != IPD_IPCM && core->dist_cu_best < (1 << (cu_width_log2 + cu_height_log2 + 7))) {
+            if (bst_info->ipm[PB0][0] != IPD_IPCM && core->dist_cu_best < ((u64)1 << (cu_width_log2 + cu_height_log2 + 7))) {
                 u8 bits_inc_by_split = ((cu_width_log2 + cu_height_log2 >= 6) ? 2 : 0) + 8; //two split flags + one more (intra dir + cbf + edi_flag + mtr info) + 1-bit penalty, approximately 8 bits
                 if (core->dist_cu_best < core->lambda[0] * bits_inc_by_split) {
                     next_split = 0;
@@ -1235,7 +1235,7 @@ static double mode_coding_tree(core_t *core, lbac_t *sbac_cur, int x0, int y0, i
     }
     if ((cu_width > MIN_CU_SIZE || cu_height > MIN_CU_SIZE) && next_split) {
         split_mode_t split_mode_order[NUM_SPLIT_MODE];
-        double best_split_cost = MAX_COST;
+        double best_split_cost = MAX_D_COST;
 
         max_cost = COM_MIN(cost_best, max_cost);
 
@@ -1243,10 +1243,10 @@ static double mode_coding_tree(core_t *core, lbac_t *sbac_cur, int x0, int y0, i
         for (int split_mode_num = 1; split_mode_num < NUM_SPLIT_MODE; ++split_mode_num) {
             split_mode_t split_mode = split_mode_order[split_mode_num];
             int is_mode_EQT = com_split_is_EQT(split_mode);
-            int EQT_not_skiped = is_mode_EQT ? (best_split_mode != NO_SPLIT || cost_best > MAX_COST_EXT) : 1;
+            int EQT_not_skiped = is_mode_EQT ? (best_split_mode != NO_SPLIT || cost_best > MAX_D_COST_EXT) : 1;
 
             if (split_allow[split_mode] && EQT_not_skiped) {
-                double best_cons_cost = MAX_COST;
+                double best_cons_cost = MAX_D_COST;
                 com_split_struct_t split_struct;
                 int prev_log2_sub_cuw = split_struct.log_cuw[0];
                 int prev_log2_sub_cuh = split_struct.log_cuh[0];
@@ -1315,7 +1315,7 @@ static double mode_coding_tree(core_t *core, lbac_t *sbac_cur, int x0, int y0, i
                         double part_max_cost = max_cost - cost_temp;
 
                         if (part_max_cost < 0) {
-                           // cost_temp = MAX_COST;
+                           // cost_temp = MAX_D_COST;
                            // break;
                         }
                         if ((x_pos < info->pic_width) && (y_pos < info->pic_height)) {
@@ -1326,7 +1326,7 @@ static double mode_coding_tree(core_t *core, lbac_t *sbac_cur, int x0, int y0, i
                             prev_log2_sub_cuh = log2_sub_cuh;
                         }
                     }
-                    if (cost_temp < MAX_COST && tree_status_child == TREE_L && tree_status == TREE_LC) {
+                    if (cost_temp < MAX_D_COST && tree_status_child == TREE_L && tree_status == TREE_LC) {
                         core->tree_status = TREE_C;
                         core->cons_pred_mode = NO_MODE_CONS;
                         lbac_copy(&core->sbac_bakup, &sbac_tree_c);
@@ -1366,8 +1366,8 @@ static double mode_coding_tree(core_t *core, lbac_t *sbac_cur, int x0, int y0, i
         }
     }
 
-    if (cost_best > MAX_COST_EXT) {
-        return MAX_COST;
+    if (cost_best > MAX_D_COST_EXT) {
+        return MAX_D_COST;
     }
 
     cpy_rec_2_pic(core, x0, y0, cu_width, cu_height, core->pic_rec, tree_status);
@@ -1393,7 +1393,7 @@ static double mode_coding_tree(core_t *core, lbac_t *sbac_cur, int x0, int y0, i
     }
     update_map_scu(core, x0, y0, 1 << cu_width_log2, 1 << cu_height_log2);
 
-    return (cost_best > MAX_COST_EXT) ? MAX_COST : cost_best;
+    return (cost_best > MAX_D_COST_EXT) ? MAX_D_COST : cost_best;
 }
 
 void enc_mode_init_frame(core_t *core)
@@ -1433,7 +1433,7 @@ int enc_mode_analyze_lcu(core_t *core, const lbac_t *lbac)
     lbac_copy(&sbac_root, lbac);
 
     /* decide mode */
-    mode_coding_tree(core, &sbac_root, core->lcu_pix_x, core->lcu_pix_y, 0, info->log2_max_cuwh, info->log2_max_cuwh, 0 , NO_SPLIT, 0, 0, NO_MODE_CONS, TREE_LC, MAX_COST);
+    mode_coding_tree(core, &sbac_root, core->lcu_pix_x, core->lcu_pix_y, 0, info->log2_max_cuwh, info->log2_max_cuwh, 0 , NO_SPLIT, 0, 0, NO_MODE_CONS, TREE_LC, MAX_D_COST);
 
     memcpy(core->map->map_split + lcu_pos * info->cus_in_lcu, cu_data->split_mode, sizeof(s8) * MAX_CU_DEPTH * NUM_BLOCK_SHAPE * info->cus_in_lcu);
 

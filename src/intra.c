@@ -187,15 +187,15 @@ static int make_ipred_list(core_t *core, int width, int height, int cu_width_log
     int bit_depth = core->info->bit_depth_internal;
     int pred_cnt, i, j;
     double cost, cand_cost[IPD_RDO_CNT];
-    u32 cand_satd_cost[IPD_RDO_CNT];
-    u32 cost_satd;
+    u64 cand_satd_cost[IPD_RDO_CNT];
+    u64 cost_satd;
     const int ipd_rdo_cnt = (width >= height * 4 || height >= width * 4) ? IPD_RDO_CNT - 1 : IPD_RDO_CNT;
     com_mode_t *cur_info = &core->mod_info_curr;
 
     for (i = 0; i < ipd_rdo_cnt; i++) {
         ipred_list[i] = IPD_DC;
-        cand_cost[i] = MAX_COST;
-        cand_satd_cost[i] = COM_UINT32_MAX;
+        cand_cost[i] = MAX_D_COST;
+        cand_satd_cost[i] = COM_UINT64_MAX;
     }
     pred_cnt = IPD_CNT;
     for (i = 0; i < IPD_CNT; i++) {
@@ -269,7 +269,7 @@ void analyze_intra_cu(core_t *core, lbac_t *sbac_best)
     pel *org, *mod;
     pel *org_cb, *org_cr;
     pel *mod_cb, *mod_cr;
-    double cost_temp, cost_best = MAX_COST;
+    double cost_temp, cost_best = MAX_D_COST;
     double cost_pb_temp, cost_pb_best;
     int x = core->cu_pix_x;
     int y = core->cu_pix_y;
@@ -326,10 +326,10 @@ void analyze_intra_cu(core_t *core, lbac_t *sbac_best)
             allowed_part_size[num_allowed_part_size++] = SIZE_nRx2N;
         }
 
-        cost_best = MAX_COST;
+        cost_best = MAX_D_COST;
 #if DT_INTRA_FAST_BY_RD
         u8 try_non_2NxhN = 1, try_non_hNx2N = 1;
-        double cost_2Nx2N = MAX_COST, cost_hNx2N = MAX_COST, cost_2NxhN = MAX_COST;
+        double cost_2Nx2N = MAX_D_COST, cost_hNx2N = MAX_D_COST, cost_2NxhN = MAX_D_COST;
 #endif
         for (part_size_idx = 0; part_size_idx < num_allowed_part_size; part_size_idx++) {
             part_size_t pb_part_size = allowed_part_size[part_size_idx];
@@ -372,7 +372,7 @@ void analyze_intra_cu(core_t *core, lbac_t *sbac_best)
                     ((pb_part_size == SIZE_2NxnD || pb_part_size == SIZE_nRx2N) && pb_part_idx == 0)) {
                     skip_ipd = 1;
                 }
-                cost_pb_best = MAX_COST;
+                cost_pb_best = MAX_D_COST;
                 cu_nz_cln(cur_info->num_nz);
 
                 mod = pic_rec->y + (pb_y * s_mod) + pb_x;
@@ -468,19 +468,19 @@ void analyze_intra_cu(core_t *core, lbac_t *sbac_best)
                 cost_2Nx2N = cost_temp;
             } else if (pb_part_size == SIZE_2NxhN) {
                 cost_2NxhN = cost_temp;
-                assert(cost_2Nx2N < MAX_COST);
+                assert(cost_2Nx2N < MAX_D_COST);
                 if (cost_2NxhN > cost_2Nx2N * 1.05) {
                     try_non_2NxhN = 0;
                 }
             } else if (pb_part_size == SIZE_hNx2N) {
                 cost_hNx2N = cost_temp;
-                assert(cost_2Nx2N < MAX_COST);
+                assert(cost_2Nx2N < MAX_D_COST);
                 if (cost_hNx2N > cost_2Nx2N * 1.05) {
                     try_non_hNx2N = 0;
                 }
             }
 
-            if (cost_hNx2N < MAX_COST && cost_2NxhN < MAX_COST) {
+            if (cost_hNx2N < MAX_D_COST && cost_2NxhN < MAX_D_COST) {
                 if (cost_hNx2N > cost_2NxhN * 1.1) {
                     try_non_hNx2N = 0;
                 } else if (cost_2NxhN > cost_hNx2N * 1.1) {
@@ -534,7 +534,7 @@ void analyze_intra_cu(core_t *core, lbac_t *sbac_best)
         com_intra_get_nbr(x >> 1, y >> 1, cu_width >> 1, cu_height >> 1, mod_cb, s_mod_c, core->linebuf_intra[1][1] + (x >> 1), info->max_cuwh >> 1, avail_cu, core->nb, core->cu_scup_in_pic, map->map_scu, info->i_scu, bit_depth, U_C);
         com_intra_get_nbr(x >> 1, y >> 1, cu_width >> 1, cu_height >> 1, mod_cr, s_mod_c, core->linebuf_intra[1][2] + (x >> 1), info->max_cuwh >> 1, avail_cu, core->nb, core->cu_scup_in_pic, map->map_scu, info->i_scu, bit_depth, V_C);
 
-        cost_best = MAX_COST;
+        cost_best = MAX_D_COST;
 
         if (core->tree_status == TREE_C) {
             assert(cu_width >= 8 && cu_height >= 8);

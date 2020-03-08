@@ -73,7 +73,7 @@ static void make_cand_list(core_t *core, int *mode_list, double *cost_list, int 
     cur_info->cu_mode = MODE_SKIP;
     for (i = 0; i < num_rdo; i++) {
         mode_list[i] = 0;
-        cost_list[i] = MAX_COST;
+        cost_list[i] = MAX_D_COST;
     }
 
     for (skip_idx = 0; skip_idx < num_cands_all; skip_idx++) {
@@ -268,7 +268,7 @@ static double inter_rdcost(core_t *core, lbac_t *sbac_best, int bForceAllZero)
     int(*num_nz_coef)[N_C], tnnz, width[N_C], height[N_C], log2_w[N_C], log2_h[N_C], stride_org[N_C];
     pel(*rec)[MAX_CU_DIM];
     s64 dist[2][N_C] = { 0 }, dist_pred[N_C] = { 0 };
-    double cost, cost_best = MAX_COST;
+    double cost, cost_best = MAX_D_COST;
     int cbf_best[N_C], nnz_store[MAX_NUM_TB][N_C], tb_part_store;
     int num_n_c = core->tree_status == TREE_LC ? N_C : 1;
     int bit_cnt;
@@ -424,7 +424,7 @@ static double inter_rdcost(core_t *core, lbac_t *sbac_best, int bForceAllZero)
             if (core->tree_status == TREE_LC) { 
                 for (i = 0; i < N_C; i++) {
                     if (is_cu_plane_nz(nnz_store, i) > 0) {
-                        double cost_comp_best = MAX_COST;
+                        double cost_comp_best = MAX_D_COST;
                         lbac_t sbac_cur_comp;
                         lbac_copy(&sbac_cur_comp, &sbac_cur_comp_best);
 
@@ -539,7 +539,7 @@ double pinter_residue_rdo_chroma(core_t *core)
     int(*num_nz_coef)[N_C], tnnz, width[N_C], height[N_C], log2_w[N_C], log2_h[N_C];;
     pel(*rec)[MAX_CU_DIM];
     s64    dist[2][N_C];
-    double cost, cost_best = MAX_COST;
+    double cost, cost_best = MAX_D_COST;
     int    cbf_best[N_C];
     int    bit_cnt;
     int    i, cbf_y, cbf_u, cbf_v;
@@ -827,7 +827,7 @@ static void analyze_affine_merge(core_t *core, lbac_t *sbac_best)
     int          mrg_list_cp_num[AFF_MAX_NUM_MRG];
     CPMV         mrg_list_cp_mv[AFF_MAX_NUM_MRG][REFP_NUM][VER_NUM][MV_D];
 
-    double       cost = MAX_COST;
+    double       cost = MAX_D_COST;
     int          mrg_idx, num_cands = 0;
     int          ver = 0, iter = 0, iter_start = 0, iter_end = 2;
 
@@ -939,7 +939,7 @@ static void analyze_uni_pred(core_t *core, lbac_t *sbac_best, double *cost_L0L1,
         mv  = cur_info->mv [lidx];
         mvd = cur_info->mvd[lidx];
         pi->num_refp = (u8)core->num_refp[lidx];
-        best_mecost = COM_UINT32_MAX;
+        best_mecost = COM_UINT64_MAX;
         for (refi_cur = 0; refi_cur < pi->num_refp; refi_cur++) {
             mvp = pi->mvp_scale[lidx][refi_cur];
 
@@ -999,7 +999,7 @@ static void analyze_bi(core_t *core, lbac_t *sbac_best, s16 mv_L0L1[REFP_NUM][MV
     inter_search_t *pi = &core->pinter;
     int bit_depth = info->bit_depth_internal;
     s8  refi[REFP_NUM] = { REFI_INVALID, REFI_INVALID };
-    u32 best_mecost = COM_UINT32_MAX;
+    u64 best_mecost = COM_UINT64_MAX;
     s8  refi_best = 0, refi_cur;
     int changed = 0;
     u64 mecost;
@@ -1227,7 +1227,7 @@ static void analyze_smvd(core_t *core, lbac_t *sbac_best)
     int bit_depth = info->bit_depth_internal;
     u32        mecost;
     pel        *org;
-    double      cost = MAX_COST;
+    double      cost = MAX_D_COST;
     int         lidx_ref, lidx_cnd;
     int x = core->cu_pix_x;
     int y = core->cu_pix_y;
@@ -1386,14 +1386,14 @@ static int affine_mv_bits(CPMV mv[VER_NUM][MV_D], CPMV mvp[VER_NUM][MV_D], int n
     return bits;
 }
 
-static u32 affine_me_gradient(inter_search_t *pi, int x, int y, int cu_width_log2, int cu_height_log2, s8 *refi, int lidx, CPMV mvp[VER_NUM][MV_D], CPMV mv[VER_NUM][MV_D], int bi, int vertex_num, int sub_w, int sub_h)
+static u64 affine_me_gradient(inter_search_t *pi, int x, int y, int cu_width_log2, int cu_height_log2, s8 *refi, int lidx, CPMV mvp[VER_NUM][MV_D], CPMV mv[VER_NUM][MV_D], int bi, int vertex_num, int sub_w, int sub_h)
 {
     int bit_depth = pi->bit_depth;
     CPMV mvt[VER_NUM][MV_D];
     s16 mvd[VER_NUM][MV_D];
     int cu_width = 1 << cu_width_log2;
     int cu_height = 1 << cu_height_log2;
-    u32 cost, cost_best = COM_UINT32_MAX;
+    u64 cost, cost_best = COM_UINT64_MAX;
     s8 ri = *refi;
     com_pic_t *refp = pi->refp[ri][lidx].pic;
     ALIGNED_32(pel pred[MAX_CU_DIM]);
@@ -1628,7 +1628,7 @@ static void analyze_affine_uni(core_t *core, lbac_t *sbac_best, CPMV aff_mv_L0L1
     int lidx;
     s8 *refi;
     s8 refi_cur;
-    u32 mecost, best_mecost;
+    u64 mecost, best_mecost;
     s8 t0, t1;
     s8 refi_temp = 0;
     CPMV(*affine_mvp)[MV_D], (*affine_mv)[MV_D];
@@ -1636,7 +1636,7 @@ static void analyze_affine_uni(core_t *core, lbac_t *sbac_best, CPMV aff_mv_L0L1
     int vertex = 0;
     int vertex_num = 2;
     int mebits, best_bits = 0;
-    u32 cost_trans[REFP_NUM][MAX_NUM_ACTIVE_REF_FRAME];
+    u64 cost_trans[REFP_NUM][MAX_NUM_ACTIVE_REF_FRAME];
     CPMV tmp_mv_array[VER_NUM][MV_D];
     int memory_access;
     int allowed = 1;
@@ -1670,7 +1670,7 @@ static void analyze_affine_uni(core_t *core, lbac_t *sbac_best, CPMV aff_mv_L0L1
         affine_mv = cur_info->affine_mv[lidx];
         affine_mvd = cur_info->affine_mvd[lidx];
         pi->num_refp = (u8)core->num_refp[lidx];
-        best_mecost = COM_UINT32_MAX;
+        best_mecost = COM_UINT64_MAX;
         for (refi_cur = 0; refi_cur < pi->num_refp; refi_cur++) {
             com_map_t *map = core->map;
             affine_mvp = pi->affine_mvp_scale[lidx][refi_cur];
@@ -1678,8 +1678,8 @@ static void analyze_affine_uni(core_t *core, lbac_t *sbac_best, CPMV aff_mv_L0L1
             core->cu_width, core->cu_height, info->i_scu, affine_mvp,
             map->map_scu, map->map_pos, vertex_num, cur_info->mvr_idx);
 
-            u32 mvp_best = COM_UINT32_MAX;
-            u32 mvp_temp = COM_UINT32_MAX;
+            u64 mvp_best = COM_UINT64_MAX;
+            u64 mvp_temp = COM_UINT64_MAX;
             s8  refi_t[REFP_NUM];
             com_pic_t *refp = core->refp[refi_cur][lidx].pic;
             ALIGNED_32(pel pred[MAX_CU_DIM]);
@@ -1806,10 +1806,10 @@ static void analyze_affine_bi(core_t *core, lbac_t *sbac_best, CPMV aff_mv_L0L1[
     com_pic_t *pic_org = core->pic_org;
     int bit_depth = info->bit_depth_internal;
     s8         refi[REFP_NUM] = { REFI_INVALID, REFI_INVALID };
-    u32        best_mecost = COM_UINT32_MAX;
+    u64        best_mecost = COM_UINT64_MAX;
     s8        refi_best = 0, refi_cur;
     int        changed = 0;
-    u32        mecost;
+    u64        mecost;
     pel        *org;
     pel(*pred)[MAX_CU_DIM];
     int        vertex_num = 2;
@@ -2028,7 +2028,7 @@ void analyze_inter_cu(core_t *core, lbac_t *sbac_best)
         }
 
         for (cur_info->mvr_idx = 0; cur_info->mvr_idx < num_amvr; cur_info->mvr_idx++) {
-            double cost_L0L1[2] = { MAX_COST, MAX_COST };
+            double cost_L0L1[2] = { MAX_D_COST, MAX_D_COST };
             s8 refi_L0L1[2] = { REFI_INVALID, REFI_INVALID };
             s16 mv_L0L1[REFP_NUM][MV_D];
             pi->curr_mvr = cur_info->mvr_idx;
@@ -2075,7 +2075,7 @@ void analyze_inter_cu(core_t *core, lbac_t *sbac_best)
         }
     }
 
-    double cost_L0L1[2] = { MAX_COST, MAX_COST };
+    double cost_L0L1[2] = { MAX_D_COST, MAX_D_COST };
     s8 refi_L0L1[2] = { REFI_INVALID, REFI_INVALID };
     CPMV aff_mv_L0L1[REFP_NUM][VER_NUM][MV_D];
 

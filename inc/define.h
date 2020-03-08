@@ -46,8 +46,8 @@
 #define MAX_REORDER_BUF        33
 
 /* maximum cost value */
-#define MAX_COST                (1.7e+308)
-#define MAX_COST_EXT            (MAX_COST * 0.999999999)
+#define MAX_D_COST                (1.7e+308)
+#define MAX_D_COST_EXT            (MAX_D_COST * 0.999999999)
 
 typedef struct uavs3e_enc_rc_handle_t enc_rc_handle_t;
 typedef struct uavs3e_enc_ctrl_t enc_ctrl_t;
@@ -326,9 +326,9 @@ typedef struct uavs3e_core_t {
     double         cost_best;
 
     /*** for fast algorithm ***/
-    u32            inter_satd;
-    s32            dist_cu;
-    s32            dist_cu_best; //dist of the best intra mode (note: only updated in intra coding now)
+    u64            inter_satd;
+    u64            dist_cu;
+    u64            dist_cu_best; //dist of the best intra mode (note: only updated in intra coding now)
     u8             skip_mvps_check;
 #if TR_SAVE_LOAD
     u8             best_tb_part_hist;

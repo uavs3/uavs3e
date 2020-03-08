@@ -93,11 +93,6 @@ typedef int BOOL;
 #define COM_INT_MAX             ((int)0x7FFFFFFF)
 #define COM_INT_MIN             ((int)0x80000000)
 
-#define COM_UINT32_MAX          ((u32)0xFFFFFFFF)
-#define COM_UINT32_MIN          ((u32)0x0)
-#define COM_INT32_MAX           ((s32)0x7FFFFFFF)
-#define COM_INT32_MIN           ((s32)0x80000000)
-
 #define COM_UINT64_MAX          ((u64)0xFFFFFFFFFFFFFFFFL)
 #define COM_UINT64_MIN          ((u64)0x0L)
 #define COM_INT64_MAX           ((s64)0x7FFFFFFFFFFFFFFFL)
