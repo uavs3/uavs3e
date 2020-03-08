@@ -324,7 +324,7 @@ static int get_max_search_range(inter_search_t *pi, const s16 mvp[2], int x, int
     return 1;
 }
 
-u32 me_search_tz(inter_search_t *pi, int x, int y, int w, int h, int pic_width, int pic_height, s8 refi, int lidx, const s16 mvp[MV_D], s16 mv[MV_D], int bi)
+u64 me_search_tz(inter_search_t *pi, int x, int y, int w, int h, int pic_width, int pic_height, s8 refi, int lidx, const s16 mvp[MV_D], s16 mv[MV_D], int bi)
 {
     s16 range[MV_RANGE_DIM][MV_D];
     com_pic_t *ref_pic = pi->refp[refi][lidx].pic;

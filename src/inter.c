@@ -918,7 +918,7 @@ static void analyze_uni_pred(core_t *core, lbac_t *sbac_best, double *cost_L0L1,
     inter_search_t *pi = &core->pinter;
     int lidx;
     s16 *mvp, *mv, *mvd;
-    u32 mecost, best_mecost;
+    u64 mecost, best_mecost;
     s8 refi_cur = 0;
     s8 best_refi = 0;
     s8 t0, t1;
@@ -1002,7 +1002,7 @@ static void analyze_bi(core_t *core, lbac_t *sbac_best, s16 mv_L0L1[REFP_NUM][MV
     u32 best_mecost = COM_UINT32_MAX;
     s8  refi_best = 0, refi_cur;
     int changed = 0;
-    u32 mecost;
+    u64 mecost;
     pel *org;
     pel(*pred)[MAX_CU_DIM];
     s8 t0, t1;
