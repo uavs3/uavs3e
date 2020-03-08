@@ -339,16 +339,16 @@ typedef struct uavs3e_core_t {
 } core_t;
 
 typedef struct uavs3e_enc_pic_t {
-    threadpool_t *wpp_threads_pool;
-    com_map_t    map;
-    com_info_t   info;
+    threadpool_t   *wpp_threads_pool;
+    com_map_t       map;
+    com_info_t      info;
 
-    u8           *bs_buf_demulate;
+    u8             *bs_buf_demulate;
 
-    pel        *(*linebuf_intra)[3];
-    pel          *linebuf_sao[3];
+    pel          *(*linebuf_intra)[3];
+    pel            *linebuf_sao[3];
 
-    enc_cu_t     *map_cu_data;
+    enc_cu_t       *map_cu_data;
 
     int             pic_alf_on[N_C];
     enc_alf_var_t   Enc_ALF;
@@ -357,7 +357,7 @@ typedef struct uavs3e_enc_pic_t {
     com_sao_param_t(*sao_blk_params)[N_C];                        //[SMB][comp]
 
     enc_lcu_row_t  *array_row;
-    core_t     *main_core;     /* for SBAC */
+    core_t         *main_core;     /* for SBAC */
 
 } enc_pic_t;
 
@@ -383,11 +383,11 @@ typedef struct uavs3e_pic_thd_param_t {
  * All have to be stored are in this structure.
  *****************************************************************************/
 struct uavs3e_enc_ctrl_t {
-    enc_cfg_t cfg;                                   /* encoding parameter */
+    enc_cfg_t         cfg;                           /* encoding parameter */
 
-    com_img_t        *img_ilist[MAX_REORDER_BUF];
-    int               img_isize;
-    input_node_t      node_list[MAX_REORDER_BUF];
+    com_img_t        *img_rlist[MAX_REORDER_BUF];    /*  inputted images */
+    int               img_rsize;
+    input_node_t      node_list[MAX_REORDER_BUF];    /*  images after reorder */
     int               node_size;
     long long         lastI_ptr;
 
@@ -400,12 +400,13 @@ struct uavs3e_enc_ctrl_t {
                       
     s64               prev_pts;                      /* used to calculate dts */
     s64               prev_ptr;                      /* used to calculate dts */
-                      
+               
+    com_pic_manager_t rpm;                           /* reference picture manager */
+
     /*** copy to enc_pic_t ***/
     com_info_t        info;
     com_pic_header_t  pichdr;
     com_ref_pic_t     refp[MAX_REFS][REFP_NUM];      /* reference picture (0: foward, 1: backward) */
-    com_pic_manager_t rpm;                           /* reference picture manager */
 
     /*** parallel data ***/
     threadpool_t   *frm_threads_pool;
@@ -415,7 +416,7 @@ struct uavs3e_enc_ctrl_t {
     int              pic_thd_active;
 
     /*** RC data ***/
-    inter_search_t preprocess_pinter;
+    inter_search_t  preprocess_pinter;
     enc_rc_handle_t rc;
 };
 

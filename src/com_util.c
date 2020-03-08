@@ -40,24 +40,6 @@ void uavs3e_align_free(void *p)
     free(*(((void **)p) - 1));
 }
 
-int com_atomic_inc(volatile int *pcnt)
-{
-    int ret;
-    ret = *pcnt;
-    ret++;
-    *pcnt = ret;
-    return ret;
-}
-
-int com_atomic_dec(volatile int *pcnt)
-{
-    int ret;
-    ret = *pcnt;
-    ret--;
-    *pcnt = ret;
-    return ret;
-}
-
 void com_img_free(com_img_t *img)
 {
     int i;
@@ -72,29 +54,25 @@ void com_img_free(com_img_t *img)
 
 com_img_t *com_img_create(int width, int height, int pad[MAX_PLANES])
 {
-    int i, p_size;
+    const int scale = sizeof(pel);
     com_img_t *img;
     img = (com_img_t *)com_malloc(sizeof(com_img_t));
     com_assert_rv(img, NULL);
     com_mset(img, 0, sizeof(com_img_t));
 
-    const int scale = sizeof(pel);
+    for (int i = 0; i < MAX_PLANES; i++) {
+        int p_size = (pad != NULL) ? pad[i] : 0;
 
-    for (i = 0; i < 3; i++) {
-        int buf_size;
-
-        img->width[i] = width;
+        img->width [i] = width;
         img->height[i] = height;
-        p_size = (pad != NULL) ? pad[i] : 0;
-        img->pad[i] = p_size;
+        img->pad   [i] = p_size;
         img->stride[i] = (img->width[i] + p_size * 2) * scale;
 
-        buf_size = (img->height[i] + p_size * 2) * img->stride[i];
-        img->buf[i] = com_malloc(buf_size);
+        img->buf   [i] = com_malloc((img->height[i] + p_size * 2) * img->stride[i]);
         img->planes[i] = ((u8 *)img->buf[i]) + p_size * img->stride[i] + p_size * scale;
 
         if (i == 0) {
-            width = (width + 1) >> 1;
+            width  = (width  + 1) >> 1;
             height = (height + 1) >> 1;
         }
     }
@@ -106,7 +84,7 @@ com_img_t *com_img_create(int width, int height, int pad[MAX_PLANES])
 }
 
 
-com_pic_t *com_picbuf_create(int width, int height, int pad_l, int pad_c, int *err)
+com_pic_t *com_pic_create(int width, int height, int pad_l, int pad_c, int *err)
 {
     com_pic_t *pic = NULL;
     com_img_t *img = NULL;
@@ -123,19 +101,21 @@ com_pic_t *com_picbuf_create(int width, int height, int pad_l, int pad_c, int *e
     pad[2] = pad_c;
     img = com_img_create(width, height, pad);
     com_assert_gv(img != NULL, ret, COM_ERR_OUT_OF_MEMORY, ERR);
+
     /* set com_pic_t */
-    pic->y     = img->planes[0];
-    pic->u     = img->planes[1];
-    pic->v     = img->planes[2];
-    pic->width_luma   = img->width[0];
-    pic->height_luma   = img->height[0];
-    pic->width_chroma   = img->width[1];
+    pic->y               = img->planes[0];
+    pic->u               = img->planes[1];
+    pic->v               = img->planes[2];
+    pic->width_luma      = img->width [0];
+    pic->height_luma     = img->height[0];
+    pic->width_chroma    = img->width [1];
     pic->height_chroma   = img->height[1];
-    pic->stride_luma   = STRIDE_IMGB2PIC(img->stride[0]);
+    pic->stride_luma     = STRIDE_IMGB2PIC(img->stride[0]);
     pic->stride_chroma   = STRIDE_IMGB2PIC(img->stride[1]);
-    pic->padsize_luma = pad_l;
-    pic->padsize_chroma = pad_c;
+    pic->padsize_luma    = pad_l;
+    pic->padsize_chroma  = pad_c;
     pic->img  = img;
+
     /* allocate maps */
     i_scu = ((pic->width_luma  + ((1 << MIN_CU_LOG2) - 1)) >> MIN_CU_LOG2) + 2;
     h_scu = ((pic->height_luma + ((1 << MIN_CU_LOG2) - 1)) >> MIN_CU_LOG2) + 2;
@@ -174,7 +154,7 @@ ERR:
     return NULL;
 }
 
-void com_picbuf_free(com_pic_t *pic)
+void com_pic_free(com_pic_t *pic)
 {
     if (pic) {
         if (pic->img) {
@@ -188,7 +168,7 @@ void com_picbuf_free(com_pic_t *pic)
     }
 }
 
-static void picbuf_expand(pel *a, int s, int width, int height, int exp_hor, int exp_upper, int exp_below)
+static void picture_padding(pel *a, int s, int width, int height, int exp_hor, int exp_upper, int exp_below)
 {
     int i, j;
     pel pixel;
@@ -231,13 +211,13 @@ static void picbuf_expand(pel *a, int s, int width, int height, int exp_hor, int
     }
 }
 
-void com_picbuf_expand(com_pic_t *pic, int exp_l, int exp_c, int start_y, int end_y)
+void com_pic_padding(com_pic_t *pic, int exp_l, int exp_c, int start_y, int end_y)
 {
     int height = end_y - start_y;
 
-    picbuf_expand(pic->y + start_y     * pic->stride_luma,   pic->stride_luma,   pic->width_luma,   height,     exp_l, start_y ? 0 : exp_l, end_y == pic->height_luma ? exp_l : 0);
-    picbuf_expand(pic->u + start_y / 2 * pic->stride_chroma, pic->stride_chroma, pic->width_chroma, height / 2, exp_c, start_y ? 0 : exp_c, end_y == pic->height_luma ? exp_c : 0);
-    picbuf_expand(pic->v + start_y / 2 * pic->stride_chroma, pic->stride_chroma, pic->width_chroma, height / 2, exp_c, start_y ? 0 : exp_c, end_y == pic->height_luma ? exp_c : 0);
+    picture_padding(pic->y + start_y     * pic->stride_luma,   pic->stride_luma,   pic->width_luma,   height,     exp_l, start_y ? 0 : exp_l, end_y == pic->height_luma ? exp_l : 0);
+    picture_padding(pic->u + start_y / 2 * pic->stride_chroma, pic->stride_chroma, pic->width_chroma, height / 2, exp_c, start_y ? 0 : exp_c, end_y == pic->height_luma ? exp_c : 0);
+    picture_padding(pic->v + start_y / 2 * pic->stride_chroma, pic->stride_chroma, pic->width_chroma, height / 2, exp_c, start_y ? 0 : exp_c, end_y == pic->height_luma ? exp_c : 0);
 }
 
 int get_colocal_scup(int scup, int i_scu, int pic_width_in_scu, int pic_height_in_scu)

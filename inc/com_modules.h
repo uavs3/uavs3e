@@ -57,9 +57,9 @@ void com_mc_blk_affine_luma(int x, int y, int pic_w, int pic_h, int w, int h, CP
 ////////////// PICMAN
 int com_refm_create(com_pic_manager_t *pm, int max_pb_size, int max_num_ref_pics, int width, int height);
 int com_refm_free(com_pic_manager_t *pm);
-int com_refm_create_rpl(com_pic_manager_t *pm, com_pic_t *pic_ref[MAX_REFS], com_pic_header_t *sh, com_ref_pic_t(*refp)[REFP_NUM], int top_pic);
+int com_refm_create_rpl(com_pic_manager_t *pm, com_pic_header_t *sh, com_ref_pic_t(*refp)[REFP_NUM], int top_pic);
 void com_refm_pick_seqhdr_idx(com_seqh_t *seqhdr, com_pic_header_t *pichdr);
-void com_refm_build_ref_buf(com_pic_manager_t *pm, com_pic_t *pic_ref[MAX_REFS]);
+void com_refm_build_ref_buf(com_pic_manager_t *pm);
 int com_refm_insert_rec_pic(com_pic_manager_t *pm, com_pic_t *pic, com_ref_pic_t(*refp)[REFP_NUM]);
 void com_refm_remove_ref_pic(com_pic_manager_t *pm, com_pic_header_t *pichdr, com_pic_t *pic, int close_gop, int is_ld);
 

@@ -31,38 +31,30 @@ static void set_refp(com_ref_pic_t *refp, com_pic_t *pic_ref)
     com_img_addref(pic_ref->img);
 }
 
-void com_refm_build_ref_buf(com_pic_manager_t *pm, com_pic_t *pic_ref[MAX_REFS])
+void com_refm_build_ref_buf(com_pic_manager_t *pm)
 {
-    int cnt = 0;
     com_pic_t **pic = pm->pic;
 
-    memset(pic_ref, 0, sizeof(com_pic_t*) * MAX_REFS);
-
-    for (int i = 0; i < pm->max_pb_size; i++) {
-        if (pic[i] && pic[i]->b_ref) {
-            pic_ref[cnt++] = pic[i];
-        }
-    }
-
     /* sort by ptr */
-    for (int i = 0; i < cnt - 1; i++) {
-        for (int j = i + 1; j < cnt; j++) {
-            if (pic_ref[i]->ptr > pic_ref[j]->ptr) {
-                com_pic_t *pic_t = pic_ref[i];
-                pic_ref[i] = pic_ref[j];
-                pic_ref[j] = pic_t;
+    for (int i = 0; i < pm->cur_num_ref_pics - 1; i++) {
+        for (int j = i + 1; j < pm->cur_num_ref_pics; j++) {
+            if (pic[i]->ptr > pic[j]->ptr) {
+                com_pic_t *pic_t = pic[i];
+                pic[i] = pic[j];
+                pic[j] = pic_t;
             }
         }
     }
 }
 
-int com_refm_create_rpl(com_pic_manager_t *pm, com_pic_t *pic_ref[MAX_REFS], com_pic_header_t *pichdr, com_ref_pic_t(*refp)[REFP_NUM], int top_pic)
+int com_refm_create_rpl(com_pic_manager_t *pm, com_pic_header_t *pichdr, com_ref_pic_t(*refp)[REFP_NUM], int top_pic)
 {
     int idx_nearest_l0;
     int num0 = 0, num1 = 0;
     com_pic_t *pic_ref_l0[MAX_REFS];
     com_pic_t *pic_ref_l1[MAX_REFS];
     com_rpl_t *rpl;
+    com_pic_t **pic_ref = pm->pic;
 
     for (int i = 0; i < pm->cur_num_ref_pics; i++) {
         com_pic_t *pic = pic_ref[i];
@@ -76,13 +68,11 @@ int com_refm_create_rpl(com_pic_manager_t *pm, com_pic_t *pic_ref[MAX_REFS], com
         for (int i = idx_nearest_l0; i >= 0; i--) {
             if (pic_ref[i]->layer_id < FRM_DEPTH_2) {
                 pic_ref_l0[num0++] = pic_ref[i];
-                pic_ref[i] = NULL;
             }
         }
         for (int i = idx_nearest_l0; i >= 0; i--) {
-            if (pic_ref[i]) {
+            if (pic_ref[i]->layer_id >= FRM_DEPTH_2) {
                 pic_ref_l0[num0++] = pic_ref[i];
-                pic_ref[i] = NULL;
             }
         }
     } else {
@@ -222,7 +212,7 @@ com_pic_t *com_refm_find_free_pic(com_pic_manager_t *pm, int *err)
             }
         }
         if (cur_pb_size < pm->max_pb_size) {
-            pic = com_picbuf_create(pm->pic_width, pm->pic_height, pm->pad_l, pm->pad_c, &ret);
+            pic = com_pic_create(pm->pic_width, pm->pic_height, pm->pad_l, pm->pad_c, &ret);
             com_assert_gv(pic != NULL, ret, COM_ERR_OUT_OF_MEMORY, ERR);
         } else {
             com_assert_gv(0, ret, COM_ERR_UNKNOWN, ERR);
@@ -240,7 +230,7 @@ ERR:
         *err = ret;
     }
     if (pic) {
-        com_picbuf_free(pic);
+        com_pic_free(pic);
     }
     return NULL;
 }
@@ -281,7 +271,7 @@ static void remove_ref_pic(com_pic_manager_t *pm, int idx)
 void com_refm_remove_ref_pic(com_pic_manager_t *pm, com_pic_header_t *pichdr, com_pic_t *pic, int close_gop, int is_ld)
 {
     if (close_gop && pichdr->slice_type == SLICE_I) {
-        for (int i = 0; i < pm->max_pb_size - 1; i++) {
+        for (int i = 0; i < pm->cur_num_ref_pics; i++) {
             com_pic_t *ref = pm->pic[i];
             if (ref && ref->b_ref) {
                 remove_ref_pic(pm, i--);
@@ -295,7 +285,7 @@ void com_refm_remove_ref_pic(com_pic_manager_t *pm, com_pic_header_t *pichdr, co
         if (pm->cur_num_ref_pics <= MAX_LD_ACTIVE) {
             return;
         }
-        for (int i = 0; i < pm->max_pb_size - 1; i++) {
+        for (int i = 0; i < pm->cur_num_ref_pics; i++) {
             com_pic_t * ref = pm->pic[i];
             if (ref && ref->b_ref) {
                 if (ref->ptr < pic->ptr - 1 && ref->layer_id >= FRM_DEPTH_2) {
@@ -310,7 +300,7 @@ void com_refm_remove_ref_pic(com_pic_manager_t *pm, com_pic_header_t *pichdr, co
         s64 oldest_ref = pic->ptr;
         int oldest_idx = 0;
 
-        for (int i = 0; i < pm->max_pb_size - 1; i++) {
+        for (int i = 0; i < pm->cur_num_ref_pics; i++) {
             com_pic_t * ref = pm->pic[i];
             if (ref && ref->b_ref && ref->ptr < oldest_ref) {
                 oldest_ref = ref->ptr;
@@ -320,7 +310,7 @@ void com_refm_remove_ref_pic(com_pic_manager_t *pm, com_pic_header_t *pichdr, co
         remove_ref_pic(pm, oldest_idx);
     } else {
         if (pic->layer_id < FRM_DEPTH_2) { // top frames
-            for (int i = 0; i < pm->max_pb_size - 1; i++) {
+            for (int i = 0; i < pm->cur_num_ref_pics; i++) {
                 com_pic_t * ref = pm->pic[i];
                 if (ref && ref->b_ref && ref->ptr < pm->ptr_l_ip && ref->layer_id > FRM_DEPTH_2) {
                     remove_ref_pic(pm, i--);
@@ -332,7 +322,7 @@ void com_refm_remove_ref_pic(com_pic_manager_t *pm, com_pic_header_t *pichdr, co
             s64 nearest_before_l_l_ip = -1;
             int ref_num_in_cur_subgop = 1;
 
-            for (int i = 0; i < pm->max_pb_size - 1; i++) {
+            for (int i = 0; i < pm->cur_num_ref_pics; i++) {
                 com_pic_t * ref = pm->pic[i];
                 if (ref && ref->b_ref && ref->ptr < pic->ptr) {
                     if (ref->ptr > pm->ptr_l_l_ip) {
@@ -348,14 +338,14 @@ void com_refm_remove_ref_pic(com_pic_manager_t *pm, com_pic_header_t *pichdr, co
                     }
                 }
             }
-            for (int i = 0; i < pm->max_pb_size - 1; i++) {
+            for (int i = 0; i < pm->cur_num_ref_pics; i++) {
                 com_pic_t * ref = pm->pic[i];
                 if (ref && ref->b_ref && ref->ptr < pm->ptr_l_l_ip && (ref->ptr < nearest_before_l_l_ip || ref_num_in_cur_subgop >= 2)) {
                     remove_ref_pic(pm, i--);
                 }
             }
             if (!pic->b_ref) {
-                for (int i = 0; i < pm->max_pb_size - 1; i++) {
+                for (int i = 0; i < pm->cur_num_ref_pics; i++) {
                     com_pic_t * ref = pm->pic[i];
                     if (ref && ref->b_ref && ref->ptr + 4 < pm->ptr_l_l_ip) {
                         remove_ref_pic(pm, i--);
@@ -427,7 +417,7 @@ int com_refm_free(com_pic_manager_t *pm)
 
     for (i = 0; i < pm->max_pb_size; i++) {
         if (pm->pic[i]) {
-            com_picbuf_free(pm->pic[i]);
+            com_pic_free(pm->pic[i]);
             pm->pic[i] = NULL;
         }
     }

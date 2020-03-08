@@ -24,8 +24,6 @@
 
 #include "../version.h"
 
-#define FRM_PARALL_LOSSLESS 1
-
 static core_t *core_alloc(com_info_t *info)
 {
     core_t *core;
@@ -115,15 +113,13 @@ static enc_pic_t *pic_enc_alloc(com_info_t *info)
 
     GIVE_BUFFER(ep->map_cu_data, buf, sizeof(enc_cu_t) * info->f_lcu);
 
-    GIVE_BUFFER(ep->map.map_split , buf, sizeof(s8) * info->f_lcu * info->cus_in_lcu * MAX_CU_DEPTH * NUM_BLOCK_SHAPE);
-    GIVE_BUFFER(ep->map.map_qp    , buf, sizeof(s8) * info->f_lcu);
-                    
-    GIVE_BUFFER(ep->map.map_edge  , buf, sizeof(u8       ) * info->f_scu); ep->map.map_edge  += info->i_scu + 1;
-    GIVE_BUFFER(ep->map.map_scu   , buf, sizeof(com_scu_t) * info->f_scu); ep->map.map_scu   += info->i_scu + 1;
-    GIVE_BUFFER(ep->map.map_ipm   , buf, sizeof(s8       ) * info->f_scu); ep->map.map_ipm   += info->i_scu + 1;
-    GIVE_BUFFER(ep->map.map_patch , buf, sizeof(s8       ) * info->f_scu); ep->map.map_patch += info->i_scu + 1;
-    GIVE_BUFFER(ep->map.map_pos   , buf, sizeof(u32      ) * info->f_scu); ep->map.map_pos   += info->i_scu + 1;
-
+    GIVE_BUFFER(ep->map.map_split  , buf, sizeof(s8       ) * info->f_lcu * info->cus_in_lcu * MAX_CU_DEPTH * NUM_BLOCK_SHAPE);
+    GIVE_BUFFER(ep->map.map_qp     , buf, sizeof(s8       ) * info->f_lcu);
+    GIVE_BUFFER(ep->map.map_edge   , buf, sizeof(u8       ) * info->f_scu); ep->map.map_edge  += info->i_scu + 1;
+    GIVE_BUFFER(ep->map.map_scu    , buf, sizeof(com_scu_t) * info->f_scu); ep->map.map_scu   += info->i_scu + 1;
+    GIVE_BUFFER(ep->map.map_ipm    , buf, sizeof(s8       ) * info->f_scu); ep->map.map_ipm   += info->i_scu + 1;
+    GIVE_BUFFER(ep->map.map_patch  , buf, sizeof(s8       ) * info->f_scu); ep->map.map_patch += info->i_scu + 1;
+    GIVE_BUFFER(ep->map.map_pos    , buf, sizeof(u32      ) * info->f_scu); ep->map.map_pos   += info->i_scu + 1;
     GIVE_BUFFER(ep->linebuf_intra  , buf, sizeof(pel     *) * 3 * info->pic_height_in_lcu);
 
     for (int i = 0; i < info->pic_height_in_lcu; i++) {
@@ -161,7 +157,7 @@ static enc_pic_t *pic_enc_alloc(com_info_t *info)
         enc_create_cu_data(ep->map_cu_data + i, info->log2_max_cuwh - MIN_CU_LOG2, info->log2_max_cuwh - MIN_CU_LOG2);
     }
 
-    ep->pic_alf_Rec = com_picbuf_create(info->pic_width, info->pic_height, PIC_PAD_SIZE_L, PIC_PAD_SIZE_C, &ret);
+    ep->pic_alf_Rec = com_pic_create(info->pic_width, info->pic_height, PIC_PAD_SIZE_L, PIC_PAD_SIZE_C, &ret);
 
     ep->main_core = core_alloc(info);
 
@@ -178,7 +174,7 @@ static void pic_enc_free(enc_pic_t *ep)
     for (int i = 0; i < ep->info.pic_height_in_lcu; i++) {
         uavs3e_sem_destroy(&ep->array_row[i].sem);
     }
-    com_picbuf_free(ep->pic_alf_Rec);
+    com_pic_free(ep->pic_alf_Rec);
     core_free(ep->main_core);
     
     com_mfree(ep);
@@ -414,7 +410,7 @@ static void set_sqh(enc_ctrl_t *h, com_seqh_t *sqh)
 
     sqh->colocated_patch        = h->cfg.colocated_patch;
     sqh->filter_cross_patch     = h->cfg.filter_cross_patch;
-    sqh->patch_width            = h->cfg.patch_width == 0 ? h->info.pic_width_in_lcu : h->cfg.patch_width;
+    sqh->patch_width            = h->cfg.patch_width  == 0 ? h->info.pic_width_in_lcu  : h->cfg.patch_width;
     sqh->patch_height           = h->cfg.patch_height == 0 ? h->info.pic_height_in_lcu : h->cfg.patch_height;
 }
 
@@ -504,11 +500,10 @@ static void set_pic_header(enc_ctrl_t *h, com_pic_t *pic_rec)
         h->rpm.ptr_l_ip = 0;
         h->rpm.ptr_l_l_ip = 0;
     } else {
-        com_pic_t *pic_ref[MAX_REFS];
         int is_ld = h->info.sqh.low_delay;
         int top_pic = pic_rec->layer_id < FRM_DEPTH_2 && !is_ld;
         com_refm_remove_ref_pic(&h->rpm, pichdr, pic_rec, h->cfg.close_gop, is_ld);
-        com_refm_build_ref_buf (&h->rpm, pic_ref);
+        com_refm_build_ref_buf (&h->rpm);
 
         if (pichdr->slice_type == SLICE_I) {
             pichdr->rpl_l0.active = 0;
@@ -520,7 +515,7 @@ static void set_pic_header(enc_ctrl_t *h, com_pic_t *pic_rec)
             pichdr->rpl_l0.active = MAX_RA_ACTIVE;
             pichdr->rpl_l1.active = MAX_RA_ACTIVE;
         }
-        com_refm_create_rpl(&h->rpm, pic_ref, pichdr, h->refp, top_pic);
+        com_refm_create_rpl(&h->rpm, pichdr, h->refp, top_pic);
         com_refm_pick_seqhdr_idx(&h->info.sqh, pichdr);
     }
     com_refm_insert_rec_pic(&h->rpm, pic_rec, h->refp);
@@ -788,21 +783,6 @@ void *enc_lcu_row(core_t *core, enc_lcu_row_t *row)
         safe_sem_post(sem_curr);
     }
 
-#if !FRM_PARALL_LOSSLESS
-    if (info->frm_threads > 1 && core->pic_org->b_ref) {
-        int start_y = lcu_y ? lcu_y * info->max_cuwh - 8 : 0;
-        int end_y = lcu_y == info->pic_height_in_lcu - 1 ? info->pic_height : (lcu_y + 1) * info->max_cuwh - 8;
-        com_picbuf_expand(pic_rec, pic_rec->padsize_luma, pic_rec->padsize_chroma, start_y, end_y);
-
-        safe_sem_wait(sem_up);
-        uavs3e_pthread_mutex_lock(&pic_rec->mutex);
-        pic_rec->end_line = end_y;
-        uavs3e_pthread_cond_broadcast(&pic_rec->cv);
-        uavs3e_pthread_mutex_unlock(&pic_rec->mutex);
-        safe_sem_post(sem_curr);
-    }
-#endif
-
     return core;
 }
 
@@ -890,28 +870,19 @@ void *enc_pic_thread(enc_pic_t *ep, pic_thd_param_t *p)
     printf("\n");
 
     if (info->sqh.alf_enable) {
-#if !FRM_PARALL_LOSSLESS
-        if (info->frm_threads > 1 && pic_org->b_ref) {
-            pichdr->m_alfPictureParam = NULL;
-            pichdr->pic_alf_on = ep->pic_alf_on;
-            ep->pic_alf_on[0] = ep->pic_alf_on[1] = ep->pic_alf_on[2] = 0;
-        } else 
-#endif
-        {
-            double lambda = 1.43631 * pow(2.0, (p->total_qp * 1.0 / info->f_lcu - 16.0) / 4.0);
-            pichdr->m_alfPictureParam = ep->Enc_ALF.m_alfPictureParam;
-            pichdr->pic_alf_on = ep->pic_alf_on;
-            enc_alf_avs2(ep, pic_rec, pic_org, lambda);
+        double lambda = 1.43631 * pow(2.0, (p->total_qp * 1.0 / info->f_lcu - 16.0) / 4.0);
+        pichdr->m_alfPictureParam = ep->Enc_ALF.m_alfPictureParam;
+        pichdr->pic_alf_on = ep->pic_alf_on;
+        enc_alf_avs2(ep, pic_rec, pic_org, lambda);
 
-            if (pic_org->b_ref) {
-                com_picbuf_expand(pic_rec, pic_rec->padsize_luma, pic_rec->padsize_chroma, 0, pic_rec->height_luma);
-            }
-
-            uavs3e_pthread_mutex_lock(&pic_rec->mutex);
-            pic_rec->end_line = info->pic_height;
-            uavs3e_pthread_cond_broadcast(&pic_rec->cv);
-            uavs3e_pthread_mutex_unlock(&pic_rec->mutex);
+        if (pic_org->b_ref) {
+            com_pic_padding(pic_rec, pic_rec->padsize_luma, pic_rec->padsize_chroma, 0, pic_rec->height_luma);
         }
+
+        uavs3e_pthread_mutex_lock(&pic_rec->mutex);
+        pic_rec->end_line = info->pic_height;
+        uavs3e_pthread_cond_broadcast(&pic_rec->cv);
+        uavs3e_pthread_mutex_unlock(&pic_rec->mutex);
     } else {
         pichdr->m_alfPictureParam = NULL;
         pichdr->pic_alf_on = NULL;
@@ -1044,16 +1015,16 @@ void *enc_pic_thread(enc_pic_t *ep, pic_thd_param_t *p)
 void push_sub_gop(enc_ctrl_t *h, int start, int num, int level)
 {
     if (num <= 2) {
-        if (h->img_ilist[start]) {
+        if (h->img_rlist[start]) {
             input_node_t *node = &h->node_list[h->node_size++];
-            node->img = h->img_ilist[start];
+            node->img = h->img_rlist[start];
             node->b_ref = 0;
             node->layer_id = level;
             node->type = SLICE_B;
 
-            if (num == 2 && h->img_ilist[start + 1]) {
+            if (num == 2 && h->img_rlist[start + 1]) {
                 node = &h->node_list[h->node_size++];
-                node->img = h->img_ilist[start + 1];
+                node->img = h->img_rlist[start + 1];
                 node->b_ref = 0;
                 node->layer_id = level;
                 node->type = SLICE_B;
@@ -1062,9 +1033,9 @@ void push_sub_gop(enc_ctrl_t *h, int start, int num, int level)
     } else {
         int idx = start + num / 2;
 
-        if (h->img_ilist[idx]) {
+        if (h->img_rlist[idx]) {
             input_node_t *node = &h->node_list[h->node_size++];
-            node->img = h->img_ilist[idx];
+            node->img = h->img_rlist[idx];
             node->b_ref = 1;
             node->layer_id = level;
             node->type = SLICE_B;
@@ -1102,56 +1073,56 @@ static int enc_push_frm(enc_ctrl_t *h, com_img_t *img)
             node->layer_id = tbl_slice_depth_P[(img->ptr - h->lastI_ptr - 1) % 4];
         }
     } else { // RA
-        h->img_ilist[h->img_isize++] = img;
+        h->img_rlist[h->img_rsize++] = img;
 
         if (h->cfg.i_period && img->ptr - h->lastI_ptr == h->cfg.i_period) {
             h->lastI_ptr = img->ptr;
 
             if (h->cfg.close_gop) {
-                if (h->img_isize > 1) {
+                if (h->img_rsize > 1) {
                     input_node_t *node = &h->node_list[h->node_size++];
-                    node->img = h->img_ilist[h->img_isize - 2];
+                    node->img = h->img_rlist[h->img_rsize - 2];
                     node->b_ref = 1;
                     node->layer_id = FRM_DEPTH_1;
                     node->type = SLICE_B;
 
-                    if (h->img_isize > 2) {
-                        push_sub_gop(h, 0, h->img_isize - 2, FRM_DEPTH_2);
+                    if (h->img_rsize > 2) {
+                        push_sub_gop(h, 0, h->img_rsize - 2, FRM_DEPTH_2);
                     }
                 }
                 input_node_t *node = &h->node_list[h->node_size++];
-                node->img = h->img_ilist[h->img_isize - 1];
+                node->img = h->img_rlist[h->img_rsize - 1];
                 node->b_ref = 1;
                 node->layer_id = FRM_DEPTH_0;
                 node->type = SLICE_I;
 
-                memset(h->img_ilist, 0, sizeof(com_img_t*) * MAX_REORDER_BUF);
-                h->img_isize = 0;
+                memset(h->img_rlist, 0, sizeof(com_img_t*) * MAX_REORDER_BUF);
+                h->img_rsize = 0;
             } else {
                 input_node_t *node = &h->node_list[h->node_size++];
-                node->img = h->img_ilist[h->img_isize - 1];
+                node->img = h->img_rlist[h->img_rsize - 1];
                 node->b_ref = 1;
                 node->layer_id = FRM_DEPTH_0;
                 node->type = SLICE_I;
 
-                if (h->img_isize - 1 > 0) {
-                    push_sub_gop(h, 0, h->img_isize - 1, FRM_DEPTH_2);
+                if (h->img_rsize - 1 > 0) {
+                    push_sub_gop(h, 0, h->img_rsize - 1, FRM_DEPTH_2);
                 }
-                memset(h->img_ilist, 0, sizeof(com_img_t*) * MAX_REORDER_BUF);
-                h->img_isize = 0;
+                memset(h->img_rlist, 0, sizeof(com_img_t*) * MAX_REORDER_BUF);
+                h->img_rsize = 0;
             }
-        } else if (h->img_isize == h->cfg.max_b_frames + 1) {
+        } else if (h->img_rsize == h->cfg.max_b_frames + 1) {
             input_node_t *node = &h->node_list[h->node_size++];
-            node->img = h->img_ilist[h->img_isize - 1];
+            node->img = h->img_rlist[h->img_rsize - 1];
             node->b_ref = 1;
             node->layer_id = FRM_DEPTH_1;
             node->type = SLICE_B;
 
-            if (h->img_isize - 1 > 0) {
-                push_sub_gop(h, 0, h->img_isize - 1, FRM_DEPTH_2);
+            if (h->img_rsize - 1 > 0) {
+                push_sub_gop(h, 0, h->img_rsize - 1, FRM_DEPTH_2);
             }
-            memset(h->img_ilist, 0, sizeof(com_img_t*) * MAX_REORDER_BUF);
-            h->img_isize = 0;
+            memset(h->img_rlist, 0, sizeof(com_img_t*) * MAX_REORDER_BUF);
+            h->img_rsize = 0;
         }
     }
 
@@ -1308,10 +1279,10 @@ int uavs3e_enc(void *id, enc_stat_t *stat, com_img_t *img_enc)
             return COM_OK_OUT_NOT_AVAILABLE;
         }
     } else { // flush
-        if (h->img_isize) {
+        if (h->img_rsize) {
             push_sub_gop(h, 0, h->cfg.max_b_frames, FRM_DEPTH_2);
-            memset(h->img_ilist, 0, sizeof(com_img_t*) * MAX_REORDER_BUF);
-            h->img_isize = 0;
+            memset(h->img_rlist, 0, sizeof(com_img_t*) * MAX_REORDER_BUF);
+            h->img_rsize = 0;
         }
 
         /* check whether input pictures are remaining or not in node_input[] */

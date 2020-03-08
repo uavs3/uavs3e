@@ -81,12 +81,11 @@ void copy_motion_table(com_motion_t *motion_dst, s8 *cnt_cands_dst, const com_mo
 
 int same_motion(com_motion_t motion1, com_motion_t motion2);
 
-
 u16 com_get_avail_intra(int x_scu, int y_scu, int i_scu, int scup, com_scu_t *map_scu);
 
-com_pic_t *com_picbuf_create(int w, int h, int pad_l, int pad_c, int *err);
-void com_picbuf_free(com_pic_t *pic);
-void com_picbuf_expand(com_pic_t *pic, int exp_l, int exp_c, int start_y, int end_y);
+com_pic_t *com_pic_create(int w, int h, int pad_l, int pad_c, int *err);
+void       com_pic_free(com_pic_t *pic);
+void       com_pic_padding(com_pic_t *pic, int exp_l, int exp_c, int start_y, int end_y);
 
 void check_mvp_motion_availability(int scup, int cu_width, int cu_height, int i_scu, int neb_addr[NUM_AVS2_SPATIAL_MV], int valid_flag[NUM_AVS2_SPATIAL_MV], com_scu_t *map_scu, s8(*map_refi)[REFP_NUM], int lidx);
 void check_umve_motion_availability(int scup, int cu_width, int cu_height, int i_scu, int neb_addr[NUM_AVS2_SPATIAL_MV], int valid_flag[NUM_AVS2_SPATIAL_MV], com_scu_t *map_scu, s16(*map_mv)[REFP_NUM][MV_D], s8(*map_refi)[REFP_NUM]);
@@ -401,31 +400,23 @@ static void __inline wait_ref_available(com_pic_t *pic, int lines)
 
 u32 com_had(int w, int h, void *addr_org, void *addr_curr, int s_org, int s_cur, int bit_depth);
 
-int com_atomic_inc(volatile int *pcnt);
-int com_atomic_dec(volatile int *pcnt);
-
 com_img_t *com_img_create(int w, int h, int pad[MAX_PLANES]);
-
-void com_img_free(com_img_t *img);
+void       com_img_free(com_img_t *img);
 
 static int com_img_addref(com_img_t *img)
 {
-    return com_atomic_inc(&img->refcnt);
+    return ++img->refcnt;
 }
-
 static int com_img_getref(com_img_t *img)
 {
     return img->refcnt;
 }
-
 static int com_img_release(com_img_t *img)
 {
-    int refcnt;
-    refcnt = com_atomic_dec(&img->refcnt);
-    if (refcnt == 0) {
+    if (--img->refcnt == 0) {
         com_img_free(img);
     }
-    return refcnt;
+    return img->refcnt;
 }
 
 #endif /* _COM_UTIL_H_ */
