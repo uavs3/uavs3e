@@ -339,10 +339,10 @@ static void print_stat_header(void)
     }
     printf("--------------------------------------------------------------------------------------\n");
     printf("  Input YUV file           : %s \n", fn_input);
-    if (cfg_flags[CONFIG_FNAME_OUT]) {
+    if (strlen(fn_output) != 0) {
         printf("  Output bitstream         : %s \n", fn_output);
     }
-    if (cfg_flags[CONFIG_FNAME_REC]) {
+    if (strlen(fn_rec) != 0) {
         printf("  Output YUV file          : %s \n", fn_rec);
     }
     printf("--------------------------------------------------------------------------------------\n");
@@ -579,7 +579,7 @@ int main(int argc, const char **argv)
         print_usage();
         return -1;
     }
-    if (cfg_flags[CONFIG_FNAME_OUT]) {
+    if (strlen(fn_output) != 0) {
         fpo = fopen(fn_output, "wb");
         if (fpo == NULL) {
             print_log(0, "cannot open stream file (%s)\n", fn_input);
@@ -587,7 +587,7 @@ int main(int argc, const char **argv)
             return -1;
         }
     }
-    if (cfg_flags[CONFIG_FNAME_REC]) {
+    if (strlen(fn_rec) != 0) {
         rec_fd = _open(fn_rec, O_WRONLY | O_CREAT | O_BINARY | O_TRUNC, S_IREAD | S_IWRITE);
         if (rec_fd == 0) {
             print_log(0, "cannot open original file (%s)\n", fn_input);
@@ -674,12 +674,9 @@ int main(int argc, const char **argv)
             if (rec_fd) {
                 cvt_rec_2_output(tmp_img, img_rec, cfg.bit_depth_internal);
 
-                if (cfg_flags[CONFIG_FNAME_REC]) {
-                    if (write_image(rec_fd, tmp_img, cfg.bit_depth_internal, img_rec->pts)) {
-                        print_log(0, "cannot write reconstruction image\n");
-                    }
+                if (write_image(rec_fd, tmp_img, cfg.bit_depth_internal, img_rec->pts)) {
+                    print_log(0, "cannot write reconstruction image\n");
                 }
-
             }
 
             print_psnr(&stat, psnr, (stat.bytes - stat.user_bytes) << 3, time_dur);

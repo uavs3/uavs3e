@@ -41,87 +41,10 @@ typedef struct uavs3e_app_cfg_t {
     char   key;          /* option keyword */
     char   key_long[32]; /* option long keyword */
     int    val_type;    
-    int   *flag;         /* flag to setting or not */
     void  *val;          
     char   desc[512];    /* description of option */
+    char   flag;
 } app_cfg_t;
-
-typedef enum _CONFIG_S {
-    CONFIG_FNAME_CFG,
-    CONFIG_FNAME_INP,
-    CONFIG_FNAME_OUT,
-    CONFIG_FNAME_REC,
-    CONFIG_WIDTH_INP,
-    CONFIG_HEIGHT_INP,
-    CONFIG_QP,
-    CONFIG_FPS_NUM,
-    CONFIG_FPS_DEN,
-    CONFIG_IPERIOD,
-    CONFIG_MAX_FRM_NUM,
-    CONFIG_USE_PIC_SIGN,
-    CONFIG_VERBOSE,
-    CONFIG_MAX_B_FRAMES,
-    CONFIG_DISABLE_HGOP,
-    CONFIG_CLOSE_GOP,
-    CONFIG_OUT_BIT_DEPTH,
-    CONFIG_IN_BIT_DEPTH,
-    CONFIG_QP_OFFSET_CB,
-    CONFIG_QP_OFFSET_CR,
-    CONFIG_DELTA_QP,
-    CONFIG_IPCM,
-    CONFIG_AMVR,
-    CONFIG_IPF,
-    CONFIG_AFFINE,
-    CONFIG_SMVD,
-    CONFIG_DT_INTRA,
-    CONFIG_PBT,
-    CONFIG_DEBLOCK,
-    CONFIG_SAO,
-    CONFIG_ALF,
-    CONFIG_WQ_ENABLE,
-    CONFIG_SEQ_WQ_MODE,
-    CONFIG_SEQ_WQ_FILE,
-    CONFIG_PIC_WQ_DATA_IDX,
-    CONFIG_PIC_WQ_FILE,
-    CONFIG_WQ_PARAM,
-    CONFIG_WQ_PARAM_MODEL,
-    CONFIG_WQ_PARAM_DETAILED,
-    CONFIG_WQ_PARAM_UNDETAILED,
-
-    CONFIG_HMVP,
-    CONFIG_TSCPM,
-    CONFIG_UMVE,
-    CONFIG_EMVR,
-    CONFIG_SECTRANS,
-
-    CONFIG_CROSS_PATCH_LOCONFIG_FILTER,
-    CONFIG_PATCH_REF_COLOCATED,
-    CONFIG_PATCH_WIDTH,
-    CONFIG_PATCH_HEIGHT,
-    CONFIG_PATCH_COLUMNS,
-    CONFIG_PATCH_ROWS,
-    CONFIG_COLUMN_WIDTH,
-    CONFIG_ROW_HEIGHT,
-    CONFIG_TEMP_SUB_RATIO,
-    CONFIG_CTU_SZE,
-    CONFIG_MIN_CU_SIZE,
-    CONFIG_MAX_PART_RATIO,
-    CONFIG_MAX_SPLIT_TIMES,
-    CONFIG_MIN_QT_SIZE,
-    CONFIG_MAX_BT_SIZE,
-    CONFIG_MAX_EQT_SIZE,
-    CONFIG_MAX_DT_SIZE,
-    CONFIG_WPP_NUM,
-    CONFIG_THD_FRM_NUM,
-    CONFIG_RC_TYPE,
-    CONFIG_RC_BITRATE,
-    CONFIG_RC_MAX_BITRATE,
-    CONFIG_RC_CRF,
-    CONFIG_RC_MIN_QP,
-    CONFIG_RC_MAX_QP,
-    // ...
-    CONFIG_MAX,
-} CONFIG_S;
 
 enc_cfg_t   cfg;
 static char fn_cfg[256]                 = "\0"; 
@@ -131,336 +54,397 @@ static char fn_rec[256]                 = "\0";
 static int  max_frames                  = 0;
 static int  t_ds_ratio                  = 1;
 static int  g_loglevel                  = LOG_LEVEL_1;
-static int  cfg_flags[CONFIG_MAX]       = { 0 };
 
 static app_cfg_t options[] = {
     {
         CFG_KEY_NULL, "config", CFG_TYPE_STRING,
-        &cfg_flags[CONFIG_FNAME_CFG], fn_cfg,
+        fn_cfg,
         "file name of configuration"
+        ,0 
     },
     {
         'i', "input", CFG_TYPE_STRING | CFG_TYPE_MANDATORY,
-        &cfg_flags[CONFIG_FNAME_INP], fn_input,
+        fn_input,
         "file name of input video"
+        ,0 
     },
     {
         'o', "output", CFG_TYPE_STRING,
-        &cfg_flags[CONFIG_FNAME_OUT], fn_output,
+        fn_output,
         "file name of output bitstream"
+        ,0 
     },
     {
         'r', "recon", CFG_TYPE_STRING,
-        &cfg_flags[CONFIG_FNAME_REC], fn_rec,
+        fn_rec,
         "file name of reconstructed video"
+        ,0 
     },
     {
         'w',  "width", CFG_TYPE_INTEGER | CFG_TYPE_MANDATORY,
-        &cfg_flags[CONFIG_WIDTH_INP], &cfg.horizontal_size,
+        &cfg.horizontal_size,
         "pixel width of input video"
+        ,0 
     },
     {
         'h',  "height", CFG_TYPE_INTEGER | CFG_TYPE_MANDATORY,
-        &cfg_flags[CONFIG_HEIGHT_INP], &cfg.vertical_size,
+        &cfg.vertical_size,
         "pixel height of input video"
+        ,0
     },
     {
         'q',  "qp", CFG_TYPE_INTEGER,
-        &cfg_flags[CONFIG_QP], &cfg.qp,
+        &cfg.qp,
         "QP value (0~63 for 8bit input, -16~63 for 10bit input)"
+        ,0 
     },
     {
         'p',  "i_period", CFG_TYPE_INTEGER,
-        &cfg_flags[CONFIG_IPERIOD], &cfg.i_period,
+        &cfg.i_period,
         "I-picture period"
+        ,0 
     },
     {
         'g',  "max_b_frames", CFG_TYPE_INTEGER,
-        &cfg_flags[CONFIG_MAX_B_FRAMES], &cfg.max_b_frames,
+        &cfg.max_b_frames,
         "Number of maximum B frames (1,3,7,15)\n"
-    },
+        ,0 },
     {
         'f',  "frames", CFG_TYPE_INTEGER,
-        &cfg_flags[CONFIG_MAX_FRM_NUM], &max_frames,
+        &max_frames,
         "maximum number of frames to be encoded"
+        ,0 
     },
     {
         's',  "signature", CFG_TYPE_INTEGER,
-        &cfg_flags[CONFIG_USE_PIC_SIGN], &cfg.use_pic_sign,
+        &cfg.use_pic_sign,
         "embed picture signature (HASH) for conformance checking in decoding"
         "\t 0: disable\n"
         "\t 1: enable\n"
+        ,0 
     },
     {
         'v',  "verbose", CFG_TYPE_INTEGER,
-        &cfg_flags[CONFIG_VERBOSE], &g_loglevel,
+        &g_loglevel,
         "verbose level\n"
         "\t 0: no message\n"
         "\t 1: frame-level messages (default)\n"
         "\t 2: all messages\n"
+        ,0 
     },
     {
         'd',  "input_bit_depth", CFG_TYPE_INTEGER,
-        &cfg_flags[CONFIG_IN_BIT_DEPTH], &cfg.bit_depth_input,
+        &cfg.bit_depth_input,
         "input bitdepth (8(default), 10) "
+        ,0 
     },
     {
         CFG_KEY_NULL,  "fps_num", CFG_TYPE_INTEGER | CFG_TYPE_MANDATORY,
-        &cfg_flags[CONFIG_FPS_NUM], &cfg.fps_num,
+        &cfg.fps_num,
         "frame rate (Hz), numerator"
+        ,0 
     },
     {
         CFG_KEY_NULL,  "fps_den", CFG_TYPE_INTEGER | CFG_TYPE_MANDATORY,
-        &cfg_flags[CONFIG_FPS_DEN], &cfg.fps_den,
+        &cfg.fps_den,
         "frame rate (Hz), denominator"
+        ,0 
     },
     {
         CFG_KEY_NULL,  "internal_bit_depth", CFG_TYPE_INTEGER,
-        &cfg_flags[CONFIG_OUT_BIT_DEPTH], &cfg.bit_depth_internal,
+        &cfg.bit_depth_internal,
         "output bitdepth (8, 10)(default: same as input bitdpeth) "
+        ,0
     },
     {
         CFG_KEY_NULL,  "close_gop", CFG_TYPE_INTEGER,
-        &cfg_flags[CONFIG_CLOSE_GOP], &cfg.close_gop,
+        &cfg.close_gop,
         "use close gop"
+        ,0
     },
     {
         CFG_KEY_NULL,  "qp_offset_cb", CFG_TYPE_INTEGER,
-        &cfg_flags[CONFIG_QP_OFFSET_CB], &cfg.qp_offset_cb,
+        &cfg.qp_offset_cb,
         "qp offset for cb, disable:0 (default)"
+        ,0
     },
     {
         CFG_KEY_NULL,  "qp_offset_cr", CFG_TYPE_INTEGER,
-        &cfg_flags[CONFIG_QP_OFFSET_CR], &cfg.qp_offset_cr,
+        &cfg.qp_offset_cr,
         "qp offset for cr, disable:0 (default)"
+        ,0 
     },
     {
         CFG_KEY_NULL,  "wpp_threads", CFG_TYPE_INTEGER,
-        &cfg_flags[CONFIG_WPP_NUM], &cfg.wpp_threads,
+        &cfg.wpp_threads,
         "Number of threads for WPP"
+        ,0 
     },
     {
         CFG_KEY_NULL,  "frm_threads", CFG_TYPE_INTEGER,
-        &cfg_flags[CONFIG_THD_FRM_NUM], &cfg.frm_threads,
+        &cfg.frm_threads,
         "Number of threads for Frame"
+        ,0 
     },
     {
         CFG_KEY_NULL,  "lcu_delta_qp", CFG_TYPE_INTEGER,
-        &cfg_flags[CONFIG_DELTA_QP], &cfg.dqp_enable,
+        &cfg.dqp_enable,
         "Random qp for lcu, on/off flag"
+        ,0 
     },
     {
         CFG_KEY_NULL,  "amvr", CFG_TYPE_INTEGER,
-        &cfg_flags[CONFIG_AMVR], &cfg.amvr_enable,
+        &cfg.amvr_enable,
         "amvr on/off flag"
+        ,0
     },
     {
         CFG_KEY_NULL,  "ipf", CFG_TYPE_INTEGER,
-        &cfg_flags[CONFIG_IPF], &cfg.ipf_flag,
+        &cfg.ipf_flag,
         "Intra prediction filter on/off flag"
+        ,0
     },
-
     {
         CFG_KEY_NULL, "wq_enable", CFG_TYPE_INTEGER,
-        &cfg_flags[CONFIG_WQ_ENABLE], &cfg.wq_enable,
+        &cfg.wq_enable,
         "Weight Quant on/off, disable: 0(default), enable: 1"
+        ,0
     },
     {
         CFG_KEY_NULL, "seq_wq_mode", CFG_TYPE_INTEGER,
-        &cfg_flags[CONFIG_SEQ_WQ_MODE], &cfg.seq_wq_mode,
+        &cfg.seq_wq_mode,
         "Seq Weight Quant (0: default, 1: User Define)"
+        ,0
     },
     {
         CFG_KEY_NULL, "seq_wq_user", CFG_TYPE_STRING,
-        &cfg_flags[CONFIG_SEQ_WQ_FILE], &cfg.seq_wq_user,
+        &cfg.seq_wq_user,
         "User Defined Seq WQ Matrix"
+        ,0 
     },
     {
         CFG_KEY_NULL, "pic_wq_data_idx", CFG_TYPE_INTEGER,
-        &cfg_flags[CONFIG_PIC_WQ_DATA_IDX], &cfg.pic_wq_data_idx,
+        &cfg.pic_wq_data_idx,
         "Pic level WQ data index, 0(default):refer to seq_header,  1:derived by WQ parameter,  2:load from pichdr"
+        ,0 
     },
     {
         CFG_KEY_NULL, "pic_wq_user", CFG_TYPE_STRING,
-        &cfg_flags[CONFIG_PIC_WQ_FILE], &cfg.pic_wq_user,
+        &cfg.pic_wq_user,
         "User Defined Pic WQ Matrix"
+        ,0
     },
     {
         CFG_KEY_NULL, "wq_param", CFG_TYPE_INTEGER,
-        &cfg_flags[CONFIG_WQ_PARAM], &cfg.wq_param,
+        &cfg.wq_param,
         "WQ Param (0=Default, 1=UnDetailed, 2=Detailed)"
+        ,0 
     },
     {
         CFG_KEY_NULL, "wq_model", CFG_TYPE_INTEGER,
-        &cfg_flags[CONFIG_WQ_PARAM_MODEL], &cfg.wq_model,
+        &cfg.wq_model,
         "WQ Model (0~2, default:0)"
+        ,0
     },
     {
         CFG_KEY_NULL, "wq_param_detailed", CFG_TYPE_STRING,
-        &cfg_flags[CONFIG_WQ_PARAM_DETAILED], &cfg.wq_param_detailed,
+        &cfg.wq_param_detailed,
         "default:[64,49,53,58,58,64]"
+        ,0
     },
     {
         CFG_KEY_NULL, "wq_param_undetailed", CFG_TYPE_STRING,
-        &cfg_flags[CONFIG_WQ_PARAM_UNDETAILED], &cfg.wq_param_undetailed,
+        &cfg.wq_param_undetailed,
         "default:[67,71,71,80,80,106]"
+        ,0 
     },
     {
         CFG_KEY_NULL,  "hmvp", CFG_TYPE_INTEGER,
-        &cfg_flags[CONFIG_HMVP], &cfg.num_of_hmvp,
+        &cfg.num_of_hmvp,
         "number of hmvp skip candidates (default: 8, disable: 0)"
+        ,0 
     },
     {
         CFG_KEY_NULL,  "tscpm", CFG_TYPE_INTEGER,
-        &cfg_flags[CONFIG_TSCPM], &cfg.tscpm_enable,
+        &cfg.tscpm_enable,
         "tscpm on/off flag"
+        ,0
     },
     {
         CFG_KEY_NULL,  "umve", CFG_TYPE_INTEGER,
-        &cfg_flags[CONFIG_UMVE], &cfg.umve_enable,
+        &cfg.umve_enable,
         "umve on/off flag"
+        ,0 
     },
     {
         CFG_KEY_NULL,  "emvr", CFG_TYPE_INTEGER,
-        &cfg_flags[CONFIG_EMVR], &cfg.emvr_enable,
+        &cfg.emvr_enable,
         "emvr on/off flag"
+        ,0 
     },
     {
         CFG_KEY_NULL,  "affine", CFG_TYPE_INTEGER,
-        &cfg_flags[CONFIG_AFFINE], &cfg.affine_enable,
+        &cfg.affine_enable,
         "affine on/off flag"
+        ,0
     },
     {
         CFG_KEY_NULL,  "smvd", CFG_TYPE_INTEGER,
-        &cfg_flags[CONFIG_SMVD], &cfg.smvd_enable,
+        &cfg.smvd_enable,
         "smvd on/off flag (on: 1, off: 0, default: 1)"
+        ,0
     },
     {
         CFG_KEY_NULL,  "dt_intra", CFG_TYPE_INTEGER,
-        &cfg_flags[CONFIG_DT_INTRA], &cfg.dt_enable,
+        &cfg.dt_enable,
         "dt_intra on/off flag (on: 1, off: 0, default: 1)"
+        ,0
     },
     {
         CFG_KEY_NULL,  "sectrans", CFG_TYPE_INTEGER,
-        &cfg_flags[CONFIG_SECTRANS], &cfg.sectrans_enable,
+        &cfg.sectrans_enable,
         "second transform (on: 1, off: 0, default: 1)"
+        ,0
     },
     {
         CFG_KEY_NULL,  "pbt", CFG_TYPE_INTEGER,
-        &cfg_flags[CONFIG_PBT], &cfg.pbt_enable,
+        &cfg.pbt_enable,
         "pbt on/off flag (on: 1, off: 0, default: 1)"
+        ,0 
     },
     {
         CFG_KEY_NULL, "deblock", CFG_TYPE_INTEGER,
-        &cfg_flags[CONFIG_DEBLOCK], &cfg.use_deblock,
+        &cfg.use_deblock,
         "deblock on/off flag (on: 1, off: 0, default: 1)"
+        ,0
     },
     {
         CFG_KEY_NULL, "sao", CFG_TYPE_INTEGER,
-        &cfg_flags[CONFIG_SAO], &cfg.sao_enable,
+        &cfg.sao_enable,
         "sao on/off flag (on: 1, off: 0, default: 1)"
+        ,0
     },
     {
         CFG_KEY_NULL, "alf", CFG_TYPE_INTEGER,
-        &cfg_flags[CONFIG_ALF], &cfg.alf_enable,
+        &cfg.alf_enable,
         "alf on/off flag (on: 1, off: 0, default: 1)"
+        ,0
     },
     {
         CFG_KEY_NULL, "cross_patch_loopfilter", CFG_TYPE_INTEGER,
-        &cfg_flags[CONFIG_CROSS_PATCH_LOCONFIG_FILTER], &cfg.filter_cross_patch,
+        &cfg.filter_cross_patch,
         "loop_filter_across_patch_flag(1:cross;0:non cross)"
+        ,0
     },
     {
         CFG_KEY_NULL, "colocated_patch", CFG_TYPE_INTEGER,
-        &cfg_flags[CONFIG_PATCH_REF_COLOCATED], &cfg.colocated_patch,
+        &cfg.colocated_patch,
         "if the MV out of the patch boundary,0:non use colocated;1:use colocated"
+        ,0 
     },
     {
         CFG_KEY_NULL, "patch_width", CFG_TYPE_INTEGER,
-        &cfg_flags[CONFIG_PATCH_WIDTH], &cfg.patch_width,
+        &cfg.patch_width,
         "when uniform is 1,the nember of LCU in horizon in a patch"
+        ,0 
     },
     {
         CFG_KEY_NULL, "patch_height", CFG_TYPE_INTEGER,
-        &cfg_flags[CONFIG_PATCH_HEIGHT], &cfg.patch_height,
+        &cfg.patch_height,
         "when uniform is 1,the nember of LCU in vertical in a patch"
+        ,0 
     },
     {
         CFG_KEY_NULL, "TemporalSubsampleRatio", CFG_TYPE_INTEGER,
-        &cfg_flags[CONFIG_TEMP_SUB_RATIO], &t_ds_ratio,
+        &t_ds_ratio,
         "Subsampling Ratio (default: 8 for AI, 1 for RA and LD)"
+        ,0
     },
     {
         CFG_KEY_NULL, "ctu_size", CFG_TYPE_INTEGER,
-        &cfg_flags[CONFIG_CTU_SZE], &cfg.ctu_size,
+        &cfg.ctu_size,
         "ctu_size (default: 128; allowed values: 32, 64, 128)"
+        ,0
     },
     {
         CFG_KEY_NULL, "min_cu_size", CFG_TYPE_INTEGER,
-        &cfg_flags[CONFIG_MIN_CU_SIZE], &cfg.min_cu_size,
+        &cfg.min_cu_size,
         "min_cu_size (default: 4; allowed values: 4)"
+        ,0
     },
     {
         CFG_KEY_NULL, "max_part_ratio", CFG_TYPE_INTEGER,
-        &cfg_flags[CONFIG_MAX_PART_RATIO], &cfg.max_part_ratio,
+        &cfg.max_part_ratio,
         "max_part_ratio (default:8; allowed values: 8)"
+        ,0
     },
     {
         CFG_KEY_NULL, "max_split_times", CFG_TYPE_INTEGER,
-        &cfg_flags[CONFIG_MAX_SPLIT_TIMES], &cfg.max_split_times,
+        &cfg.max_split_times,
         "max_split_times (default: 6, allowed values: 6)"
+        ,0 
     },
     {
         CFG_KEY_NULL, "min_qt_size", CFG_TYPE_INTEGER,
-        &cfg_flags[CONFIG_MIN_QT_SIZE], &cfg.min_qt_size,
+        &cfg.min_qt_size,
         "min_qt_size (default: 8, allowed values: 64, 128)"
+        ,0 
     },
     {
         CFG_KEY_NULL, "max_bt_size", CFG_TYPE_INTEGER,
-        &cfg_flags[CONFIG_MAX_BT_SIZE], &cfg.max_bt_size,
+        &cfg.max_bt_size,
         "max_bt_size (default: 128, allowed values: 4, 8, 16, 32, 64, 128)"
+        ,0
     },
     {
         CFG_KEY_NULL, "max_eqt_size", CFG_TYPE_INTEGER,
-        &cfg_flags[CONFIG_MAX_EQT_SIZE], &cfg.max_eqt_size,
+        &cfg.max_eqt_size,
         "max_eqt_size (default: 64, allowed values: 8, 16, 32, 64)"
+        ,0
     },
     {
         CFG_KEY_NULL, "max_dt_size", CFG_TYPE_INTEGER,
-        &cfg_flags[CONFIG_MAX_DT_SIZE], &cfg.max_dt_size,
+        &cfg.max_dt_size,
         "max_dt_size (default: 64, allowed values: 16, 32, 64)"
+        ,0
     },
     {
         CFG_KEY_NULL, "rc_type", CFG_TYPE_INTEGER,
-        &cfg_flags[CONFIG_RC_TYPE], &cfg.rc_type,
+        &cfg.rc_type,
         "rc_type (default: 0-CQP, allowed values: 1-CRF, 2-ABR, 3-CBR)"
+        ,0
     },
     {
         CFG_KEY_NULL, "rc_bitrate", CFG_TYPE_INTEGER,
-        &cfg_flags[CONFIG_RC_BITRATE], &cfg.rc_bitrate,
+        &cfg.rc_bitrate,
         "rc_bitrate (kbps)"
-     },
-    {
-       CFG_KEY_NULL, "rc_max_bitrate", CFG_TYPE_INTEGER,
-       &cfg_flags[CONFIG_RC_MAX_BITRATE], &cfg.rc_max_bitrate,
-       "rc_max_bitrate (kbps)"
+        ,0 
     },
     {
-       CFG_KEY_NULL, "rc_min_qp", CFG_TYPE_INTEGER,
-       &cfg_flags[CONFIG_RC_MIN_QP], &cfg.rc_min_qp,
-       "rc_min_qp (default: 0)"
+        CFG_KEY_NULL, "rc_max_bitrate", CFG_TYPE_INTEGER,
+        &cfg.rc_max_bitrate,
+        "rc_max_bitrate (kbps)"
+        ,0
     },
     {
-       CFG_KEY_NULL, "rc_max_qp", CFG_TYPE_INTEGER,
-       &cfg_flags[CONFIG_RC_MAX_QP], &cfg.rc_max_qp,
-       "rc_max_qp (default: 63)"
+        CFG_KEY_NULL, "rc_min_qp", CFG_TYPE_INTEGER,
+        &cfg.rc_min_qp,
+        "rc_min_qp (default: 0)"
+        ,0
     },
     {
-       CFG_KEY_NULL, "rc_crf", CFG_TYPE_INTEGER,
-       &cfg_flags[CONFIG_RC_CRF], &cfg.rc_crf,
-       "crf value (0 - 63)"
+        CFG_KEY_NULL, "rc_max_qp", CFG_TYPE_INTEGER,
+        &cfg.rc_max_qp,
+        "rc_max_qp (default: 63)"
+        ,0
     },
-    {0, "", CFG_TYPE_NULL, NULL, NULL, ""} /* termination */
+    {
+        CFG_KEY_NULL, "rc_crf", CFG_TYPE_INTEGER,
+        &cfg.rc_crf,
+        "crf value (0 - 63)"
+        ,0 
+    },
+    { 0, "", CFG_TYPE_NULL, NULL, "" , 0 } /* termination */
 };
 
 static int app_cfg_search_string(app_cfg_t *opts, const char *argv)
@@ -576,7 +560,7 @@ static int app_parse_cfg_file(FILE *fp, app_cfg_t *ops)
         } else {
             *((int *)ops[oidx].val) = 1;
         }
-        *ops[oidx].flag = 1;
+        ops[oidx].flag = 1;
     }
     return 0;
 }
@@ -623,7 +607,7 @@ static int app_parse_cmd(int argc, const char *argv[], app_cfg_t *ops, int *idx)
     } else {
         *((int *)ops[oidx].val) = 1;
     }
-    *ops[oidx].flag = 1;
+    ops[oidx].flag = 1;
     *idx = *idx + 1;
     return ops[oidx].key;
 NO_MORE:
@@ -670,7 +654,7 @@ static int app_parse_all(int argc, const char *argv[], app_cfg_t *ops)
     o = ops;
     while (o->key != 0) {
         if (o->val_type & CFG_TYPE_MANDATORY) {
-            if (*o->flag == 0) {
+            if (o->flag == 0) {
                 /* not filled all mandatory argument */
                 return o->key;
             }
