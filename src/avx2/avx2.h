@@ -110,8 +110,10 @@ void uavs3e_if_hor_ver_luma_w16x_avx2(const pel *src, int i_src, pel *dst, int i
 void uavs3e_if_hor_ver_luma_w32_avx2(const pel *src, int i_src, pel *dst, int i_dst, int width, int height, const s8 *coef_x, const s8 *coef_y, int max_val);
 void uavs3e_if_hor_ver_luma_w32x_avx2(const pel *src, int i_src, pel *dst, int i_dst, int width, int height, const s8 *coef_x, const s8 *coef_y, int max_val);
 
-void uavs3e_padding_rows_luma_avx2(pel *src, int i_src, int width, int height, int start, int rows, int padh, int padv);
-void uavs3e_padding_rows_chroma_avx2(pel *src, int i_src, int width, int height, int start, int rows, int padh, int padv);
+void uavs3e_if_hor_luma_frame_avx2(const pel  *src, int i_src, pel *dst[3], int i_dst, s16 *dst_tmp[3], int i_dst_tmp, int width, int height, s8(*coeff)[8], int bit_depth);
+void uavs3e_if_ver_luma_frame_avx2(const pel  *src, int i_src, pel *dst[3], int i_dst, int width, int height, s8(*coeff)[8], int bit_depth);
+void uavs3e_if_ver_luma_frame_ext_avx2(const s16 *src, int i_src, pel *dst[3], int i_dst, int width, int height, s8(*coeff)[8], int bit_depth);
+
 
 void uavs3e_conv_fmt_8bit_avx2(unsigned char *src_y, unsigned char *src_uv, unsigned char *dst[3], int width, int height, int src_stride, int src_stridec, int dst_stride[3], int uv_shift);
 void uavs3e_conv_fmt_16bit_avx2(unsigned char *src_y, unsigned char *src_uv, unsigned char *dst[3], int width, int height, int src_stride, int src_stridec, int dst_stride[3], int uv_shift);

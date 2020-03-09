@@ -85,7 +85,9 @@ u16 com_get_avail_intra(int x_scu, int y_scu, int i_scu, int scup, com_scu_t *ma
 
 com_pic_t *com_pic_create(int w, int h, int pad_l, int pad_c, int *err);
 void       com_pic_free(com_pic_t *pic);
-void       com_pic_padding(com_pic_t *pic, int exp_l, int exp_c, int start_y, int end_y);
+
+com_subpel_t* com_subpel_create(int width, int height, int pad_l, int pad_c, int *err);
+void          com_subpel_free(com_subpel_t *p);
 
 void check_mvp_motion_availability(int scup, int cu_width, int cu_height, int i_scu, int neb_addr[NUM_AVS2_SPATIAL_MV], int valid_flag[NUM_AVS2_SPATIAL_MV], com_scu_t *map_scu, s8(*map_refi)[REFP_NUM], int lidx);
 void check_umve_motion_availability(int scup, int cu_width, int cu_height, int i_scu, int neb_addr[NUM_AVS2_SPATIAL_MV], int valid_flag[NUM_AVS2_SPATIAL_MV], com_scu_t *map_scu, s16(*map_mv)[REFP_NUM][MV_D], s8(*map_refi)[REFP_NUM]);
@@ -287,6 +289,10 @@ typedef struct uavs3e_funs_handle_t {
     void(*ipflt    [NUM_IPFILTER    ][CU_SIZE_NUM])(const pel *src, int i_src, pel *dst, int i_dst, int width, int height, const s8 *coeff, int max_val);
     void(*ipflt_ext[NUM_IPFILTER_Ext][CU_SIZE_NUM])(const pel *src, int i_src, pel *dst, int i_dst, int width, int height, const s8 *coef_x, const s8 *coef_y, int max_val);
 
+    void(*ip_flt_y_hor    )(const pel *src, int i_src, pel *dst[3], int i_dst, s16 *dst_tmp[3], int i_dst_tmp, int width, int height, s8(*coeff)[8], int bit_depth);
+    void(*ip_flt_y_ver    )(const pel *src, int i_src, pel *dst[3], int i_dst, int width, int height, s8(*coeff)[8], int bit_depth);
+    void(*ip_flt_y_ver_ext)(const s16 *src, int i_src, pel *dst[3], int i_dst, int width, int height, s8(*coeff)[8], int bit_depth);
+
     void(*recon[CU_SIZE_NUM])(s16 *resi, pel *pred, int i_pred, int width, int height, pel *rec, int i_rec, int cbf, int bit_depth);
     void(*dquant[2])(s16 *coef, s16 *coef_out, u8 *wq_matrix[2], int log2_w, int log2_h, int scale, int shift, int bit_depth);
 
@@ -400,8 +406,9 @@ static void __inline wait_ref_available(com_pic_t *pic, int lines)
 
 u32 com_had(int w, int h, void *addr_org, void *addr_curr, int s_org, int s_cur, int bit_depth);
 
-com_img_t *com_img_create(int w, int h, int pad[MAX_PLANES]);
+com_img_t *com_img_create(int w, int h, int pad[MAX_PLANES], int planes);
 void       com_img_free(com_img_t *img);
+void       com_img_padding(com_img_t *img, int planes, int ext_size);
 
 static int com_img_addref(com_img_t *img)
 {

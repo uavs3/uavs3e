@@ -194,6 +194,11 @@ int uavs3e_simd_avx_level(int *phwavx)
 void uavs3e_funs_init_sse()
 {
     int i;
+
+    uavs3e_funs_handle.ip_flt_y_hor = uavs3e_if_hor_luma_frame_sse;
+    uavs3e_funs_handle.ip_flt_y_ver = uavs3e_if_ver_luma_frame_sse;
+    uavs3e_funs_handle.ip_flt_y_ver_ext = uavs3e_if_ver_luma_frame_ext_sse;
+
     for (i = 0; i < CU_SIZE_NUM; i++) {
         uavs3e_funs_handle.ipcpy[i] = uavs3e_if_cpy_w16x_sse;
         uavs3e_funs_handle.ipflt[IPFILTER_H_8][i] = uavs3e_if_hor_luma_w8x_sse;
@@ -357,6 +362,11 @@ void uavs3e_funs_init_sse()
 void uavs3e_funs_init_sse()
 {
     int i;
+
+    uavs3e_funs_handle.ip_flt_y_hor = uavs3e_if_hor_luma_frame_sse;
+    uavs3e_funs_handle.ip_flt_y_ver = uavs3e_if_ver_luma_frame_sse;
+    uavs3e_funs_handle.ip_flt_y_ver_ext = uavs3e_if_ver_luma_frame_ext_sse;
+
     for (i = 0; i < CU_SIZE_NUM; i++) {
         uavs3e_funs_handle.ipcpy[i] = uavs3e_if_cpy_w16x_sse;
         uavs3e_funs_handle.ipflt[IPFILTER_H_8][i] = uavs3e_if_hor_luma_w8x_sse;

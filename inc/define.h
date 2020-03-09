@@ -342,6 +342,7 @@ typedef struct uavs3e_enc_pic_t {
     threadpool_t   *wpp_threads_pool;
     com_map_t       map;
     com_info_t      info;
+    s16            *ip_tmp_buf[3];
 
     u8             *bs_buf_demulate;
 

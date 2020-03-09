@@ -22,6 +22,11 @@
 void uavs3e_funs_init_avx2()
 {
     int i;
+
+    uavs3e_funs_handle.ip_flt_y_hor = uavs3e_if_hor_luma_frame_avx2;
+    uavs3e_funs_handle.ip_flt_y_ver = uavs3e_if_ver_luma_frame_avx2;
+    uavs3e_funs_handle.ip_flt_y_ver_ext = uavs3e_if_ver_luma_frame_ext_avx2;
+
     uavs3e_funs_handle.ipcpy[3] = uavs3e_if_cpy_w32_avx2;
     uavs3e_funs_handle.ipcpy[4] = uavs3e_if_cpy_w64_avx2;
     uavs3e_funs_handle.ipcpy[5] = uavs3e_if_cpy_w128_avx2;
@@ -203,6 +208,10 @@ void uavs3e_funs_init_avx2()
 #elif (BIT_DEPTH == 10)
 void uavs3e_funs_init_avx2()
 {
+    uavs3e_funs_handle.ip_flt_y_hor = uavs3e_if_hor_luma_frame_avx2;
+    uavs3e_funs_handle.ip_flt_y_ver = uavs3e_if_ver_luma_frame_avx2;
+    uavs3e_funs_handle.ip_flt_y_ver_ext = uavs3e_if_ver_luma_frame_ext_avx2;
+
     uavs3e_funs_handle.ipcpy[3] = uavs3e_if_cpy_w32_avx2;
     uavs3e_funs_handle.ipcpy[4] = uavs3e_if_cpy_w64_avx2;
     uavs3e_funs_handle.ipcpy[5] = uavs3e_if_cpy_w128_avx2;

@@ -104,6 +104,7 @@ static enc_pic_t *pic_enc_alloc(com_info_t *info)
         ALIGN_MASK * 1 + sizeof(           BOOL) * info->f_lcu * N_C +                                          // Enc_ALF.m_AlfLCUEnabled
         ALIGN_MASK * 1 + sizeof(com_sao_param_t) * info->f_lcu * N_C +                                          // sao_blk_params 
         ALIGN_MASK * 1 + sizeof(enc_lcu_row_t) * info->pic_height_in_lcu +                                      // array_row
+        ALIGN_MASK * 3 + sizeof(s16) * (info->pic_height + 2 * 8) * (info->pic_width + 2 * 8) +                 // ip_tmp_buf
         ALIGN_MASK;
 
     buf = com_malloc(total_mem_size);
@@ -144,8 +145,12 @@ static enc_pic_t *pic_enc_alloc(com_info_t *info)
     GIVE_BUFFER(ep->Enc_ALF.m_alfCorr,       buf, sizeof( enc_alf_corr_t) * info->f_lcu * N_C);
     GIVE_BUFFER(ep->Enc_ALF.m_AlfLCUEnabled, buf, sizeof(           BOOL) * info->f_lcu * N_C);
     GIVE_BUFFER(ep->sao_blk_params,          buf, sizeof(com_sao_param_t) * info->f_lcu * N_C);
-    GIVE_BUFFER(ep->bs_buf_demulate, buf, MAX_BS_BUF);
-    GIVE_BUFFER(ep->array_row, buf, sizeof(enc_lcu_row_t) * info->pic_height_in_lcu);
+    GIVE_BUFFER(ep->bs_buf_demulate,         buf, MAX_BS_BUF);
+    GIVE_BUFFER(ep->array_row,               buf, sizeof(enc_lcu_row_t) * info->pic_height_in_lcu);
+
+    GIVE_BUFFER(ep->ip_tmp_buf[0],           buf, sizeof(s16) * (info->pic_width + 2 * 8) * (info->pic_height + 2 * 8));
+    GIVE_BUFFER(ep->ip_tmp_buf[1],           buf, sizeof(s16) * (info->pic_width + 2 * 8) * (info->pic_height + 2 * 8));
+    GIVE_BUFFER(ep->ip_tmp_buf[2],           buf, sizeof(s16) * (info->pic_width + 2 * 8) * (info->pic_height + 2 * 8));
 
     for (int i = 0; i < info->pic_height_in_lcu; i++) {
         uavs3e_sem_init(&ep->array_row[i].sem, 0, 0);
@@ -210,7 +215,7 @@ static int refine_input_cfg(enc_cfg_t *param, enc_cfg_t *cfg_org)
     com_assert_rv(param->qp >= (MIN_QUANT - (8 *(param->bit_depth_internal - 8))), COM_ERR_INVALID_ARGUMENT);
     com_assert_rv(param->qp <= MAX_QUANT_BASE, COM_ERR_INVALID_ARGUMENT); // this assertion is align with the constraint for input QP
     com_assert_rv(param->i_period >= 0, COM_ERR_INVALID_ARGUMENT);
-    com_assert_rv(param->rc_type == 0 || param->frm_threads == 1, COM_ERR_INVALID_ARGUMENT);
+
     com_assert_rv(param->chroma_format == 1, COM_ERR_INVALID_ARGUMENT);
     com_assert_rv(param->patch_width == 0 && param->patch_height == 0, COM_ERR_INVALID_ARGUMENT);
     com_assert_rv(param->bit_depth_input == 8 || param->bit_depth_input == 10, COM_ERR_INVALID_ARGUMENT);
@@ -585,7 +590,7 @@ int uavs3e_get_img(void *id, com_img_t **img)
 
     for (int i = 0; i < h->ilist_size; i++) {
         if (h->ilist_imgs[i] == NULL) {
-            *img = com_img_create(h->cfg.pic_width, h->cfg.pic_height, NULL);
+            *img = com_img_create(h->cfg.pic_width, h->cfg.pic_height, NULL, 3);
             com_assert_rv(*img != NULL, COM_ERR_OUT_OF_MEMORY);
             h->ilist_imgs[i] = *img;
             return COM_OK;
@@ -625,6 +630,10 @@ int enc_pic_finish(enc_ctrl_t *h, pic_thd_param_t *pic_thd, enc_stat_t *stat)
             com_pic_t *refpic = pic_thd->refp[j][i].pic;
             stat->refpic[i][j] = refpic->ptr;
             com_img_release(refpic->img);
+
+            if (!refpic->b_ref && refpic->subpel && 1 == com_img_getref(refpic->img)) {
+                refpic->subpel->b_used = 0;
+            }
         }
     }
 
@@ -874,18 +883,17 @@ void *enc_pic_thread(enc_pic_t *ep, pic_thd_param_t *p)
         pichdr->m_alfPictureParam = ep->Enc_ALF.m_alfPictureParam;
         pichdr->pic_alf_on = ep->pic_alf_on;
         enc_alf_avs2(ep, pic_rec, pic_org, lambda);
-
-        if (pic_org->b_ref) {
-            com_pic_padding(pic_rec, pic_rec->padsize_luma, pic_rec->padsize_chroma, 0, pic_rec->height_luma);
-        }
-
+    } else {
+        pichdr->m_alfPictureParam = NULL;
+        pichdr->pic_alf_on = NULL;
+    }
+    if (pic_org->b_ref) {
+        com_img_padding(pic_rec->img, 3, 0);
+        com_if_luma_frame(pic_rec->subpel->imgs, ep->ip_tmp_buf, info->bit_depth_internal);
         uavs3e_pthread_mutex_lock(&pic_rec->mutex);
         pic_rec->end_line = info->pic_height;
         uavs3e_pthread_cond_broadcast(&pic_rec->cv);
         uavs3e_pthread_mutex_unlock(&pic_rec->mutex);
-    } else {
-        pichdr->m_alfPictureParam = NULL;
-        pichdr->pic_alf_on = NULL;
     }
 
     /* Bit-stream re-writing (START) */
@@ -1125,10 +1133,8 @@ static int enc_push_frm(enc_ctrl_t *h, com_img_t *img)
             h->img_rsize = 0;
         }
     }
-
     return COM_OK;
 }
-
 
 void *uavs3e_create(enc_cfg_t *cfg, int *err)
 {
@@ -1171,7 +1177,7 @@ void *uavs3e_create(enc_cfg_t *cfg, int *err)
     h->prev_ptr  = -1;
     h->lastI_ptr = -1;
 
-    com_refm_create(&h->rpm, MAX_PB_SIZE + h->cfg.frm_threads, MAX_REFS, info->pic_width, info->pic_height);
+    com_refm_create(&h->rpm, MAX_PB_SIZE + h->cfg.frm_threads, info->pic_width, info->pic_height);
 
     h->ilist_size = ENC_MAX_INPUT_BUF + h->cfg.frm_threads;
     h->ilist_imgs = com_malloc(sizeof(com_img_t*) * h->ilist_size);
@@ -1307,8 +1313,9 @@ int uavs3e_enc(void *id, enc_stat_t *stat, com_img_t *img_enc)
     assert(h->node_size > 0);
 
     /* initialize variables for a picture encoding */
-    com_pic_t *pic_rec = com_refm_find_free_pic(&h->rpm, &ret);
     input_node_t node = h->node_list[0];
+    com_pic_t *pic_rec = com_refm_find_free_pic(&h->rpm, node.b_ref, &ret);
+
     memcpy(h->node_list, h->node_list + 1, (h->node_size - 1) * sizeof(input_node_t));
     memset(&h->node_list[h->node_size - 1], 0, sizeof(input_node_t));
     h->node_size--;

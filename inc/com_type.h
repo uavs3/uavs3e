@@ -22,38 +22,44 @@
 #include "com_define.h"
 #include "com_tables.h"
 
+typedef struct uavs3e_com_subpel_t {
+    int          b_used;
+    com_img_t   *imgs[4][4];
+} com_subpel_t;
+
 /* picture store structure */
 typedef struct uavs3e_com_pic_t {
     /*** yuv data info **/
-    pel        *y, *u, *v;       /* Start address of Y/U/V component (except padding)                */
-    int         stride_luma;     /* Stride of luma picture   */
-    int         stride_chroma;   /* Stride of chroma picture */
-    int         width_luma;      /* Width of luma picture    */
-    int         height_luma;     /* Height of luma picture   */
-    int         width_chroma;    /* Width of chroma picture  */
-    int         height_chroma;   /* Height of chroma picture */
-    int         padsize_luma;    /* padding size of luma     */
-    int         padsize_chroma;  /* padding size of chroma   */
-    com_img_t   *img;            /* image buffer             */
+    pel         *y, *u, *v;       /* Start address of Y/U/V component (except padding)                */
+    int          stride_luma;     /* Stride of luma picture   */
+    int          stride_chroma;   /* Stride of chroma picture */
+    int          width_luma;      /* Width of luma picture    */
+    int          height_luma;     /* Height of luma picture   */
+    int          width_chroma;    /* Width of chroma picture  */
+    int          height_chroma;   /* Height of chroma picture */
+    int          padsize_luma;    /* padding size of luma     */
+    int          padsize_chroma;  /* padding size of chroma   */
+    com_img_t    *img;            /* image buffer             */
+    com_subpel_t *subpel;
 
     /*** ref info **/
-    s64         list_ptr[MAX_REFS];     /* [rec] */
-    u8          b_ref;                  /* [rec] - 0: not used for reference buffer, reference picture type */
-    s16         dtr;                    /* [rec] - decoding temporal reference of this picture, (-256 ~255) */
-    s64         ptr;                    /* [rec] - playing  temporal reference of this picture              */
-    u8          layer_id;               /* [org] - scalable layer id                                        */
+    s64          list_ptr[MAX_REFS];     /* [rec] */
+    u8           b_ref;                  /* [rec] - 0: not used for reference buffer, reference picture type */
+    s16          dtr;                    /* [rec] - decoding temporal reference of this picture, (-256 ~255) */
+    s64          ptr;                    /* [rec] - playing  temporal reference of this picture              */
+    u8           layer_id;               /* [org] - scalable layer id                                        */
     
     /*** extension info **/
-    double      picture_satd;                   /* [org] */
-    double      picture_satd_blur;              /* [rec] */
-    int         picture_qp;                     /* [org] */
-    double      picture_qp_real;                /* [rec] - real qp in bit depth of 8 */
-    int         picture_bits;                   /* [rec] */
+    double       picture_satd;                   /* [org] */
+    double       picture_satd_blur;              /* [rec] */
+    int          picture_qp;                     /* [org] */
+    double       picture_qp_real;                /* [rec] - real qp in bit depth of 8 */
+    int          picture_bits;                   /* [rec] */
 
     /*** pic-level map **/
-    u8         *mem_base;                       /* [rec] */
-    s16       (*map_mv)[REFP_NUM][MV_D];        /* [rec] */
-    s8        (*map_refi)[REFP_NUM];            /* [rec] */
+    u8          *mem_base;                       /* [rec] */
+    s16        (*map_mv)[REFP_NUM][MV_D];        /* [rec] */
+    s8         (*map_refi)[REFP_NUM];            /* [rec] */
 
     /*** frame parallel ***/
     int         end_line;
@@ -73,8 +79,9 @@ typedef struct uavs3e_com_rpl_t {
  *****************************************************************************/
 typedef struct uavs3e_com_pic_manager_t {
     com_pic_t        **pic;                       /* picture store (including reference and non-reference) */
-    int                max_num_ref_pics;          /* maximum reference picture count */
+    com_subpel_t     **subpel;
     int                cur_num_ref_pics;          /* current count of available reference pictures in PB */
+    int                cur_num_subpels;
     int                num_refp[REFP_NUM];        /* number of reference pictures */
     int                ptr_next_output;           /* next output POC */
     int                ptr_increase;              /* POC increment */

@@ -53,9 +53,10 @@ void com_mc_blk_luma(com_pic_t *pic, pel *dst, int dst_stride, int x_pos, int y_
 void com_mc_cu(int x, int y, int pic_w, int pic_h, int w, int h, s8 refi[REFP_NUM], s16 mv[REFP_NUM][MV_D], com_ref_pic_t(*refp)[REFP_NUM], pel pred_buf[N_C][MAX_CU_DIM], int pred_stride, channel_type_t channel, int bit_depth);
 void com_mc_cu_affine(int x, int y, int pic_w, int pic_h, int w, int h, s8 refi[REFP_NUM], CPMV mv[REFP_NUM][VER_NUM][MV_D], com_ref_pic_t(*refp)[REFP_NUM], pel pred[N_C][MAX_CU_DIM], int cp_num, com_pic_header_t *pichdr, s16(*map_mv)[REFP_NUM][MV_D], int bit_depth);
 void com_mc_blk_affine_luma(int x, int y, int pic_w, int pic_h, int w, int h, CPMV ac_mv[VER_NUM][MV_D], com_pic_t *ref_pic, pel pred[MAX_CU_DIM], int cp_num, int sub_w, int sub_h, int bit_depth);
+void com_if_luma_frame(com_img_t *img_list[4][4], s16 *tmp_buf[3], int bit_depth);
 
 ////////////// PICMAN
-int com_refm_create(com_pic_manager_t *pm, int max_pb_size, int max_num_ref_pics, int width, int height);
+int com_refm_create(com_pic_manager_t *pm, int max_pb_size, int width, int height);
 int com_refm_free(com_pic_manager_t *pm);
 int com_refm_create_rpl(com_pic_manager_t *pm, com_pic_header_t *sh, com_ref_pic_t(*refp)[REFP_NUM], int top_pic);
 void com_refm_pick_seqhdr_idx(com_seqh_t *seqhdr, com_pic_header_t *pichdr);
@@ -63,7 +64,7 @@ void com_refm_build_ref_buf(com_pic_manager_t *pm);
 int com_refm_insert_rec_pic(com_pic_manager_t *pm, com_pic_t *pic, com_ref_pic_t(*refp)[REFP_NUM]);
 void com_refm_remove_ref_pic(com_pic_manager_t *pm, com_pic_header_t *pichdr, com_pic_t *pic, int close_gop, int is_ld);
 
-com_pic_t *com_refm_find_free_pic(com_pic_manager_t *pm, int *err);
+com_pic_t *com_refm_find_free_pic(com_pic_manager_t *pm, int b_ref, int *err);
 
 ////////////// RECON
 void com_recon_plane(part_size_t part, s16 *resi, pel *pred, int(*is_coef)[N_C], int plane, int cu_width, int cu_height, int s_rec, pel *rec, int bit_depth);

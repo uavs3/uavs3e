@@ -40,19 +40,7 @@ void uavs3e_align_free(void *p)
     free(*(((void **)p) - 1));
 }
 
-void com_img_free(com_img_t *img)
-{
-    int i;
-    com_assert_r(img);
-    for (i = 0; i < MAX_PLANES; i++) {
-        if (img->buf[i]) {
-            com_mfree(img->buf[i]);
-        }
-    }
-    com_mfree(img);
-}
-
-com_img_t *com_img_create(int width, int height, int pad[MAX_PLANES])
+com_img_t *com_img_create(int width, int height, int pad[MAX_PLANES], int planes)
 {
     const int scale = sizeof(pel);
     com_img_t *img;
@@ -60,7 +48,7 @@ com_img_t *com_img_create(int width, int height, int pad[MAX_PLANES])
     com_assert_rv(img, NULL);
     com_mset(img, 0, sizeof(com_img_t));
 
-    for (int i = 0; i < MAX_PLANES; i++) {
+    for (int i = 0; i < planes; i++) {
         int p_size = (pad != NULL) ? pad[i] : 0;
 
         img->width [i] = width;
@@ -76,13 +64,86 @@ com_img_t *com_img_create(int width, int height, int pad[MAX_PLANES])
             height = (height + 1) >> 1;
         }
     }
-    img->num_planes = MAX_PLANES;
+    img->num_planes = planes;
 
     com_img_addref(img);
 
     return img;
 }
 
+void com_img_free(com_img_t *img)
+{
+    int i;
+    com_assert_r(img);
+    for (i = 0; i < img->num_planes; i++) {
+        if (img->buf[i]) {
+            com_mfree(img->buf[i]);
+        }
+    }
+    com_mfree(img);
+}
+
+static void picture_padding(pel *a, int s, int width, int height, int exp_hor, int exp_upper, int exp_below)
+{
+    int i, j;
+    pel pixel;
+    pel *src, *dst;
+    /* left */
+    src = a;
+    dst = a - exp_hor;
+    for (i = 0; i < height; i++) {
+        pixel = *src; /* get boundary pixel */
+        for (j = 0; j < exp_hor; j++) {
+            dst[j] = pixel;
+        }
+        dst += s;
+        src += s;
+    }
+    /* right */
+    src = a + (width - 1);
+    dst = a + width;
+    for (i = 0; i < height; i++) {
+        pixel = *src; /* get boundary pixel */
+        for (j = 0; j < exp_hor; j++) {
+            dst[j] = pixel;
+        }
+        dst += s;
+        src += s;
+    }
+    /* upper */
+    src = a - exp_upper;
+    dst = a - exp_upper - (exp_upper * s);
+    for (i = 0; i < exp_upper; i++) {
+        com_mcpy(dst, src, s * sizeof(pel));
+        dst += s;
+    }
+    /* below */
+    src = a + ((height - 1) * s) - exp_below;
+    dst = a + ((height - 1) * s) - exp_below + s;
+    for (i = 0; i < exp_below; i++) {
+        com_mcpy(dst, src, s * sizeof(pel));
+        dst += s;
+    }
+}
+
+void com_img_padding(com_img_t *img, int planes, int ext_size)
+{
+    for (int i = 0; i < planes; i++) {
+        int stride = img->stride[i] / sizeof(pel);
+        pel *p = (pel*)img->planes[i] - ext_size * stride - ext_size;
+
+        picture_padding(p, stride,
+            img->width [i] + ext_size * 2, 
+            img->height[i] + ext_size * 2,
+            img->pad   [i] - ext_size,
+            img->pad   [i] - ext_size,
+            img->pad   [i] - ext_size);
+
+        if (i == 0) {
+            ext_size >>= 1;
+        }
+    }
+}
 
 com_pic_t *com_pic_create(int width, int height, int pad_l, int pad_c, int *err)
 {
@@ -99,7 +160,7 @@ com_pic_t *com_pic_create(int width, int height, int pad_l, int pad_c, int *err)
     pad[0] = pad_l;
     pad[1] = pad_c;
     pad[2] = pad_c;
-    img = com_img_create(width, height, pad);
+    img = com_img_create(width, height, pad, 3);
     com_assert_gv(img != NULL, ret, COM_ERR_OUT_OF_MEMORY, ERR);
 
     /* set com_pic_t */
@@ -168,56 +229,56 @@ void com_pic_free(com_pic_t *pic)
     }
 }
 
-static void picture_padding(pel *a, int s, int width, int height, int exp_hor, int exp_upper, int exp_below)
+com_subpel_t* com_subpel_create(int width, int height, int pad_l, int pad_c, int *err)
 {
-    int i, j;
-    pel pixel;
-    pel *src, *dst;
-    /* left */
-    src = a;
-    dst = a - exp_hor;
-    for (i = 0; i < height; i++) {
-        pixel = *src; /* get boundary pixel */
-        for (j = 0; j < exp_hor; j++) {
-            dst[j] = pixel;
+    int ret, pad[MAX_PLANES];
+    com_subpel_t *p = (com_subpel_t*)com_malloc(sizeof(com_subpel_t));
+    com_assert_gv(p, ret, COM_ERR_OUT_OF_MEMORY, ERR);
+
+    pad[0] = pad_l;
+    pad[1] = pad_c;
+    pad[2] = pad_c;
+
+    for (int i = 0; i < 4; i++) {
+        for (int j = 0; j < 4; j++) {
+            if (i == 0 && j == 0) {
+                continue;
+            }
+            p->imgs[i][j] = com_img_create(width, height, pad, 1);
+            com_assert_gv(p->imgs[i][j] != NULL, ret, COM_ERR_OUT_OF_MEMORY, ERR);
         }
-        dst += s;
-        src += s;
     }
-    /* right */
-    src = a + (width - 1);
-    dst = a + width;
-    for (i = 0; i < height; i++) {
-        pixel = *src; /* get boundary pixel */
-        for (j = 0; j < exp_hor; j++) {
-            dst[j] = pixel;
-        }
-        dst += s;
-        src += s;
+
+    if (err) {
+        *err = COM_OK;
     }
-    /* upper */
-    src = a - exp_upper;
-    dst = a - exp_upper - (exp_upper * s);
-    for (i = 0; i < exp_upper; i++) {
-        com_mcpy(dst, src, s * sizeof(pel));
-        dst += s;
+    return p;
+ERR:
+    if (p) {
+        com_subpel_free(p);
     }
-    /* below */
-    src = a + ((height - 1) * s) - exp_below;
-    dst = a + ((height - 1) * s) - exp_below + s;
-    for (i = 0; i < exp_below; i++) {
-        com_mcpy(dst, src, s * sizeof(pel));
-        dst += s;
+    if (err) {
+        *err = ret;
     }
+    return NULL;
+
 }
 
-void com_pic_padding(com_pic_t *pic, int exp_l, int exp_c, int start_y, int end_y)
+void com_subpel_free(com_subpel_t *p)
 {
-    int height = end_y - start_y;
-
-    picture_padding(pic->y + start_y     * pic->stride_luma,   pic->stride_luma,   pic->width_luma,   height,     exp_l, start_y ? 0 : exp_l, end_y == pic->height_luma ? exp_l : 0);
-    picture_padding(pic->u + start_y / 2 * pic->stride_chroma, pic->stride_chroma, pic->width_chroma, height / 2, exp_c, start_y ? 0 : exp_c, end_y == pic->height_luma ? exp_c : 0);
-    picture_padding(pic->v + start_y / 2 * pic->stride_chroma, pic->stride_chroma, pic->width_chroma, height / 2, exp_c, start_y ? 0 : exp_c, end_y == pic->height_luma ? exp_c : 0);
+    if (p) {
+        for (int i = 0; i < 4; i++) {
+            for (int j = 0; j < 4; j++) {
+                if (i == 0 && j == 0) {
+                    continue;
+                }
+                if (p->imgs[i][j]) {
+                    com_img_release(p->imgs[i][j]);
+                }
+            }
+        }
+        com_mfree(p);
+    }
 }
 
 int get_colocal_scup(int scup, int i_scu, int pic_width_in_scu, int pic_height_in_scu)

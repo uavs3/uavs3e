@@ -23,7 +23,6 @@ void com_mc_blk_luma(com_pic_t *pic, pel *dst, int dst_stride, int x_pos, int y_
 {
     const s8(*coeff)[8];
     int dx, dy;
-    pel *src = pic->y;
     int i_src = pic->stride_luma;
 
     if (hp_flag) {
@@ -43,18 +42,23 @@ void com_mc_blk_luma(com_pic_t *pic, pel *dst, int dst_stride, int x_pos, int y_
     x_pos = COM_CLIP3(-MAX_CU_SIZE - 4, max_posx, x_pos);
     y_pos = COM_CLIP3(-MAX_CU_SIZE - 4, max_posy, y_pos);
 
-    src += y_pos * i_src + x_pos;
-
     wait_ref_available(pic, y_pos + height + 4);
 
-    if (dx == 0 && dy == 0) {
-        uavs3e_funs_handle.ipcpy[widx](src, i_src, dst, dst_stride, width, height);
-    } else if (dy == 0) {
-        uavs3e_funs_handle.ipflt[IPFILTER_H_8][widx](src, i_src, dst, dst_stride, width, height, coeff[dx], max_val);
-    } else if (dx == 0) {
-        uavs3e_funs_handle.ipflt[IPFILTER_V_8][widx](src, i_src, dst, dst_stride, width, height, coeff[dy], max_val);
+    if (hp_flag) {
+        pel *src = pic->y + y_pos * i_src + x_pos;
+
+        if (dx == 0 && dy == 0) {
+            uavs3e_funs_handle.ipcpy[widx](src, i_src, dst, dst_stride, width, height);
+        } else if (dy == 0) {
+            uavs3e_funs_handle.ipflt[IPFILTER_H_8][widx](src, i_src, dst, dst_stride, width, height, coeff[dx], max_val);
+        } else if (dx == 0) {
+            uavs3e_funs_handle.ipflt[IPFILTER_V_8][widx](src, i_src, dst, dst_stride, width, height, coeff[dy], max_val);
+        } else {
+            uavs3e_funs_handle.ipflt_ext[IPFILTER_EXT_8][widx](src, i_src, dst, dst_stride, width, height, coeff[dx], coeff[dy], max_val);
+        }
     } else {
-        uavs3e_funs_handle.ipflt_ext[IPFILTER_EXT_8][widx](src, i_src, dst, dst_stride, width, height, coeff[dx], coeff[dy], max_val);
+        pel *src = (pel*)pic->subpel->imgs[dy][dx]->planes[0] + y_pos * i_src + x_pos;
+        uavs3e_funs_handle.ipcpy[widx](src, i_src, dst, dst_stride, width, height);
     }
 }
 
@@ -432,7 +436,7 @@ void com_mc_cu_affine(int x, int y, int pic_w, int pic_h, int w, int h, s8 refi[
 
 
 /****************************************************************************
- * motion compensation for luma
+ * interpolation for luma
  ****************************************************************************/
 
 static void mc_if_hor_luma(const pel *src, int i_src, pel *dst, int i_dst, int width, int height, s8 const *coeff, int max_val)
@@ -526,7 +530,7 @@ static void mc_if_hor_ver_luma(const pel *src, int i_src, pel *dst, int i_dst, i
 }
 
 /****************************************************************************
- * motion compensation for chroma
+ * interpolation for chroma
  ****************************************************************************/
 
 static void mc_if_hor_chroma(const pel *src, int i_src, pel *dst, int i_dst, int width, int height, s8 const *coeff, int max_val)
@@ -633,9 +637,157 @@ static void mc_if_cpy(const pel *src, int i_src, pel *dst, int i_dst, int width,
     }
 }
 
+/****************************************************************************
+* interpolation for luma of frame
+****************************************************************************/
+
+static __inline pel pixel_clip(int x, int max_pixel_val)
+{
+    return (pel)((x < 0) ? 0 : ((x > max_pixel_val) ? max_pixel_val : x));
+}
+
+static void com_if_filter_hor_8(const pel *src, int i_src, pel *dst[3], int i_dst, s16 *dst_tmp[3], int i_dst_tmp, int width, int height, s8(*coeff)[8], int bit_depth)
+{
+    int i, j;
+    pel *d0 = dst[0];
+    pel *d1 = dst[1];
+    pel *d2 = dst[2];
+    s16 *dt0 = dst_tmp[0];
+    s16 *dt1 = dst_tmp[1];
+    s16 *dt2 = dst_tmp[2];
+    int shift_tmp = bit_depth - 8;
+    int add_tmp = (1 << (shift_tmp)) >> 1;
+    int t1, t2, t3;
+    int max_pixel = (1 << bit_depth) - 1;
+
+    for (j = 0; j < height; j++) {
+        for (i = 0; i < width; i++) {
+            t1 = FLT_8TAP_HOR(src, i, coeff[0]);
+            dt0[i] = (t1 + add_tmp) >> shift_tmp;
+            d0[i] = pixel_clip((t1 + 32) >> 6, max_pixel);
+            t2 = FLT_8TAP_HOR(src, i, coeff[1]);
+            dt1[i] = (t2 + add_tmp) >> shift_tmp;
+            d1[i] = pixel_clip((t2 + 32) >> 6, max_pixel);
+            t3 = FLT_8TAP_HOR(src, i, coeff[2]);
+            dt2[i] = (t3 + add_tmp) >> shift_tmp;
+            d2[i] = pixel_clip((t3 + 32) >> 6, max_pixel);
+        }
+        d0 += i_dst;
+        d1 += i_dst;
+        d2 += i_dst;
+        dt0 += i_dst_tmp;
+        dt1 += i_dst_tmp;
+        dt2 += i_dst_tmp;
+        src += i_src;
+    }
+}
+
+static void com_if_filter_ver_8(const pel *src, int i_src, pel *dst[3], int i_dst, int width, int height, s8(*coeff)[8], int bit_depth)
+{
+    int i, j, val;
+    pel *d0 = dst[0];
+    pel *d1 = dst[1];
+    pel *d2 = dst[2];
+    int max_pixel = (1 << bit_depth) - 1;
+
+    for (j = 0; j < height; j++) {
+        for (i = 0; i < width; i++) {
+            val = (FLT_8TAP_VER(src, i, i_src, coeff[0]) + 32) >> 6;
+            d0[i] = pixel_clip(val, max_pixel);
+
+            val = (FLT_8TAP_VER(src, i, i_src, coeff[1]) + 32) >> 6;
+            d1[i] = pixel_clip(val, max_pixel);
+
+            val = (FLT_8TAP_VER(src, i, i_src, coeff[2]) + 32) >> 6;
+            d2[i] = pixel_clip(val, max_pixel);
+        }
+
+        d0 += i_dst;
+        d1 += i_dst;
+        d2 += i_dst;
+        src += i_src;
+    }
+}
+
+static void uavs3e_if_ver_luma_frame_ext(const s16 *src, int i_src, pel *dst[3], int i_dst, int width, int height, s8(*coeff)[8], int bit_depth)
+{
+    int i, j, val;
+    pel *d0 = dst[0];
+    pel *d1 = dst[1];
+    pel *d2 = dst[2];
+    int max_pixel = (1 << bit_depth) - 1;
+    int shift1 = 20 - bit_depth;
+    int add1 = 1 << (shift1 - 1);
+
+    for (j = 0; j < height; j++) {
+        for (i = 0; i < width; i++) {
+            val = (FLT_8TAP_VER(src, i, i_src, coeff[0]) + add1) >> shift1;
+            d0[i] = pixel_clip(val, max_pixel);
+
+            val = (FLT_8TAP_VER(src, i, i_src, coeff[1]) + add1) >> shift1;
+            d1[i] = pixel_clip(val, max_pixel);
+
+            val = (FLT_8TAP_VER(src, i, i_src, coeff[2]) + add1) >> shift1;
+            d2[i] = pixel_clip(val, max_pixel);
+        }
+
+        d0 += i_dst;
+        d1 += i_dst;
+        d2 += i_dst;
+        src += i_src;
+    }
+}
+
+void com_if_luma_frame(com_img_t *img_list[4][4], s16 *tmp_buf[3], int bit_depth)
+{
+    int dx, dy;
+    com_img_t *img = img_list[0][0];
+    int i_stride   = img->stride[0] / sizeof(pel);
+    int tmp_stride = img->width[0] + 16;
+    pel *dst_tmp[3];
+    s8(*coefs)[8] = (s8(*)[8])com_tbl_mc_l_coeff[1];
+
+    int ip_width  = img->width [0] + 8;
+    int ip_height = img->height[0] + 8;
+
+    //horizontal positions: a,1,b
+    dst_tmp[0] = (pel*)img_list[0][1]->planes[0] - 8 * i_stride - 8;
+    dst_tmp[1] = (pel*)img_list[0][2]->planes[0] - 8 * i_stride - 8;
+    dst_tmp[2] = (pel*)img_list[0][3]->planes[0] - 8 * i_stride - 8;
+    uavs3e_funs_handle.ip_flt_y_hor((pel*)img_list[0][0]->planes[0] - 8 * i_stride - 8, i_stride, dst_tmp, i_stride, tmp_buf, tmp_stride, img->width[0] + 16, img->height[0] + 16, coefs, bit_depth);
+
+    //vertical positions: c,2,j
+    dst_tmp[0] = (pel*)img_list[1][0]->planes[0] - 4 * i_stride - 4;
+    dst_tmp[1] = (pel*)img_list[2][0]->planes[0] - 4 * i_stride - 4;
+    dst_tmp[2] = (pel*)img_list[3][0]->planes[0] - 4 * i_stride - 4;
+    uavs3e_funs_handle.ip_flt_y_ver((pel*)img_list[0][0]->planes[0] - 4 * i_stride - 4, i_stride, dst_tmp, i_stride, ip_width, ip_height, coefs, bit_depth);
+
+    //vertical positions: d,h,k; e,3,1; f,i,m
+    for (dx = 1; dx < 4; dx++) {
+        dst_tmp[0] = (pel*)img_list[1][dx]->planes[0] - 4 * i_stride - 4;
+        dst_tmp[1] = (pel*)img_list[2][dx]->planes[0] - 4 * i_stride - 4;
+        dst_tmp[2] = (pel*)img_list[3][dx]->planes[0] - 4 * i_stride - 4;
+        uavs3e_funs_handle.ip_flt_y_ver_ext(tmp_buf[dx - 1] + 4 * tmp_stride + 4, tmp_stride, dst_tmp, i_stride, ip_width, ip_height, coefs, bit_depth);
+    }
+
+    for (dx = 0; dx < 4; dx++) {
+        for (dy = 0; dy < 4; dy++) {
+            if (dx == 0 && dy == 0) {
+                continue;
+            }
+            com_img_padding(img_list[dx][dy], 1, 4);
+        }
+    }
+}
+
 void uavs3e_funs_init_mc_c()
 {
     int i;
+
+    uavs3e_funs_handle.ip_flt_y_hor = com_if_filter_hor_8;
+    uavs3e_funs_handle.ip_flt_y_ver = com_if_filter_ver_8;
+    uavs3e_funs_handle.ip_flt_y_ver_ext = uavs3e_if_ver_luma_frame_ext;
+
     for (i = 0; i < CU_SIZE_NUM; i++) {
         uavs3e_funs_handle.ipcpy[i] = mc_if_cpy;
         uavs3e_funs_handle.ipflt[IPFILTER_H_8][i] = mc_if_hor_luma;

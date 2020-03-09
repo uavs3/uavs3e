@@ -61,9 +61,13 @@ void uavs3e_if_ver_luma_w16x_sse(const pel *src, int i_src, pel *dst, int i_dst,
 void uavs3e_if_hor_ver_chroma_w4_sse(const pel *src, int i_src, pel *dst, int i_dst, int width, int height, const s8 *coef_x, const s8 *coef_y, int max_val);
 void uavs3e_if_hor_ver_chroma_w8_sse(const pel *src, int i_src, pel *dst, int i_dst, int width, int height, const s8 *coef_x, const s8 *coef_y, int max_val);
 void uavs3e_if_hor_ver_chroma_w8x_sse(const pel *src, int i_src, pel *dst, int i_dst, int width, int height, const s8 *coef_x, const s8 *coef_y, int max_val);
-void uavs3e_if_hor_ver_luma_w4_sse(const pel *src, int i_src, pel *dst, int i_dst, int width, int height, const s8 *coef_x, const s8 *coef_y, int max_val);
-void uavs3e_if_hor_ver_luma_w8_sse(const pel *src, int i_src, pel *dst, int i_dst, int width, int height, const s8 *coef_x, const s8 *coef_y, int max_val);
+void uavs3e_if_hor_ver_luma_w4_sse (const pel *src, int i_src, pel *dst, int i_dst, int width, int height, const s8 *coef_x, const s8 *coef_y, int max_val);
+void uavs3e_if_hor_ver_luma_w8_sse (const pel *src, int i_src, pel *dst, int i_dst, int width, int height, const s8 *coef_x, const s8 *coef_y, int max_val);
 void uavs3e_if_hor_ver_luma_w8x_sse(const pel *src, int i_src, pel *dst, int i_dst, int width, int height, const s8 *coef_x, const s8 *coef_y, int max_val);
+
+void uavs3e_if_hor_luma_frame_sse    (const pel  *src, int i_src, pel *dst[3], int i_dst, s16 *dst_tmp[3], int i_dst_tmp, int width, int height, s8(*coeff)[8], int bit_depth);
+void uavs3e_if_ver_luma_frame_sse    (const pel  *src, int i_src, pel *dst[3], int i_dst, int width, int height, s8(*coeff)[8], int bit_depth);
+void uavs3e_if_ver_luma_frame_ext_sse(const s16 *src, int i_src, pel *dst[3], int i_dst, int width, int height, s8(*coeff)[8], int bit_depth);
 
 void uavs3e_deblock_ver_luma_sse(pel *src, int stride, int alpha, int beta, int flt_flag);
 void uavs3e_deblock_hor_luma_sse(pel *src, int stride, int alpha, int beta, int flt_flag);

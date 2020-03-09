@@ -28,6 +28,8 @@ static void set_refp(com_ref_pic_t *refp, com_pic_t *pic_ref)
     refp->map_refi = pic_ref->map_refi;
     refp->list_ptr = pic_ref->list_ptr;
 
+    com_assert(pic_ref->subpel);
+
     com_img_addref(pic_ref->img);
 }
 
@@ -182,13 +184,13 @@ void com_refm_pick_seqhdr_idx(com_seqh_t *seqhdr, com_pic_header_t *pichdr)
     }
 }
 
-com_pic_t *com_refm_find_free_pic(com_pic_manager_t *pm, int *err)
+com_pic_t *com_refm_find_free_pic(com_pic_manager_t *pm, int b_ref, int *err)
 {
     int ret;
     com_pic_t *pic = NULL;
 
     for (int i = 0; i < pm->max_pb_size; i++) {
-        if (pm->pic[i] != NULL && !pm->pic[i]->b_ref) {
+        if (pm->pic[i] && !pm->pic[i]->b_ref) {
             com_img_t *img = pm->pic[i]->img;
             com_assert(img != NULL);
 
@@ -221,6 +223,31 @@ com_pic_t *com_refm_find_free_pic(com_pic_manager_t *pm, int *err)
 
     com_img_addref(pic->img);
 
+    if (b_ref) {
+        com_subpel_t *subpel = NULL;
+
+        for (int i = 0; i < pm->cur_num_subpels; i++) {
+            if (pm->subpel[i] && !pm->subpel[i]->b_used) {
+                subpel = pm->subpel[i];
+                break;
+            }
+        }
+        if (subpel == NULL) {
+            if (pm->cur_num_subpels == pm->max_pb_size) {
+                com_assert_gv(0, ret, COM_ERR_UNKNOWN, ERR);
+            }
+            subpel = pm->subpel[pm->cur_num_subpels] = com_subpel_create(pm->pic_width, pm->pic_height, pm->pad_l, pm->pad_c, &ret);
+            com_assert_gv(subpel != NULL, ret, COM_ERR_OUT_OF_MEMORY, ERR);
+            pm->cur_num_subpels++;
+        }
+        subpel->b_used = 1;
+        subpel->imgs[0][0] = pic->img;
+
+        pic->subpel = subpel;
+    } else {
+        pic->subpel = NULL;
+    }
+
     if (err) {
         *err = COM_OK;
     }
@@ -238,7 +265,7 @@ ERR:
 void print_pm(com_pic_manager_t *pm, char type)
 {
 #if 0
-    printf("%c pb:%2d(%2d)  ==> ",type, pm->cur_num_ref_pics, pm->max_pb_size);
+    printf("%c refpic/subpel:%2d/%2d(%2d)  ==> ",type, pm->cur_num_ref_pics, pm->cur_num_subpels, pm->max_pb_size);
 
     for (int i = 0; i < pm->max_pb_size; i++) {
         if (pm->pic[i] == NULL) printf("-");
@@ -257,6 +284,10 @@ static void remove_ref_pic(com_pic_manager_t *pm, int idx)
     print_pm(pm, ' ');
 
     pic->b_ref = 0;
+
+    if (pic->subpel && 1 == com_img_getref(pic->img)) {
+        pic->subpel->b_used = 0;
+    }
 
     for (int j = idx; j < pm->max_pb_size - 1; j++) {
         pm->pic[j] = pm->pic[j + 1];
@@ -392,12 +423,8 @@ int com_refm_insert_rec_pic(com_pic_manager_t *pm, com_pic_t *pic, com_ref_pic_t
     return COM_OK;
 }
 
-int com_refm_create(com_pic_manager_t *pm, int max_pb_size, int max_num_ref_pics, int width, int height)
+int com_refm_create(com_pic_manager_t *pm, int max_pb_size, int width, int height)
 {
-    if (max_num_ref_pics > MAX_REFS) {
-        return COM_ERR_UNSUPPORTED;
-    }
-    pm->max_num_ref_pics = max_num_ref_pics;
     pm->max_pb_size = max_pb_size;
     pm->ptr_increase = 1;
 
@@ -406,7 +433,8 @@ int com_refm_create(com_pic_manager_t *pm, int max_pb_size, int max_num_ref_pics
     pm->pad_l = PIC_PAD_SIZE_L;
     pm->pad_c = PIC_PAD_SIZE_C;
 
-    pm->pic = com_malloc(sizeof(com_pic_t*) * max_pb_size);
+    pm->pic    = com_malloc(sizeof(com_pic_t   *) * max_pb_size);
+    pm->subpel = com_malloc(sizeof(com_subpel_t*) * max_pb_size);
 
     return COM_OK;
 }
@@ -418,13 +446,14 @@ int com_refm_free(com_pic_manager_t *pm)
     for (i = 0; i < pm->max_pb_size; i++) {
         if (pm->pic[i]) {
             com_pic_free(pm->pic[i]);
-            pm->pic[i] = NULL;
+        }
+        if (pm->subpel[i]) {
+            com_subpel_free(pm->subpel[i]);
         }
     }
 
-    pm->cur_num_ref_pics = 0;
-
     com_mfree(pm->pic);
+    com_mfree(pm->subpel);
 
     return COM_OK;
 }
