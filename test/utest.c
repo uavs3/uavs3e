@@ -29,11 +29,13 @@
 #include "uavs3e.h"
 #include "config.h"
 
-
-static int  frame_to_be_encoded;
-
 #define S_IREAD        0000400         /* read  permission, owner */
 #define S_IWRITE       0000200         /* write permission, owner */
+
+#define LOG_LEVEL_0                  0
+#define LOG_LEVEL_1                  1
+#define LOG_LEVEL_2                  2
+#define FRAME_LOGLEVEL              LOG_LEVEL_1
 
 #ifndef _WIN32
 #if defined(__APPLE__)
@@ -48,6 +50,16 @@ static int  frame_to_be_encoded;
 
 #define O_BINARY 0x0
 #endif
+
+enc_cfg_t   cfg;
+static char fn_cfg[256] = "\0";
+static char fn_input[256] = "\0";
+static char fn_output[256] = "\0";
+static char fn_rec[256] = "\0";
+static int  max_frames = 0;
+static int  t_ds_ratio = 1;
+static int  g_loglevel = LOG_LEVEL_1;
+static int  frame_to_be_encoded;
 
 static app_cfg_t options[] = {
     {

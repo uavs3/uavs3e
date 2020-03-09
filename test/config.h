@@ -24,11 +24,6 @@
 #include <string.h>
 #include <assert.h>
 
-#define LOG_LEVEL_0                  0
-#define LOG_LEVEL_1                  1
-#define LOG_LEVEL_2                  2
-#define FRAME_LOGLEVEL              LOG_LEVEL_1
-
 #define CFG_TYPE_MANDATORY       (1 <<0) /* mandatory or not   */
 #define CFG_TYPE_NULL            (0 <<1) /* no value           */
 #define CFG_TYPE_INTEGER         (10<<1) /* integer type value */
@@ -37,7 +32,7 @@
 #define CFG_TYPE_GET(x)  ((x) & ~CFG_TYPE_MANDATORY)
 #define CFG_KEY_NULL                   (127)
 
-typedef struct uavs3e_app_cfg_t {
+typedef struct app_cfg_t {
     char   key;          /* option keyword */
     char   key_long[32]; /* option long keyword */
     int    val_type;    
@@ -45,15 +40,6 @@ typedef struct uavs3e_app_cfg_t {
     char   desc[512];    /* description of option */
     char   flag;
 } app_cfg_t;
-
-enc_cfg_t   cfg;
-static char fn_cfg[256]                 = "\0"; 
-static char fn_input[256]               = "\0";
-static char fn_output[256]              = "\0";
-static char fn_rec[256]                 = "\0"; 
-static int  max_frames                  = 0;
-static int  t_ds_ratio                  = 1;
-static int  g_loglevel                  = LOG_LEVEL_1;
 
 static int app_cfg_search_string(app_cfg_t *opts, const char *argv)
 {
