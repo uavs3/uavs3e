@@ -108,6 +108,8 @@ typedef struct uavs3e_enc_inter_data_t {
     s32  mot_bits         [REFP_NUM];
     s16  mvp_scale        [REFP_NUM][MAX_NUM_ACTIVE_REF_FRAME][MV_D];
     s16  mv_scale         [REFP_NUM][MAX_NUM_ACTIVE_REF_FRAME][MV_D];
+    s16  imv              [REFP_NUM][MAX_NUM_ACTIVE_REF_FRAME][MV_D];
+
     CPMV affine_mvp_scale [REFP_NUM][MAX_NUM_ACTIVE_REF_FRAME][VER_NUM][MV_D];
     CPMV affine_mv_scale  [REFP_NUM][MAX_NUM_ACTIVE_REF_FRAME][VER_NUM][MV_D];
     int  best_mv_uni      [REFP_NUM][MAX_NUM_ACTIVE_REF_FRAME][MV_D];

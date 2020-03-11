@@ -42,8 +42,6 @@ void com_mc_blk_luma(com_pic_t *pic, pel *dst, int dst_stride, int x_pos, int y_
     x_pos = COM_CLIP3(-MAX_CU_SIZE - 4, max_posx, x_pos);
     y_pos = COM_CLIP3(-MAX_CU_SIZE - 4, max_posy, y_pos);
 
-    wait_ref_available(pic, y_pos + height + 4);
-
     if (hp_flag) {
         pel *src = pic->y + y_pos * i_src + x_pos;
 

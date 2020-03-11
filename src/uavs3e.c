@@ -694,6 +694,12 @@ void *enc_lcu_row(core_t *core, enc_lcu_row_t *row)
 
     com_mset_x64a(core->motion_cands, 0, sizeof(com_motion_t)*ALLOWED_HMVP_NUM);
 
+    for (int lidx = 0; lidx < 2; lidx++) {
+        for (int ref = 0; ref < core->num_refp[lidx]; ref++) {
+            wait_ref_available(core->refp[ref][lidx].pic, info->pic_height);
+        }
+    }
+
     for (core->lcu_x = 0; core->lcu_x < info->pic_width_in_lcu; core->lcu_x++) {
         com_info_t *info = core->info;
         int lcu_qp;

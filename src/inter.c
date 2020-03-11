@@ -916,12 +916,7 @@ static void analyze_uni_pred(core_t *core, lbac_t *sbac_best, double *cost_L0L1,
 {
     com_mode_t *cur_info = &core->mod_info_curr;
     inter_search_t *pi = &core->pinter;
-    int lidx;
-    s16 *mvp, *mv, *mvd;
-    u64 mecost, best_mecost;
-    s8 refi_cur = 0;
     s8 best_refi = 0;
-    s8 t0, t1;
     int x = core->cu_pix_x;
     int y = core->cu_pix_y;
     int cu_width_log2 = core->cu_width_log2;
@@ -934,21 +929,20 @@ static void analyze_uni_pred(core_t *core, lbac_t *sbac_best, double *cost_L0L1,
     pi->i_org = core->pic_org->stride_luma;
     pi->org = core->pic_org->y + y * pi->i_org + x;
 
-    for (lidx = 0; lidx <= ((core->slice_type == SLICE_P) ? PRED_L0 : PRED_L1); lidx++) {
+    for (int lidx = 0; lidx <= ((core->slice_type == SLICE_P) ? PRED_L0 : PRED_L1); lidx++) {
+        u64 best_mecost = COM_UINT64_MAX;
+
         init_inter_data(core);
-        mv  = cur_info->mv [lidx];
-        mvd = cur_info->mvd[lidx];
         pi->num_refp = (u8)core->num_refp[lidx];
-        best_mecost = COM_UINT64_MAX;
-        for (refi_cur = 0; refi_cur < pi->num_refp; refi_cur++) {
-            mvp = pi->mvp_scale[lidx][refi_cur];
+
+        for (int refi_cur = 0; refi_cur < pi->num_refp; refi_cur++) {
+            s16 *mvp = pi->mvp_scale[lidx][refi_cur];
+            s16 *mv  = pi->mv_scale [lidx][refi_cur];
 
             com_derive_mvp(core->info, core->ptr, core->cu_scup_in_pic, lidx, refi_cur, cur_info->hmvp_flag, core->cnt_hmvp_cands,
                            core->motion_cands, core->map, core->refp, cur_info->mvr_idx, cu_width, cu_height, mvp);
 
-            mecost = me_search_tz(pi, x, y, cu_width, cu_height, core->info->pic_width, core->info->pic_height, refi_cur, lidx, mvp, mv, 0);
-            pi->mv_scale[lidx][refi_cur][MV_X] = mv[MV_X];
-            pi->mv_scale[lidx][refi_cur][MV_Y] = mv[MV_Y];
+            u64 mecost = me_search_tz(pi, x, y, cu_width, cu_height, core->info->pic_width, core->info->pic_height, refi_cur, lidx, mvp, mv, 0);
 
             if (mecost < best_mecost) {
                 best_mecost = mecost;
@@ -959,34 +953,24 @@ static void analyze_uni_pred(core_t *core, lbac_t *sbac_best, double *cost_L0L1,
                 pi->best_mv_uni[lidx][refi_cur][MV_Y] = mv[MV_Y];
             }
         }
-        mv[MV_X] = pi->mv_scale[lidx][best_refi][MV_X];
-        mv[MV_Y] = pi->mv_scale[lidx][best_refi][MV_Y];
-        mvp = pi->mvp_scale[lidx][best_refi];
-        t0 = (lidx == 0) ? best_refi : REFI_INVALID;
-        t1 = (lidx == 1) ? best_refi : REFI_INVALID;
+
+        s16 *mv  = cur_info->mv [lidx];
+        s16 *mvd = cur_info->mvd[lidx];
+        s16 *mvp = pi->mvp_scale[lidx][best_refi];
+        s8 t0 = (lidx == 0) ? best_refi : REFI_INVALID;
+        s8 t1 = (lidx == 1) ? best_refi : REFI_INVALID;
+
         SET_REFI(cur_info->refi, t0, t1);
-        refi_L0L1[lidx] = best_refi;
 
-        mv[MV_X] = (mv[MV_X] >> cur_info->mvr_idx) << cur_info->mvr_idx;
-        mv[MV_Y] = (mv[MV_Y] >> cur_info->mvr_idx) << cur_info->mvr_idx;
-
+        mv_L0L1[lidx][MV_X] = mv[MV_X] = pi->mv_scale[lidx][best_refi][MV_X];
+        mv_L0L1[lidx][MV_Y] = mv[MV_Y] = pi->mv_scale[lidx][best_refi][MV_Y];
         mvd[MV_X] = mv[MV_X] - mvp[MV_X];
         mvd[MV_Y] = mv[MV_Y] - mvp[MV_Y];
-
-        mvd[MV_X] = (mvd[MV_X] >> cur_info->mvr_idx) << cur_info->mvr_idx;
-        mvd[MV_Y] = (mvd[MV_Y] >> cur_info->mvr_idx) << cur_info->mvr_idx;
-
-        int mv_x = (s32)mvd[MV_X] + mvp[MV_X];
-        int mv_y = (s32)mvd[MV_Y] + mvp[MV_Y];
-        mv[MV_X] = COM_CLIP3(COM_INT16_MIN, COM_INT16_MAX, mv_x);
-        mv[MV_Y] = COM_CLIP3(COM_INT16_MIN, COM_INT16_MAX, mv_y);
-        
-        mv_L0L1[lidx][MV_X] = mv[MV_X];
-        mv_L0L1[lidx][MV_Y] = mv[MV_Y];
 
         pi->mot_bits[lidx] = get_mv_bits_with_mvr(mvd[MV_X], mvd[MV_Y], pi->num_refp, best_refi, cur_info->mvr_idx);
         pi->mot_bits[lidx] -= (cur_info->mvr_idx == MAX_NUM_MVR - 1) ? cur_info->mvr_idx : (cur_info->mvr_idx + 1); // minus amvr index
 
+        refi_L0L1[lidx] = best_refi;
         cost_L0L1[lidx] = inter_rdcost(core, sbac_best, 0);
     }
 }
@@ -1987,9 +1971,6 @@ void analyze_inter_cu(core_t *core, lbac_t *sbac_best)
     get_part_info(info->i_scu, core->cu_scu_x << 2, core->cu_scu_y << 2, cu_width, cu_height, cur_info->pb_part, &cur_info->pb_info);
     get_part_info(info->i_scu, core->cu_scu_x << 2, core->cu_scu_y << 2, cu_width, cu_height, cur_info->tb_part, &cur_info->tb_info);
     cur_info->mvr_idx = 0;
-
-    wait_ref_available(core->refp[0][0].pic, core->cu_pix_y + core->cu_height);
-    wait_ref_available(core->refp[0][1].pic, core->cu_pix_y + core->cu_height);
 
     int num_iter_mvp = 2;
     int num_hmvp_inter = MAX_NUM_MVR;
