@@ -104,9 +104,9 @@ void uavs3e_ipred_ver_avx2(pel *src, pel *dst, int i_dst, int width, int height)
         __m128i T3 = _mm_loadu_si128((__m128i *)(src + 32));
 
         for (y = 0; y < height; y++) {
-            _mm_store_si128((__m128i *)(dst + 0), T1);
-            _mm_store_si128((__m128i *)(dst + 16), T2);
-            _mm_store_si128((__m128i *)(dst + 32), T3);
+            _mm_storeu_si128((__m128i *)(dst + 0), T1);
+            _mm_storeu_si128((__m128i *)(dst + 16), T2);
+            _mm_storeu_si128((__m128i *)(dst + 32), T3);
             dst += i_dst;
         }
         break;
@@ -117,10 +117,10 @@ void uavs3e_ipred_ver_avx2(pel *src, pel *dst, int i_dst, int width, int height)
         T0 = _mm256_loadu_si256((__m256i *)(src));
         T1 = _mm256_loadu_si256((__m256i *)(src + 32));
         for (y = 0; y < height; y += 2) {
-            _mm256_store_si256((__m256i *)(dst), T0);
-            _mm256_store_si256((__m256i *)(dst + 32), T1);
-            _mm256_store_si256((__m256i *)(dst + i_dst), T0);
-            _mm256_store_si256((__m256i *)(dst + i_dst + 32), T1);
+            _mm256_storeu_si256((__m256i *)(dst), T0);
+            _mm256_storeu_si256((__m256i *)(dst + 32), T1);
+            _mm256_storeu_si256((__m256i *)(dst + i_dst), T0);
+            _mm256_storeu_si256((__m256i *)(dst + i_dst + 32), T1);
             dst += i_dst2;
         }
         break;
@@ -239,12 +239,12 @@ void uavs3e_ipred_hor_avx2(pel *src, pel *dst, int i_dst, int width, int height)
         for (y = 0; y < height; y += 2) {
             T0 = _mm_set1_epi8((char)src[-y]);
             T1 = _mm_set1_epi8((char)src[-y - 1]);
-            _mm_store_si128((__m128i *)(dst), T0);
-            _mm_store_si128((__m128i *)(dst + 16), T0);
-            _mm_store_si128((__m128i *)(dst + 32), T0);
-            _mm_store_si128((__m128i *)(dst + i_dst), T1);
-            _mm_store_si128((__m128i *)(dst + i_dst + 16), T1);
-            _mm_store_si128((__m128i *)(dst + i_dst + 32), T1);
+            _mm_storeu_si128((__m128i *)(dst), T0);
+            _mm_storeu_si128((__m128i *)(dst + 16), T0);
+            _mm_storeu_si128((__m128i *)(dst + 32), T0);
+            _mm_storeu_si128((__m128i *)(dst + i_dst), T1);
+            _mm_storeu_si128((__m128i *)(dst + i_dst + 16), T1);
+            _mm_storeu_si128((__m128i *)(dst + i_dst + 32), T1);
             dst += i_dst2;
         }
         break;
@@ -256,10 +256,10 @@ void uavs3e_ipred_hor_avx2(pel *src, pel *dst, int i_dst, int width, int height)
         for (y = 0; y < height; y += 2) {
             T0 = _mm256_set1_epi8((char)src[-y]);
             T1 = _mm256_set1_epi8((char)src[-y - 1]);
-            _mm256_store_si256((__m256i *)(dst), T0);
-            _mm256_store_si256((__m256i *)(dst + 32), T0);
-            _mm256_store_si256((__m256i *)(dst + i_dst), T1);
-            _mm256_store_si256((__m256i *)(dst + i_dst + 32), T1);
+            _mm256_storeu_si256((__m256i *)(dst), T0);
+            _mm256_storeu_si256((__m256i *)(dst + 32), T0);
+            _mm256_storeu_si256((__m256i *)(dst + i_dst), T1);
+            _mm256_storeu_si256((__m256i *)(dst + i_dst + 32), T1);
             dst += i_dst2;
         }
         break;
@@ -386,10 +386,10 @@ void uavs3e_ipred_dc_avx2(pel *src, pel *dst, int i_dst, int width, int height, 
         int i_dst2 = i_dst << 1;
         __m256i T = _mm256_set1_epi8((s8)dc);
         for (y = 0; y < height; y += 2) {
-            _mm256_store_si256((__m256i *)(dst), T);
-            _mm256_store_si256((__m256i *)(dst + 32), T);
-            _mm256_store_si256((__m256i *)(dst + i_dst), T);
-            _mm256_store_si256((__m256i *)(dst + i_dst + 32), T);
+            _mm256_storeu_si256((__m256i *)(dst), T);
+            _mm256_storeu_si256((__m256i *)(dst + 32), T);
+            _mm256_storeu_si256((__m256i *)(dst + i_dst), T);
+            _mm256_storeu_si256((__m256i *)(dst + i_dst + 32), T);
             dst += i_dst2;
         }
         break;
@@ -611,7 +611,7 @@ void uavs3e_ipred_ang_x_avx2(pel *pSrc, pel *dst, int i_dst, int mode, int width
 
 void uavs3e_ipred_ang_x_4_avx2(pel *src, pel *dst, int i_dst, int mode, int width, int height)
 {
-    ALIGNED_16(pel first_line[64 + 128 + 32]);
+    ALIGNED_32(pel first_line[64 + 128 + 32]);
     int line_size = width + (height - 1) * 2;
     int real_size = COM_MIN(line_size, width * 2 - 1);
     int height2 = height * 2;
@@ -649,7 +649,7 @@ void uavs3e_ipred_ang_x_4_avx2(pel *src, pel *dst, int i_dst, int mode, int widt
 
         sum1 = _mm256_packus_epi16(sum1, sum3);
 
-        _mm256_store_si256((__m256i *)&first_line[i], sum1);
+        _mm256_storeu_si256((__m256i *)&first_line[i], sum1);
     }
 
     if (i < real_size) {
@@ -682,7 +682,7 @@ void uavs3e_ipred_ang_x_4_avx2(pel *src, pel *dst, int i_dst, int mode, int widt
 
         sum1 = _mm_packus_epi16(sum1, sum3);
 
-        _mm_store_si128((__m128i *)&first_line[i], sum1);
+        _mm_storeu_si128((__m128i *)&first_line[i], sum1);
     }
 
     // padding
@@ -856,7 +856,7 @@ void uavs3e_ipred_ang_x_4_avx2(pel *src, pel *dst, int i_dst, int mode, int widt
 
 void uavs3e_ipred_ang_x_8_avx2(pel *src, pel *dst, int i_dst, int mode, int width, int height)
 {
-    ALIGNED_16(pel first_line[2 * (64 + 48 + 32)]);
+    ALIGNED_32(pel first_line[2 * (64 + 48 + 32)]);
     int line_size = width + height / 2 - 1;
     int real_size = COM_MIN(line_size, width * 2 + 1);
     int i;
