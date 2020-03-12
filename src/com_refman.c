@@ -58,6 +58,13 @@ int com_refm_create_rpl(com_pic_manager_t *pm, com_pic_header_t *pichdr, com_ref
     com_rpl_t *rpl;
     com_pic_t **pic_ref = pm->pic;
 
+    if (pm->cur_num_ref_pics == 0) {
+        pm->num_refp[REFP_0] = pm->num_refp[REFP_1] = 0;
+        pichdr->rpl_l0.num = pichdr->rpl_l0.active = 0;
+        pichdr->rpl_l1.num = pichdr->rpl_l1.active = 0;
+        return COM_OK;
+    }
+
     for (int i = 0; i < pm->cur_num_ref_pics; i++) {
         com_pic_t *pic = pic_ref[i];
         if (pic->ptr < pichdr->poc) {
@@ -92,7 +99,6 @@ int com_refm_create_rpl(com_pic_manager_t *pm, com_pic_header_t *pichdr, com_ref
         pic_ref_l1[num1] = pic_ref_l0[i];
     }
 
-    pm->num_refp[REFP_0] = pm->num_refp[REFP_1] = 0;
 
     /********************************************************************************************/
     /* L0 list */
