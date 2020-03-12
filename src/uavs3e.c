@@ -1322,8 +1322,9 @@ int uavs3e_enc(void *id, enc_stat_t *stat, com_img_t *img_enc)
     input_node_t node = h->node_list[0];
     com_pic_t *pic_rec = com_refm_find_free_pic(&h->rpm, node.b_ref, &ret);
 
-    memcpy(h->node_list, h->node_list + 1, (h->node_size - 1) * sizeof(input_node_t));
-    memset(&h->node_list[h->node_size - 1], 0, sizeof(input_node_t));
+    for (int i = 0; i < h->node_size - 1; i++) {
+        h->node_list[i] = h->node_list[i + 1];
+    }
     h->node_size--;
     
     com_img_t *img_org = node.img;
