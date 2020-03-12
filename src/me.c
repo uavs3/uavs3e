@@ -104,13 +104,13 @@ static void search_raster(inter_search_t *pi, int x, int y, int w, int h, s8 ref
     }
 }
 
-static void get_raster_range(inter_search_t *pi, com_pic_t *ref_pic, s16 center[MV_D], s16 range[MV_RANGE_DIM][MV_D], int dist)
+static void get_raster_range(inter_search_t *pi, com_pic_t *ref_pic, s16 center[MV_D], s16 range[MV_RANGE_DIM][MV_D], int dist, int mvr)
 {
-    int max_sr = pi->max_search_range >> COM_MAX(3 - pi->curr_mvr, 0);
+    int max_sr = pi->max_search_range >> COM_MAX(3 - mvr, 0);
     int range_xy = COM_CLIP3(max_sr >> 2, max_sr, (max_sr * dist + (pi->gop_size >> 1)) / pi->gop_size);
 
-    if (pi->curr_mvr > 2) {
-        int shift = pi->curr_mvr - 2;
+    if (mvr > 2) {
+        int shift = mvr - 2;
         range_xy = (range_xy >> shift) << shift;
     }
 
@@ -162,20 +162,38 @@ static int search_diamond(inter_search_t *pi, int x, int y, int w, int h, s8 ref
     while (max_cmv_x >= pi->max_mv[MV_X]) max_cmv_x -= core_step;
     while (max_cmv_y >= pi->max_mv[MV_Y]) max_cmv_y -= core_step;
 
-    for (s16 mv_y = min_cmv_y; mv_y <= max_cmv_y; mv_y += core_step) {
-        int bits_mv_y = GET_MVBITS_IPEL_Y(mv_y);
-        pel *p = ref + mv_y * i_ref;
+    /* 1. try center pointer first */
+    int bits_mv = GET_MVBITS_IPEL_Y(center_y) + GET_MVBITS_IPEL_X(center_x);
+    pel *p = ref + center_y * i_ref + center_x;
+    u64 cost = MV_COST64(bits_mv) + block_pel_sad(w, h, shift, org, p, i_org, i_ref, bit_depth, bi);
 
-        for (s16 mv_x = min_cmv_x; mv_x <= max_cmv_x; mv_x += core_step) {
-            int mv_bits = GET_MVBITS_IPEL_X(mv_x) + bits_mv_y;
-            u64 cost = MV_COST64(mv_bits) + block_pel_sad(w, h, shift, org, p + mv_x, i_org, i_ref, bit_depth, bi);
+    if (cost < *cost_best) {
+        mv_best_x = center_x;
+        mv_best_y = center_y;
+        best_step = 0;
+        *cost_best = cost;
+        best_mv_bits = bits_mv;
+    }
 
-            if (cost < *cost_best) {
-                mv_best_x = mv_x;
-                mv_best_y = mv_y;
-                best_step = 2;
-                *cost_best = cost;
-                best_mv_bits = mv_bits;
+    /* 2. try core squre */
+    if (max_step) {
+        for (s16 mv_y = min_cmv_y; mv_y <= max_cmv_y; mv_y += core_step) {
+            int bits_mv_y = GET_MVBITS_IPEL_Y(mv_y);
+            pel *p = ref + mv_y * i_ref;
+
+            for (s16 mv_x = min_cmv_x; mv_x <= max_cmv_x; mv_x += core_step) {
+                if (mv_x != center_x || mv_y != center_y) {
+                    int mv_bits = GET_MVBITS_IPEL_X(mv_x) + bits_mv_y;
+                    u64 cost = MV_COST64(mv_bits) + block_pel_sad(w, h, shift, org, p + mv_x, i_org, i_ref, bit_depth, bi);
+
+                    if (cost < *cost_best) {
+                        mv_best_x = mv_x;
+                        mv_best_y = mv_y;
+                        best_step = 2;
+                        *cost_best = cost;
+                        best_mv_bits = mv_bits;
+                    }
+                }
             }
         }
     }
@@ -187,7 +205,7 @@ static int search_diamond(inter_search_t *pi, int x, int y, int w, int h, s8 ref
         return best_step;
     }
 
-    /* Step2: search multilayer diamond */
+    /* 3. try multilayer diamond */
     int mvr_scale = COM_MAX(pi->curr_mvr - 2, 0);
 
     for (int step = 4, round = 0; step < max_step; step <<= 1, round++) {
@@ -348,15 +366,16 @@ u64 me_search_tz(inter_search_t *pi, int x, int y, int w, int h, int pic_width, 
 
     com_mv_mvr_check(mv, pi->curr_mvr);
 
-    mv[MV_X] = COM_CLIP3(pi->min_mv[MV_X], pi->max_mv[MV_X], mv[MV_X] >> 2);
-    mv[MV_Y] = COM_CLIP3(pi->min_mv[MV_Y], pi->max_mv[MV_Y], mv[MV_Y] >> 2);
+    mv[MV_X] = COM_CLIP3(pi->min_mv[MV_X], pi->max_mv[MV_X], (mv[MV_X] + 2) >> 2);
+    mv[MV_Y] = COM_CLIP3(pi->min_mv[MV_Y], pi->max_mv[MV_Y], (mv[MV_Y] + 2) >> 2);
 
     u64 cost_best = COM_UINT64_MAX;
     int best_step = search_diamond(pi, x, y, w, h, refi, lidx, mvp, mv, &cost_best, bi, MAX_FIRST_SEARCH_STEP);
 
-    if (!bi && (abs(mvp[MV_X] - (mv[MV_X] << 2)) >= 2 || abs(mvp[MV_Y] - (mv[MV_Y] << 2)) >= 2)) {
+    if (!bi && (abs(mvp[MV_X] - (mv[MV_X] << 2)) > 2 || abs(mvp[MV_Y] - (mv[MV_Y] << 2)) > 2)) {
         if (best_step > RASTER_SEARCH_THD) {
-            get_raster_range(pi, ref_pic, mv, range, COM_ABS((int)(pi->ptr - ref_pic->ptr)));
+            int mvr = pi->curr_mvr;
+            get_raster_range(pi, ref_pic, mv, range, COM_ABS((int)(pi->ptr - ref_pic->ptr)), mvr);
             search_raster(pi, x, y, w, h, refi, lidx, range, mvp, mv, &cost_best);
         }
         search_diamond(pi, x, y, w, h, refi, lidx, mvp, mv, &cost_best, bi, MAX_REFINE_SEARCH_STEP);

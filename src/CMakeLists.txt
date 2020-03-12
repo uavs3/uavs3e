@@ -17,3 +17,4 @@ target_link_libraries(uavs3e pthread)
 
 install(TARGETS uavs3e LIBRARY DESTINATION /usr/lib ARCHIVE DESTINATION /usr/lib)
 install(FILES ../inc/uavs3e.h DESTINATION /usr/include/uavs3e/)
+install(FILES ../inc/com_api.h DESTINATION /usr/include/uavs3e/)
