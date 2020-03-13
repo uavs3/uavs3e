@@ -67,8 +67,6 @@ operation: if(sign == 0) return val, else if(sign == 1) return -val */
 
 #define COM_ALIGN(val, align)          ((((val) + (align) - 1) / (align)) * (align))
 
-#define CONV_LOG2(v)                    (com_tbl_log2[v])
-
 #define IS_BYTE_ALIGN(bs) !((bs)->leftbits & 0x7)
 
 void com_dct_coef_create();

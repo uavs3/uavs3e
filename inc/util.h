@@ -37,9 +37,9 @@ static u64 avs3_always_inline block_pel_ssd(int log2w, int height, pel *src1, pe
     return uavs3e_funs_handle.cost_ssd[log2w - 2](src1, s_src1, src2, s_src2, height) >> shift;
 }
 
-static u64 avs3_always_inline block_pel_sad(int pu_w, int pu_h, int shift, pel *src1, pel *src2, int s_src1, int s_src2, int bit_depth, int bi)
+static u64 avs3_always_inline block_pel_sad(int widx, int pu_h, int shift, pel *src1, pel *src2, int s_src1, int s_src2)
 {
-    return ((u64)uavs3e_funs_handle.cost_sad[CONV_LOG2(pu_w) - 2](src1, s_src1, src2, s_src2, pu_h)) << shift;
+    return ((u64)uavs3e_funs_handle.cost_sad[widx](src1, s_src1, src2, s_src2, pu_h)) << shift;
 }
 
 static void avs3_always_inline block_pel_sub(int log2w, int log2h, pel *src1, pel *src2, int s_src1, int s_src2, int s_diff, s16 *diff)

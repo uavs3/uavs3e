@@ -18,7 +18,6 @@
 
 #include "define.h"
 #include "analyze.h"
-#include "com_tables.h"
 #include <math.h>
 #include "com_util.h"
 
@@ -1410,9 +1409,8 @@ void enc_mode_init_frame(core_t *core)
 
 int enc_mode_init_lcu(core_t *core)
 {
-    inter_search_t *pi;
-    pi = &core->pinter;
-    pi->lambda_mv = (u32)floor(65536.0 * core->sqrt_lambda[0]);
+    core->pinter.lambda_mv = (u32)floor(65536.0 * core->sqrt_lambda[0]);
+
     core->lcu_qp_y = core->lcu_qp_y;
     core->lcu_qp_u = core->lcu_qp_u;
     core->lcu_qp_v = core->lcu_qp_v;

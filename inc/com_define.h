@@ -118,7 +118,6 @@
 /* Define the Search Range for int-pel */
 #define SEARCH_RANGE_IPEL_RA               384
 #define SEARCH_RANGE_IPEL_LD               64
-#define SEARCH_RANGE                       256
 
 /* SAO_AVS2(START) */
 typedef enum uavs3e_sao_mode_t {
