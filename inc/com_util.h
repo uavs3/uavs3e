@@ -299,10 +299,11 @@ typedef struct uavs3e_funs_handle_t {
     void(*trans_dct2[MAX_TR_LOG2][MAX_TR_LOG2])(s16 *coef, s16 *resi, int bit_depth);
     void(*trans_dct8_dst7[2][MAX_TR_LOG2])(s16 *src, s16 *dst, int shift, int line);
 
-    u32(*cost_sad[CU_SIZE_NUM])(pel *p_org, int i_org, pel *p_pred, int i_pred, int height);
-    u64(*cost_ssd[CU_SIZE_NUM])(pel *p_org, int i_org, pel *p_pred, int i_pred, int height);
+    u32 (*cost_sad   [CU_SIZE_NUM])(pel *p_org, int i_org, pel *p_pred, int i_pred, int height);
+    void(*cost_sad_x3[CU_SIZE_NUM])(pel *p_org, int i_org, pel *pred0, pel *pred1, pel *pred2, int i_pred, u32 sad[3], int height);
+    u64 (*cost_ssd   [CU_SIZE_NUM])(pel *p_org, int i_org, pel *p_pred, int i_pred, int height);
 
-    u32(*cost_satd[3][3])(pel *p_org, int i_org, pel *p_pred, int i_pred);
+    u32 (*cost_satd[3][3])(pel *p_org, int i_org, pel *p_pred, int i_pred);
 
     void(*pel_diff[CU_SIZE_NUM])(pel *org, int i_org, pel *pred, int i_pred, s16 *resi, int i_resi, int height);
     void(*pel_avrg[CU_SIZE_NUM])(pel *dst, int i_dst, pel *src1, pel *src2, int height);
