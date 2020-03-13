@@ -142,7 +142,7 @@ void rdoq_init_cu_est_bits(core_t *core, lbac_t *lbac)
     }
 }
 
-static __inline u32 rdoq_one_coef(s64 rd64_uncoded_cost, s64 *rd64_coded_cost, u32 level_double, u32 abs_level,
+static avs3_always_inline u32 rdoq_one_coef(s64 rd64_uncoded_cost, s64 *rd64_coded_cost, u32 level_double, u32 abs_level,
                                        s32 *est_run, s32(*est_level)[2], s32 q_bits, s32 err_scale, s64 lambda, int last_pos)
 {
     u32 best_abs_level = 0;

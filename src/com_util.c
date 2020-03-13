@@ -338,12 +338,6 @@ void check_mvp_motion_availability(int scup, int cu_width, int cu_height, int i_
     }
 }
 
-__inline void copy_mv(s16 dst[MV_D], const s16 src[MV_D])
-{
-    dst[MV_X] = src[MV_X];
-    dst[MV_Y] = src[MV_Y];
-}
-
 void init_motion(com_motion_t *motion_dst)
 {
     int i;
@@ -358,7 +352,7 @@ void create_motion(com_motion_t *motion_dst, s16 mv_new[REFP_NUM][MV_D], s8 refi
 {
     int i;
     for (i = 0; i < PRED_BI; i++) {
-        copy_mv(motion_dst->mv[i], mv_new[i]);
+        CP32(motion_dst->mv[i], mv_new[i]);
         motion_dst->ref_idx[i] = refi_new[i];
     }
 }
@@ -367,7 +361,7 @@ void copy_motion(com_motion_t *motion_dst, com_motion_t motion_src)
 {
     int i;
     for (i = 0; i < PRED_BI; i++) {
-        copy_mv(motion_dst->mv[i], motion_src.mv[i]);
+        CP32(motion_dst->mv[i], motion_src.mv[i]);
         motion_dst->ref_idx[i] = motion_src.ref_idx[i];
     }
 }
@@ -955,7 +949,7 @@ void get_hmvp_skip_cands(const com_motion_t motion_cands[ALLOWED_HMVP_NUM], cons
     int i, dir;
     for (i = 0; i < num_cands; i++) {
         for (dir = 0; dir < PRED_BI; dir++) {
-            copy_mv(skip_mvs[i][dir], motion_cands[i].mv[dir]);
+            CP32(skip_mvs[i][dir], motion_cands[i].mv[dir]);
             skip_refi[i][dir] = motion_cands[i].ref_idx[dir];
         }
     }

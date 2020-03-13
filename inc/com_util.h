@@ -73,8 +73,8 @@ void com_dct_coef_create();
 void set_pic_wq_matrix_by_param(int *param_vector, int mode, u8 *pic_wq_matrix4x4, u8 *pic_wq_matrix8x8);
 void init_pic_wq_matrix(u8 *pic_wq_matrix4x4, u8 *pic_wq_matrix8x8);
 
-#define SAME_MV(MV0, MV1) ((MV0[MV_X] == MV1[MV_X]) && (MV0[MV_Y] == MV1[MV_Y]))
-void copy_mv(s16 dst[MV_D], const s16 src[MV_D]);
+#define SAME_MV(MV0, MV1) (M32(MV0) == M32(MV1))
+
 void copy_motion_table(com_motion_t *motion_dst, s8 *cnt_cands_dst, const com_motion_t *motion_src, const s8 cnt_cands_src);
 
 int same_motion(com_motion_t motion1, com_motion_t motion2);
@@ -317,14 +317,6 @@ typedef struct uavs3e_funs_handle_t {
 
 } funs_handle_t;
 
-static __inline void com_mset_16b(s16 *dst, s16 v, int cnt)
-{
-    int i;
-    for (i = 0; i < cnt; i++) {
-        dst[i] = v;
-    }
-}
-
 static avs3_always_inline void com_mset_pel(pel *dst, s16 v, int cnt)
 {
 #if (BIT_DEPTH == 8)
@@ -365,7 +357,7 @@ void uavs3e_funs_init_avx2();
 void *uavs3e_align_malloc(int i_size);
 void uavs3e_align_free(void *p);
 
-static __inline int uavs3e_get_log2(int v)
+static avs3_always_inline int uavs3e_get_log2(int v)
 {
 #ifdef _WIN32
     unsigned long index;
@@ -386,7 +378,7 @@ static int avs3_always_inline getContextPixel(int uiDirMode, int uiXYflag, int i
     return iTempDn;
 }
 
-static void __inline wait_ref_available(com_pic_t *pic, int lines)
+static void avs3_always_inline wait_ref_available(com_pic_t *pic, int lines)
 {
     int real_lines = COM_MAX(0, lines);
     real_lines = COM_MIN(pic->height_luma, real_lines);

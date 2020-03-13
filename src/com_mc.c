@@ -639,7 +639,7 @@ static void mc_if_cpy(const pel *src, int i_src, pel *dst, int i_dst, int width,
 * interpolation for luma of frame
 ****************************************************************************/
 
-static __inline pel pixel_clip(int x, int max_pixel_val)
+static avs3_always_inline pel pixel_clip(int x, int max_pixel_val)
 {
     return (pel)((x < 0) ? 0 : ((x > max_pixel_val) ? max_pixel_val : x));
 }

@@ -45,7 +45,6 @@ static void com_mv_mvr_check(s16* mv, int mvr)
 
 static void search_raster(inter_search_t *pi, int x, int y, int w, int h, s8 refi, int lidx, s16 range[MV_RANGE_DIM][MV_D], const s16 mvp[MV_D], s16 mv[MV_D], u64 *cost_best)
 {
-    u32 best_mv_bits   = 0;
     int bit_depth      = pi->bit_depth;
     int i_org          = pi->i_org;
     pel *org           = pi->org;
@@ -82,19 +81,26 @@ static void search_raster(inter_search_t *pi, int x, int y, int w, int h, s8 ref
         }
 
         pel* r = ref + min_cmv_y * i_ref;
+        u64 cost_mvx[(SEARCH_RANGE_IPEL_RA * 2 + 1) / 5 + 1];
+        u64* pcmvx = cost_mvx;
 
+        for (s16 mv_x = min_cmv_x; mv_x <= max_cmv_x; mv_x += search_step) {
+            *pcmvx++ = GET_MVBITS_IPEL_X(mv_x) * lambda_mv;
+        }
         for (s16 mv_y = min_cmv_y; mv_y <= max_cmv_y; mv_y += search_step) {
-            int mv_bits_y = GET_MVBITS_IPEL_Y(mv_y);
+            int cost_mvy = GET_MVBITS_IPEL_Y(mv_y) * lambda_mv;
+            pcmvx = cost_mvx;
+
             for (s16 mv_x = min_cmv_x; mv_x <= max_cmv_x; mv_x += search_step) {
-                int mv_bits = GET_MVBITS_IPEL_X(mv_x) + mv_bits_y;
-                u64 cost = MV_COST64(mv_bits) + block_pel_sad(widx, h, shift, org, r + mv_x, i_org, i_ref);
+                u64 cost = cost_mvy + (*pcmvx++) + block_pel_sad(widx, h, shift, org, r + mv_x, i_org, i_ref);
+
                 if (cost < *cost_best) {
                     mv[MV_X] = mv_x;
                     mv[MV_Y] = mv_y;
                     *cost_best = cost;
-                    best_mv_bits = mv_bits;
                 }
             }
+            
             r += search_step * i_ref;
         }
         search_step >>= 1;
@@ -102,10 +108,6 @@ static void search_raster(inter_search_t *pi, int x, int y, int w, int h, s8 ref
         if (pi->curr_mvr > 2) {
             search_step = (search_step >> step_shift) << step_shift;
         }
-
-    }
-    if (best_mv_bits > 0) {
-        pi->mot_bits[lidx] = best_mv_bits;
     }
 }
 
@@ -132,7 +134,6 @@ static void get_raster_range(inter_search_t *pi, com_pic_t *ref_pic, s16 center[
 static int search_diamond(inter_search_t *pi, int x, int y, int w, int h, s8 refi, int lidx, const s16 mvp[MV_D], s16 mv[MV_D], u64* cost_best, int bi, int max_step)
 {
     int best_step      = 0;
-    int best_mv_bits   = 0;
     int bit_depth      = pi->bit_depth;
     int i_org          = pi->i_org;
     pel *org           = pi->org;
@@ -149,7 +150,6 @@ static int search_diamond(inter_search_t *pi, int x, int y, int w, int h, s8 ref
     const s16 center_x = mv[MV_X];
     const s16 center_y = mv[MV_Y];
     const int widx     = CONV_LOG2(w) - 2;
-
     s16 mv_best_x      = center_x;
     s16 mv_best_y      = center_y;
 
@@ -170,35 +170,37 @@ static int search_diamond(inter_search_t *pi, int x, int y, int w, int h, s8 ref
     while (max_cmv_y >= pi->max_mv[MV_Y]) max_cmv_y -= core_step;
 
     /* 1. try center pointer first */
-    int bits_mv = GET_MVBITS_IPEL_Y(center_y) + GET_MVBITS_IPEL_X(center_x);
     pel *p = ref + center_y * i_ref + center_x;
-    u64 cost = MV_COST64(bits_mv) + block_pel_sad(widx, h, shift, org, p, i_org, i_ref);
+    u64 cost = block_pel_sad(widx, h, shift, org, p, i_org, i_ref) + (GET_MVBITS_IPEL_Y(center_y) + GET_MVBITS_IPEL_X(center_x)) * lambda_mv;
 
     if (cost < *cost_best) {
         mv_best_x = center_x;
         mv_best_y = center_y;
         best_step = 0;
         *cost_best = cost;
-        best_mv_bits = bits_mv;
     }
 
     /* 2. try core squre */
     if (max_step) {
+        u64 cost_mvx[13];
+        u64* pcmvx = cost_mvx;
+        for (s16 mv_x = min_cmv_x; mv_x <= max_cmv_x; mv_x += core_step) {
+            *pcmvx++ = GET_MVBITS_IPEL_X(mv_x) * lambda_mv;
+        }
         for (s16 mv_y = min_cmv_y; mv_y <= max_cmv_y; mv_y += core_step) {
-            int bits_mv_y = GET_MVBITS_IPEL_Y(mv_y);
+            u64 cost_mvy = GET_MVBITS_IPEL_Y(mv_y) * lambda_mv;
             pel *p = ref + mv_y * i_ref;
+            pcmvx = cost_mvx;
 
-            for (s16 mv_x = min_cmv_x; mv_x <= max_cmv_x; mv_x += core_step) {
+            for (s16 mv_x = min_cmv_x; mv_x <= max_cmv_x; mv_x += core_step, pcmvx++) {
                 if (mv_x != center_x || mv_y != center_y) {
-                    int mv_bits = GET_MVBITS_IPEL_X(mv_x) + bits_mv_y;
-                    u64 cost = MV_COST64(mv_bits) + block_pel_sad(widx, h, shift, org, p + mv_x, i_org, i_ref);
+                    u64 cost = cost_mvy + (*pcmvx) + block_pel_sad(widx, h, shift, org, p + mv_x, i_org, i_ref);
 
                     if (cost < *cost_best) {
                         mv_best_x = mv_x;
                         mv_best_y = mv_y;
                         best_step = 2;
                         *cost_best = cost;
-                        best_mv_bits = mv_bits;
                     }
                 }
             }
@@ -232,15 +234,13 @@ static int search_diamond(inter_search_t *pi, int x, int y, int w, int h, s8 ref
 
             if (mv_x <= pi->max_mv[MV_X] && mv_x >= pi->min_mv[MV_X] &&
                 mv_y <= pi->max_mv[MV_Y] && mv_y >= pi->min_mv[MV_Y]) {
-                int mv_bits = GET_MVBITS_IPEL_X(mv_x) + GET_MVBITS_IPEL_Y(mv_y);
-                u64 cost = MV_COST64(mv_bits) + block_pel_sad(widx, h, shift, org, ref + mv_x + mv_y * i_ref, i_org, i_ref);
+                u64 cost = block_pel_sad(widx, h, shift, org, ref + mv_x + mv_y * i_ref, i_org, i_ref) + (GET_MVBITS_IPEL_X(mv_x) + GET_MVBITS_IPEL_Y(mv_y)) * lambda_mv;
 
                 if (cost < *cost_best) {
                     mv_best_x = mv_x;
                     mv_best_y = mv_y;
                     best_step = step;
                     *cost_best = cost;
-                    best_mv_bits = mv_bits;
                 }
             }
         }
@@ -249,9 +249,6 @@ static int search_diamond(inter_search_t *pi, int x, int y, int w, int h, s8 ref
     mv[MV_X] = mv_best_x;
     mv[MV_Y] = mv_best_y;
 
-    if (best_mv_bits) {
-        pi->mot_bits[lidx] = best_mv_bits;
-    }
     return best_step;
 }
 
@@ -263,7 +260,7 @@ static u64 me_sub_pel_search(inter_search_t *pi, int x, int y, int w, int h, s8 
     ALIGNED_32(pel pred[MAX_CU_DIM]);
     u64 cost, cost_best = COM_UINT64_MAX;
     s16 mv_x, mv_y, cx, cy;
-    int i, mv_bits, best_mv_bits;
+    int i, mv_bits;
     int max_posx = pi->max_coord[MV_X];
     int max_posy = pi->max_coord[MV_Y];
     int widx = CONV_LOG2(w) - MIN_CU_LOG2;
@@ -274,8 +271,6 @@ static u64 me_sub_pel_search(inter_search_t *pi, int x, int y, int w, int h, s8 
     u8 *tab_mvbits_y = pi->tab_mvbits - (mvp[MV_Y] >> pi->curr_mvr);
     int mvr_idx = pi->curr_mvr;
     u32 lambda_mv = pi->lambda_mv;
-
-    best_mv_bits = 0;
 
     // make mv to be global coordinate 
     cx = mv[MV_X];
@@ -303,7 +298,6 @@ static u64 me_sub_pel_search(inter_search_t *pi, int x, int y, int w, int h, s8 
             mv[MV_X] = mv_x;
             mv[MV_Y] = mv_y;
             cost_best = cost;
-            best_mv_bits = mv_bits;
         }
     }
 
@@ -329,12 +323,8 @@ static u64 me_sub_pel_search(inter_search_t *pi, int x, int y, int w, int h, s8 
                 mv[MV_X] = mv_x;
                 mv[MV_Y] = mv_y;
                 cost_best = cost;
-                best_mv_bits = mv_bits;
             }
         }
-    }
-    if (!bi && best_mv_bits > 0) {
-        pi->mot_bits[lidx] = best_mv_bits;
     }
     return cost_best;
 }

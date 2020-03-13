@@ -23,12 +23,12 @@
 
 #define SWAP(a, b, t) { (t) = (a); (a) = (b); (b) = (t); }
 
-static __inline int get_mv_bits_with_mvr(inter_search_t *pi, int mvd_x, int mvd_y, u8 mvr_idx)
+static avs3_always_inline int get_mv_bits_with_mvr(inter_search_t *pi, int mvd_x, int mvd_y, u8 mvr_idx)
 {
     return pi->tab_mvbits[mvd_x >> mvr_idx] + pi->tab_mvbits[mvd_y >> mvr_idx] + mvr_idx + (mvr_idx < MAX_NUM_MVR - 1);
 }
 
-static __inline int get_mv_bits(inter_search_t *pi, int mvd_x, int mvd_y, int num_refp, int refi, u8 mvr_idx)
+static avs3_always_inline int get_mv_bits(inter_search_t *pi, int mvd_x, int mvd_y, int num_refp, int refi, u8 mvr_idx)
 {
     return tbl_refi_bits[num_refp][refi] + pi->tab_mvbits[mvd_x >> mvr_idx] + pi->tab_mvbits[mvd_y >> mvr_idx];
 }
@@ -1310,7 +1310,7 @@ static void solve_equal(double(*equal_coeff)[7], int order, double *affine_para)
     }
 }
 
-static int affine_mv_bits(inter_search_t *pi, CPMV mv[VER_NUM][MV_D], CPMV mvp[VER_NUM][MV_D], int num_refp, int refi, int vertex_num, u8 curr_mvr)
+static int affine_mv_bits(CPMV mv[VER_NUM][MV_D], CPMV mvp[VER_NUM][MV_D], int num_refp, int refi, int vertex_num, u8 curr_mvr)
 {
     int bits = tbl_refi_bits[num_refp][refi];
     u8  amvr_shift = Tab_Affine_AMVR(curr_mvr);
@@ -1325,7 +1325,9 @@ static int affine_mv_bits(inter_search_t *pi, CPMV mv[VER_NUM][MV_D], CPMV mvp[V
         if (mv[vertex][MV_Y] != COM_CPMV_MAX && mvp[vertex][MV_Y] != COM_CPMV_MAX) {
             assert(mvd_y == ((mvd_y >> amvr_shift) << amvr_shift));
         }
-        bits += pi->tab_mvbits[mvd_x >> amvr_shift] + pi->tab_mvbits[mvd_y >> amvr_shift];
+        int dx = COM_ABS(mvd_x >> amvr_shift);
+        int dy = COM_ABS(mvd_y >> amvr_shift);
+        bits += ((uavs3e_get_log2(dx + 1) + uavs3e_get_log2(dy + 1)) << 1) + 2 + !!dx + !!dy;
     }
     return bits;
 }
@@ -1367,7 +1369,7 @@ static u64 affine_me_gradient(inter_search_t *pi, int x, int y, int cu_width_log
     }
 
     com_mc_blk_affine_luma(x, y, refp->width_luma, refp->height_luma, cu_width, cu_height, mvt, refp, pred, vertex_num, sub_w, sub_h, bit_depth);
-    best_bits = affine_mv_bits(pi, mvt, mvp, pi->num_refp, ri, vertex_num, pi->curr_mvr);
+    best_bits = affine_mv_bits(mvt, mvp, pi->num_refp, ri, vertex_num, pi->curr_mvr);
 
     if (bi) {
         best_bits += pi->mot_bits[1 - lidx];
@@ -1498,7 +1500,7 @@ static u64 affine_me_gradient(inter_search_t *pi, int x, int y, int cu_width_log
         }
         com_mc_blk_affine_luma(x, y, refp->width_luma, refp->height_luma, cu_width, cu_height, mvt, refp, pred, vertex_num, sub_w, sub_h, bit_depth);
 
-        mv_bits = affine_mv_bits(pi, mvt, mvp, pi->num_refp, ri, vertex_num, pi->curr_mvr);
+        mv_bits = affine_mv_bits(mvt, mvp, pi->num_refp, ri, vertex_num, pi->curr_mvr);
         if (bi) {
             mv_bits += pi->mot_bits[1 - lidx];
         }
@@ -1635,7 +1637,7 @@ static void analyze_affine_uni(core_t *core, lbac_t *sbac_best, CPMV aff_mv_L0L1
 
             com_mc_blk_affine_luma(x, y, refp->width_luma, refp->height_luma, cu_width, cu_height, affine_mvp, refp, pred, vertex_num, sub_w, sub_h, bit_depth);
             mvp_best = calc_satd_16b(cu_width, cu_height, org, pred, s_org, cu_width, bit_depth);
-            mebits = affine_mv_bits(pi, affine_mvp, affine_mvp, pi->num_refp, refi_cur, vertex_num, cur_info->mvr_idx);
+            mebits = affine_mv_bits(affine_mvp, affine_mvp, pi->num_refp, refi_cur, vertex_num, cur_info->mvr_idx);
             mvp_best += MV_COST(mebits);
 
             s16 mv_cliped[REFP_NUM][MV_D];
@@ -1661,7 +1663,7 @@ static void analyze_affine_uni(core_t *core, lbac_t *sbac_best, CPMV aff_mv_L0L1
             }
             com_mc_blk_affine_luma(x, y, refp->width_luma, refp->height_luma, cu_width, cu_height, tmp_mv_array, refp, pred, vertex_num, sub_w, sub_h, bit_depth);
             cost_trans[lidx][refi_cur] = calc_satd_16b(cu_width, cu_height, org, pred, s_org, cu_width, bit_depth);
-            mebits = affine_mv_bits(pi, tmp_mv_array, affine_mvp, pi->num_refp, refi_cur, vertex_num, cur_info->mvr_idx);
+            mebits = affine_mv_bits(tmp_mv_array, affine_mvp, pi->num_refp, refi_cur, vertex_num, cur_info->mvr_idx);
             mvp_temp = cost_trans[lidx][refi_cur] + MV_COST(mebits);
 
             if (mvp_temp < mvp_best) {
@@ -1681,7 +1683,7 @@ static void analyze_affine_uni(core_t *core, lbac_t *sbac_best, CPMV aff_mv_L0L1
             t0 = (lidx == 0) ? refi_cur : REFI_INVALID;
             t1 = (lidx == 1) ? refi_cur : REFI_INVALID;
             SET_REFI(refi, t0, t1);
-            mebits = affine_mv_bits(pi, affine_mv, affine_mvp, pi->num_refp, refi_cur, vertex_num, cur_info->mvr_idx);
+            mebits = affine_mv_bits(affine_mv, affine_mvp, pi->num_refp, refi_cur, vertex_num, cur_info->mvr_idx);
             mecost += MV_COST(mebits);
 
             for (vertex = 0; vertex < vertex_num; vertex++) {
@@ -1819,7 +1821,7 @@ static void analyze_affine_bi(core_t *core, lbac_t *sbac_best, CPMV aff_mv_L0L1[
             mecost = affine_me_gradient(pi, x, y, cu_width_log2, cu_height_log2, &refi[lidx_ref], lidx_ref, \
             pi->affine_mvp_scale[lidx_ref][refi_cur], pi->affine_mv_scale[lidx_ref][refi_cur], 1, vertex_num, 8, 8);
 
-            mebits = affine_mv_bits(pi, pi->affine_mv_scale[lidx_ref][refi_cur], pi->affine_mvp_scale[lidx_ref][refi_cur], pi->num_refp, refi_cur, vertex_num, cur_info->mvr_idx);
+            mebits = affine_mv_bits(pi->affine_mv_scale[lidx_ref][refi_cur], pi->affine_mvp_scale[lidx_ref][refi_cur], pi->num_refp, refi_cur, vertex_num, cur_info->mvr_idx);
             mebits += pi->mot_bits[1 - lidx_ref]; 
             mecost += MV_COST(mebits);
 

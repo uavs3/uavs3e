@@ -1074,7 +1074,7 @@ static void carry_propagate(lbac_t *lbac, bs_t *bs)
     }
 }
 
-static __inline int get_shift(int v)
+static avs3_always_inline int get_shift(int v)
 {
 #ifdef _WIN32
     unsigned long index;
