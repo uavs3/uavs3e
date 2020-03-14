@@ -150,6 +150,171 @@ u32 uavs3e_get_sad_128_sse(pel *p_org, int i_org, pel *p_pred, int i_pred, int h
     return _mm_extract_epi32(sum, 0);
 }
 
+void uavs3e_get_sad_x3_4_sse(pel *p_org, int i_org, pel *p_pred0, pel *p_pred1, pel *p_pred2, int i_pred, u32 sad[3], int height)
+{
+    __m128i sum0, sum1, sum2;
+    __m128i o, p0, p1, p2, t0, t1, t2;
+    int i_orgx2 = i_org << 1;
+    int i_orgx3 = i_orgx2 + i_org;
+    int i_predx2 = i_pred << 1;
+    int i_predx3 = i_predx2 + i_pred;
+
+    height >>= 2;
+    sum0 = sum1 = sum2 = _mm_setzero_si128();
+
+    while (height--) {
+        o = _mm_setr_epi32(*(int *)(p_org), *(int *)(p_org + i_org), *(int *)(p_org + i_orgx2), *(int *)(p_org + i_orgx3));
+        p0 = _mm_setr_epi32(*(int *)(p_pred0), *(int *)(p_pred0 + i_pred), *(int *)(p_pred0 + i_predx2), *(int *)(p_pred0 + i_predx3));
+        p1 = _mm_setr_epi32(*(int *)(p_pred1), *(int *)(p_pred1 + i_pred), *(int *)(p_pred1 + i_predx2), *(int *)(p_pred1 + i_predx3));
+        p2 = _mm_setr_epi32(*(int *)(p_pred2), *(int *)(p_pred2 + i_pred), *(int *)(p_pred2 + i_predx2), *(int *)(p_pred2 + i_predx3));
+        t0 = _mm_sad_epu8(o, p0);
+        t1 = _mm_sad_epu8(o, p1);
+        t2 = _mm_sad_epu8(o, p2);
+        sum0 = _mm_add_epi64(sum0, t0);
+        sum1 = _mm_add_epi64(sum1, t1);
+        sum2 = _mm_add_epi64(sum2, t2);
+
+        p_org += i_org << 2;
+        p_pred0 += i_pred << 2;
+        p_pred1 += i_pred << 2;
+        p_pred2 += i_pred << 2;
+    }
+
+    sad[0] = (u32)(_mm_extract_epi64(sum0, 0) + _mm_extract_epi64(sum0, 1));
+    sad[1] = (u32)(_mm_extract_epi64(sum1, 0) + _mm_extract_epi64(sum1, 1));
+    sad[2] = (u32)(_mm_extract_epi64(sum2, 0) + _mm_extract_epi64(sum2, 1));
+}
+
+void uavs3e_get_sad_x3_8_sse(pel *p_org, int i_org, pel *p_pred0, pel *p_pred1, pel *p_pred2, int i_pred, u32 sad[3], int height)
+{
+    __m128i sum0, sum1, sum2;
+    __m128i o0, p0, p1, p2, t0, t1, t2;
+    int i_org2 = i_org << 1;
+    int i_pred2 = i_pred << 1;
+
+    height >>= 1;
+    sum0 = sum1 = sum2 = _mm_setzero_si128();
+
+    while (height--) {
+        o0 = _mm_set_epi64x(*(s64*)(p_org), *(s64*)(p_org + i_org));
+        p0 = _mm_set_epi64x(*(s64*)(p_pred0), *(s64*)(p_pred0 + i_pred));
+        p1 = _mm_set_epi64x(*(s64*)(p_pred1), *(s64*)(p_pred1 + i_pred));
+        p2 = _mm_set_epi64x(*(s64*)(p_pred2), *(s64*)(p_pred2 + i_pred));
+
+        t0 = _mm_sad_epu8(o0, p0);
+        t1 = _mm_sad_epu8(o0, p1);
+        t2 = _mm_sad_epu8(o0, p2);
+        sum0 = _mm_add_epi64(sum0, t0);
+        sum1 = _mm_add_epi64(sum1, t1);
+        sum2 = _mm_add_epi64(sum2, t2);
+
+        p_org += i_org2;
+        p_pred0 += i_pred2;
+        p_pred1 += i_pred2;
+        p_pred2 += i_pred2;
+    }
+
+    sad[0] = (u32)(_mm_extract_epi64(sum0, 0) + _mm_extract_epi64(sum0, 1));
+    sad[1] = (u32)(_mm_extract_epi64(sum1, 0) + _mm_extract_epi64(sum1, 1));
+    sad[2] = (u32)(_mm_extract_epi64(sum2, 0) + _mm_extract_epi64(sum2, 1));
+}
+
+#define CAL_SAD_W16_X3(d) { \
+        __m128i o = _mm_loadu_si128((__m128i*)(p_org  + d * 16)); \
+        __m128i p0 = _mm_loadu_si128((__m128i*)(p_pred0 + d * 16)); \
+        __m128i p1 = _mm_loadu_si128((__m128i*)(p_pred1 + d * 16)); \
+        __m128i p2 = _mm_loadu_si128((__m128i*)(p_pred2 + d * 16)); \
+        __m128i t0 = _mm_sad_epu8(o, p0); \
+        __m128i t1 = _mm_sad_epu8(o, p1); \
+        __m128i t2 = _mm_sad_epu8(o, p2); \
+        sum0 = _mm_add_epi64(sum0, t0); \
+        sum1 = _mm_add_epi64(sum1, t1); \
+        sum2 = _mm_add_epi64(sum2, t2); \
+    }
+
+void uavs3e_get_sad_x3_16_sse(pel *p_org, int i_org, pel *p_pred0, pel *p_pred1, pel *p_pred2, int i_pred, u32 sad[3], int height)
+{
+    __m128i sum0, sum1, sum2;
+
+    sum0 = sum1 = sum2 = _mm_setzero_si128();
+
+    while (height--) {
+        CAL_SAD_W16_X3(0);
+        p_org += i_org;
+        p_pred0 += i_pred;
+        p_pred1 += i_pred;
+        p_pred2 += i_pred;
+    }
+    sad[0] = (u32)(_mm_extract_epi64(sum0, 0) + _mm_extract_epi64(sum0, 1));
+    sad[1] = (u32)(_mm_extract_epi64(sum1, 0) + _mm_extract_epi64(sum1, 1));
+    sad[2] = (u32)(_mm_extract_epi64(sum2, 0) + _mm_extract_epi64(sum2, 1));
+}
+
+void uavs3e_get_sad_x3_32_sse(pel *p_org, int i_org, pel *p_pred0, pel *p_pred1, pel *p_pred2, int i_pred, u32 sad[3], int height)
+{
+    __m128i sum0, sum1, sum2;
+
+    sum0 = sum1 = sum2 = _mm_setzero_si128();
+
+    while (height--) {
+        CAL_SAD_W16_X3(0);
+        CAL_SAD_W16_X3(1);
+        p_org += i_org;
+        p_pred0 += i_pred;
+        p_pred1 += i_pred;
+        p_pred2 += i_pred;
+    }
+    sad[0] = (u32)(_mm_extract_epi64(sum0, 0) + _mm_extract_epi64(sum0, 1));
+    sad[1] = (u32)(_mm_extract_epi64(sum1, 0) + _mm_extract_epi64(sum1, 1));
+    sad[2] = (u32)(_mm_extract_epi64(sum2, 0) + _mm_extract_epi64(sum2, 1));
+}
+
+void uavs3e_get_sad_x3_64_sse(pel *p_org, int i_org, pel *p_pred0, pel *p_pred1, pel *p_pred2, int i_pred, u32 sad[3], int height)
+{
+    __m128i sum0, sum1, sum2;
+
+    sum0 = sum1 = sum2 = _mm_setzero_si128();
+
+    while (height--) {
+        CAL_SAD_W16_X3(0);
+        CAL_SAD_W16_X3(1);
+        CAL_SAD_W16_X3(2);
+        CAL_SAD_W16_X3(3);
+        p_org += i_org;
+        p_pred0 += i_pred;
+        p_pred1 += i_pred;
+        p_pred2 += i_pred;
+    }
+    sad[0] = (u32)(_mm_extract_epi64(sum0, 0) + _mm_extract_epi64(sum0, 1));
+    sad[1] = (u32)(_mm_extract_epi64(sum1, 0) + _mm_extract_epi64(sum1, 1));
+    sad[2] = (u32)(_mm_extract_epi64(sum2, 0) + _mm_extract_epi64(sum2, 1));
+}
+
+void uavs3e_get_sad_x3_128_sse(pel *p_org, int i_org, pel *p_pred0, pel *p_pred1, pel *p_pred2, int i_pred, u32 sad[3], int height)
+{
+    __m128i sum0, sum1, sum2;
+
+    sum0 = sum1 = sum2 = _mm_setzero_si128();
+
+    while (height--) {
+        CAL_SAD_W16_X3(0);
+        CAL_SAD_W16_X3(1);
+        CAL_SAD_W16_X3(2);
+        CAL_SAD_W16_X3(3);
+        CAL_SAD_W16_X3(4);
+        CAL_SAD_W16_X3(5);
+        CAL_SAD_W16_X3(6);
+        CAL_SAD_W16_X3(7);
+        p_org += i_org;
+        p_pred0 += i_pred;
+        p_pred1 += i_pred;
+        p_pred2 += i_pred;
+    }
+    sad[0] = (u32)(_mm_extract_epi64(sum0, 0) + _mm_extract_epi64(sum0, 1));
+    sad[1] = (u32)(_mm_extract_epi64(sum1, 0) + _mm_extract_epi64(sum1, 1));
+    sad[2] = (u32)(_mm_extract_epi64(sum2, 0) + _mm_extract_epi64(sum2, 1));
+}
+
 // --------------------------------------------------------------------------------------------------------------------
 // SSD
 // --------------------------------------------------------------------------------------------------------------------

@@ -92,20 +92,20 @@ static void search_raster(inter_search_t *pi, int x, int y, int w, int h, s8 ref
             s16 mv_x = min_cmv_x;
             pcmvx = cost_mvx;
 
-            //for (; mv_x + 2 * search_step <= max_cmv_x; mv_x += 3 * search_step) {
-            //    u32 sad[3];
-            //    uavs3e_funs_handle.cost_sad_x3[widx](org, i_org, r + mv_x, 
-            //                                                     r + mv_x + search_step,
-            //                                                     r + mv_x + search_step * 2, i_ref, sad, h);
-            //
-            //    u64 cost0 = cost_mvy + (*pcmvx++) + ((u64)sad[0] << shift);
-            //    u64 cost1 = cost_mvy + (*pcmvx++) + ((u64)sad[1] << shift);
-            //    u64 cost2 = cost_mvy + (*pcmvx++) + ((u64)sad[2] << shift);
-            //
-            //    if (cost0 < *cost_best) { mv[0] = mv_x,                   mv[1] = mv_y, *cost_best = cost0; }
-            //    if (cost1 < *cost_best) { mv[0] = mv_x + search_step,     mv[1] = mv_y, *cost_best = cost1; }
-            //    if (cost2 < *cost_best) { mv[0] = mv_x + search_step * 2, mv[1] = mv_y, *cost_best = cost2; }
-            //}
+            for (; mv_x + 2 * search_step <= max_cmv_x; mv_x += 3 * search_step) {
+                u32 sad[3];
+                uavs3e_funs_handle.cost_sad_x3[widx](org, i_org, r + mv_x, 
+                                                                 r + mv_x + search_step,
+                                                                 r + mv_x + search_step * 2, i_ref, sad, h);
+            
+                u64 cost0 = cost_mvy + (*pcmvx++) + ((u64)sad[0] << shift);
+                u64 cost1 = cost_mvy + (*pcmvx++) + ((u64)sad[1] << shift);
+                u64 cost2 = cost_mvy + (*pcmvx++) + ((u64)sad[2] << shift);
+            
+                if (cost0 < *cost_best) { mv[0] = mv_x,                   mv[1] = mv_y, *cost_best = cost0; }
+                if (cost1 < *cost_best) { mv[0] = mv_x + search_step,     mv[1] = mv_y, *cost_best = cost1; }
+                if (cost2 < *cost_best) { mv[0] = mv_x + search_step * 2, mv[1] = mv_y, *cost_best = cost2; }
+            }
 
             for (; mv_x <= max_cmv_x; mv_x += search_step) {
                 u64 cost = cost_mvy + (*pcmvx++) + block_pel_sad(widx, h, shift, org, r + mv_x, i_org, i_ref);

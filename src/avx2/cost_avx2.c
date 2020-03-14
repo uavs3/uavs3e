@@ -108,6 +108,132 @@ u32 uavs3e_get_sad_128_avx2(pel *p_org, int i_org, pel *p_pred, int i_pred, int 
     return ((u32)_mm256_extract_epi32(sum, 0)) + ((u32)_mm256_extract_epi32(sum, 4));
 }
 
+void uavs3e_get_sad_x3_16_avx2(pel *p_org, int i_org, pel *p_pred0, pel *p_pred1, pel *p_pred2, int i_pred, u32 sad[3], int height)
+{
+    __m256i sum0, sum1, sum2;
+    __m256i O0, P0, P1, P2, S0, S1, S2;
+    int i_org2 = i_org << 1;
+    int i_pred2 = i_pred << 1;
+
+    height >>= 1;
+    sum0 = sum1 = sum2 = _mm256_setzero_si256();
+
+    while (height--) {
+        O0 = _mm256_loadu2_m128i((__m128i *)p_org, (__m128i *)(p_org + i_org));
+        P0 = _mm256_loadu2_m128i((__m128i *)p_pred0, (__m128i *)(p_pred0 + i_pred));
+        P1 = _mm256_loadu2_m128i((__m128i *)(p_pred1), (__m128i *)(p_pred1 + i_pred));
+        P2 = _mm256_loadu2_m128i((__m128i *)(p_pred2), (__m128i *)(p_pred2 + i_pred));
+        S0 = _mm256_sad_epu8(O0, P0);
+        S1 = _mm256_sad_epu8(O0, P1);
+        S2 = _mm256_sad_epu8(O0, P2);
+        sum0 = _mm256_add_epi64(sum0, S0);
+        sum1 = _mm256_add_epi64(sum1, S1);
+        sum2 = _mm256_add_epi64(sum2, S2);
+        p_org += i_org2;
+        p_pred0 += i_pred2;
+        p_pred1 += i_pred2;
+        p_pred2 += i_pred2;
+    }
+    sum0 = _mm256_hadd_epi32(sum0, sum0);
+    sum1 = _mm256_hadd_epi32(sum1, sum1);
+    sum2 = _mm256_hadd_epi32(sum2, sum2);
+    sum0 = _mm256_hadd_epi32(sum0, sum0);
+    sum1 = _mm256_hadd_epi32(sum1, sum1);
+    sum2 = _mm256_hadd_epi32(sum2, sum2);
+    sad[0] = ((u32)_mm256_extract_epi32(sum0, 0)) + ((u32)_mm256_extract_epi32(sum0, 4));
+    sad[1] = ((u32)_mm256_extract_epi32(sum1, 0)) + ((u32)_mm256_extract_epi32(sum1, 4));
+    sad[2] = ((u32)_mm256_extract_epi32(sum2, 0)) + ((u32)_mm256_extract_epi32(sum2, 4));
+}
+
+#define CAL_SAD_X3_W32(d) { \
+        __m256i o = _mm256_loadu_si256((__m256i*)(p_org  + d * 32)); \
+        __m256i p0 = _mm256_loadu_si256((__m256i*)(p_pred0 + d * 32)); \
+        __m256i p1 = _mm256_loadu_si256((__m256i*)(p_pred1 + d * 32)); \
+        __m256i p2 = _mm256_loadu_si256((__m256i*)(p_pred2 + d * 32)); \
+        __m256i t0 = _mm256_sad_epu8(o, p0); \
+        __m256i t1 = _mm256_sad_epu8(o, p1); \
+        __m256i t2 = _mm256_sad_epu8(o, p2); \
+        sum0 = _mm256_add_epi32(sum0, t0); \
+        sum1 = _mm256_add_epi32(sum1, t1); \
+        sum2 = _mm256_add_epi32(sum2, t2); \
+    }
+
+void uavs3e_get_sad_x3_32_avx2(pel *p_org, int i_org, pel *p_pred0, pel *p_pred1, pel *p_pred2, int i_pred, u32 sad[3], int height)
+{
+    __m256i sum0, sum1, sum2;
+    
+    sum0 = sum1 = sum2 = _mm256_setzero_si256();
+
+    while (height--) {
+        CAL_SAD_X3_W32(0);
+        p_org += i_org;
+        p_pred0 += i_pred;
+        p_pred1 += i_pred;
+        p_pred2 += i_pred;
+    }
+    sum0 = _mm256_hadd_epi32(sum0, sum0);
+    sum1 = _mm256_hadd_epi32(sum1, sum1);
+    sum2 = _mm256_hadd_epi32(sum2, sum2);
+    sum0 = _mm256_hadd_epi32(sum0, sum0);
+    sum1 = _mm256_hadd_epi32(sum1, sum1);
+    sum2 = _mm256_hadd_epi32(sum2, sum2);
+    sad[0] = ((u32)_mm256_extract_epi32(sum0, 0)) + ((u32)_mm256_extract_epi32(sum0, 4));
+    sad[1] = ((u32)_mm256_extract_epi32(sum1, 0)) + ((u32)_mm256_extract_epi32(sum1, 4));
+    sad[2] = ((u32)_mm256_extract_epi32(sum2, 0)) + ((u32)_mm256_extract_epi32(sum2, 4));
+}
+
+void uavs3e_get_sad_x3_64_avx2(pel *p_org, int i_org, pel *p_pred0, pel *p_pred1, pel *p_pred2, int i_pred, u32 sad[3], int height)
+{
+    __m256i sum0, sum1, sum2;
+
+    sum0 = sum1 = sum2 = _mm256_setzero_si256();
+
+    while (height--) {
+        CAL_SAD_X3_W32(0);
+        CAL_SAD_X3_W32(1);
+        p_org += i_org;
+        p_pred0 += i_pred;
+        p_pred1 += i_pred;
+        p_pred2 += i_pred;
+    }
+    sum0 = _mm256_hadd_epi32(sum0, sum0);
+    sum1 = _mm256_hadd_epi32(sum1, sum1);
+    sum2 = _mm256_hadd_epi32(sum2, sum2);
+    sum0 = _mm256_hadd_epi32(sum0, sum0);
+    sum1 = _mm256_hadd_epi32(sum1, sum1);
+    sum2 = _mm256_hadd_epi32(sum2, sum2);
+    sad[0] = ((u32)_mm256_extract_epi32(sum0, 0)) + ((u32)_mm256_extract_epi32(sum0, 4));
+    sad[1] = ((u32)_mm256_extract_epi32(sum1, 0)) + ((u32)_mm256_extract_epi32(sum1, 4));
+    sad[2] = ((u32)_mm256_extract_epi32(sum2, 0)) + ((u32)_mm256_extract_epi32(sum2, 4));
+}
+
+void uavs3e_get_sad_x3_128_avx2(pel *p_org, int i_org, pel *p_pred0, pel *p_pred1, pel *p_pred2, int i_pred, u32 sad[3], int height)
+{
+    __m256i sum0, sum1, sum2;
+
+    sum0 = sum1 = sum2 = _mm256_setzero_si256();
+
+    while (height--) {
+        CAL_SAD_X3_W32(0);
+        CAL_SAD_X3_W32(1);
+        CAL_SAD_X3_W32(2);
+        CAL_SAD_X3_W32(3);
+        p_org += i_org;
+        p_pred0 += i_pred;
+        p_pred1 += i_pred;
+        p_pred2 += i_pred;
+    }
+    sum0 = _mm256_hadd_epi32(sum0, sum0);
+    sum1 = _mm256_hadd_epi32(sum1, sum1);
+    sum2 = _mm256_hadd_epi32(sum2, sum2);
+    sum0 = _mm256_hadd_epi32(sum0, sum0);
+    sum1 = _mm256_hadd_epi32(sum1, sum1);
+    sum2 = _mm256_hadd_epi32(sum2, sum2);
+    sad[0] = ((u32)_mm256_extract_epi32(sum0, 0)) + ((u32)_mm256_extract_epi32(sum0, 4));
+    sad[1] = ((u32)_mm256_extract_epi32(sum1, 0)) + ((u32)_mm256_extract_epi32(sum1, 4));
+    sad[2] = ((u32)_mm256_extract_epi32(sum2, 0)) + ((u32)_mm256_extract_epi32(sum2, 4));
+}
+
 u64 uavs3e_get_ssd_4_avx2(pel *p_org, int i_org, pel *p_pred, int i_pred, int height)
 {
     __m256i sum = _mm256_setzero_si256();
@@ -949,6 +1075,334 @@ u32 uavs3e_get_sad_128_avx2(pel *p_org, int i_org, pel *p_pred, int i_pred, int 
 }
 #undef CAL_SAD_W32_10BIT
 #undef CAL_SAD_SUM_10BIT
+
+void uavs3e_get_sad_x3_4_avx2(pel *p_org, int i_org, pel *p_pred0, pel *p_pred1, pel *p_pred2, int i_pred, u32 sad[3], int height)
+{
+    __m256i sum0, sum1, sum2;
+    __m256i zero = _mm256_setzero_si256();
+    __m256i o, p0, p1, p2, t0, t1, t2;
+    int i_org2 = i_org << 1;
+    int i_org3 = i_org2 + i_org;
+    int i_pred2 = i_pred << 1;
+    int i_pred3 = i_pred2 + i_pred;
+
+    sum0 = sum1 = sum2 = zero;
+    height >>= 2;
+
+    while (height--) {
+        o = _mm256_set_epi64x(*(s64*)(p_org + i_org3), *(s64*)(p_org + i_org2), *(s64*)(p_org + i_org), *(s64*)p_org);
+        p0 = _mm256_set_epi64x(*(s64*)(p_pred0 + i_pred3), *(s64*)(p_pred0 + i_pred2), *(s64*)(p_pred0 + i_pred), *(s64*)p_pred0);
+        p1 = _mm256_set_epi64x(*(s64*)(p_pred1 + i_pred3), *(s64*)(p_pred1 + i_pred2), *(s64*)(p_pred1 + i_pred), *(s64*)p_pred1);
+        p2 = _mm256_set_epi64x(*(s64*)(p_pred2 + i_pred3), *(s64*)(p_pred2 + i_pred2), *(s64*)(p_pred2 + i_pred), *(s64*)p_pred2);
+        t0 = _mm256_sub_epi16(o, p0);
+        t1 = _mm256_sub_epi16(o, p1);
+        t2 = _mm256_sub_epi16(o, p2);
+        t0 = _mm256_abs_epi16(t0);
+        t1 = _mm256_abs_epi16(t1);
+        t2 = _mm256_abs_epi16(t2);
+        sum0 = _mm256_add_epi16(sum0, t0);
+        sum1 = _mm256_add_epi16(sum1, t1);
+        sum2 = _mm256_add_epi16(sum2, t2);
+        p_org += i_org << 2;
+        p_pred0 += i_pred << 2;
+        p_pred1 += i_pred << 2;
+        p_pred2 += i_pred << 2;
+    }
+    sum0 = _mm256_hadd_epi16(sum0, sum1);
+    sum2 = _mm256_hadd_epi16(sum2, sum2);
+    sum0 = _mm256_hadd_epi16(sum0, sum2);   //00 01 10 11 20 21 00 00 02 03 12 13 22 23 00 00
+
+    t0 = _mm256_unpacklo_epi16(sum0, zero);
+    t1 = _mm256_unpackhi_epi16(sum0, zero);
+
+    sum0 = _mm256_hadd_epi32(t0, t1);       // 00 10 20 00 01 11 21 00
+
+    sad[0] = ((u32)_mm256_extract_epi32(sum0, 0)) + ((u32)_mm256_extract_epi32(sum0, 4));
+    sad[1] = ((u32)_mm256_extract_epi32(sum0, 1)) + ((u32)_mm256_extract_epi32(sum0, 5));
+    sad[2] = ((u32)_mm256_extract_epi32(sum0, 2)) + ((u32)_mm256_extract_epi32(sum0, 6));
+}
+
+void uavs3e_get_sad_x3_8_avx2(pel *p_org, int i_org, pel *p_pred0, pel *p_pred1, pel *p_pred2, int i_pred, u32 sad[3], int height)
+{
+    __m256i sum0, sum1, sum2;
+    __m256i zero = _mm256_setzero_si256();
+    __m256i o, p0, p1, p2, t0, t1, t2, t3;
+    int i_org2 = i_org << 1;
+    int i_pred2 = i_pred << 1;
+
+    sum0 = sum1 = sum2 = zero;
+    height >>= 1;
+
+    while (height--) {
+        o = _mm256_loadu2_m128i((__m128i*)(p_org + i_org), (__m128i*)p_org);
+        p0 = _mm256_loadu2_m128i((__m128i*)(p_pred0 + i_pred), (__m128i*)p_pred0);
+        p1 = _mm256_loadu2_m128i((__m128i*)(p_pred1 + i_pred), (__m128i*)(p_pred1));
+        p2 = _mm256_loadu2_m128i((__m128i*)(p_pred2 + i_pred), (__m128i*)(p_pred2));
+        t0 = _mm256_sub_epi16(o, p0);
+        t1 = _mm256_sub_epi16(o, p1);
+        t2 = _mm256_sub_epi16(o, p2);
+        t0 = _mm256_abs_epi16(t0);
+        t1 = _mm256_abs_epi16(t1);
+        t2 = _mm256_abs_epi16(t2);
+        sum0 = _mm256_add_epi16(sum0, t0);
+        sum1 = _mm256_add_epi16(sum1, t1);
+        sum2 = _mm256_add_epi16(sum2, t2);
+        p_org += i_org2;
+        p_pred0 += i_pred2;
+        p_pred1 += i_pred2;
+        p_pred2 += i_pred2;
+    }
+    t0 = _mm256_unpacklo_epi16(sum0, zero);
+    t1 = _mm256_unpackhi_epi16(sum0, zero);
+    t2 = _mm256_unpacklo_epi16(sum1, zero);
+    t3 = _mm256_unpackhi_epi16(sum1, zero);
+    sum0 = _mm256_add_epi32(t0, t1);
+    sum1 = _mm256_add_epi32(t2, t3);
+    t0 = _mm256_unpacklo_epi16(sum2, zero);
+    t1 = _mm256_unpackhi_epi16(sum2, zero);
+    sum0 = _mm256_hadd_epi32(sum0, sum0);
+    sum1 = _mm256_hadd_epi32(sum1, sum1);
+    sum2 = _mm256_add_epi32(t0, t1);
+    sum0 = _mm256_hadd_epi32(sum0, sum0);
+    sum1 = _mm256_hadd_epi32(sum1, sum1);
+    sum2 = _mm256_hadd_epi32(sum2, sum2);
+    sum2 = _mm256_hadd_epi32(sum2, sum2);
+    sad[0] = ((u32)_mm256_extract_epi32(sum0, 0)) + ((u32)_mm256_extract_epi32(sum0, 4));
+    sad[1] = ((u32)_mm256_extract_epi32(sum1, 0)) + ((u32)_mm256_extract_epi32(sum1, 4));
+    sad[2] = ((u32)_mm256_extract_epi32(sum2, 0)) + ((u32)_mm256_extract_epi32(sum2, 4));
+}
+
+void uavs3e_get_sad_x3_16_avx2(pel *p_org, int i_org, pel *p_pred0, pel *p_pred1, pel *p_pred2, int i_pred, u32 sad[3], int height)
+{
+    __m256i sum[6];
+    __m256i zero = _mm256_setzero_si256();
+    __m256i O[2], P[6], S[6];
+    int i;
+    int i_orgx2 = i_org << 1;
+    int i_predx2 = i_pred << 1;
+    for (i = 0; i < 6; i++) {
+        sum[i] = zero;
+    }
+    height >>= 1;
+
+    while (height--) {
+        O[0] = _mm256_loadu_si256((__m256i *)p_org);
+        O[1] = _mm256_loadu_si256((__m256i *)(p_org + i_org));
+        P[0] = _mm256_loadu_si256((__m256i *)p_pred0);
+        P[1] = _mm256_loadu_si256((__m256i *)(p_pred0 + i_pred));
+        P[2] = _mm256_loadu_si256((__m256i *)p_pred1);
+        P[3] = _mm256_loadu_si256((__m256i *)(p_pred1 + i_pred));
+        P[4] = _mm256_loadu_si256((__m256i *)p_pred2);
+        P[5] = _mm256_loadu_si256((__m256i *)(p_pred2 + i_pred));
+        for (i = 0; i < 6; i += 2) {
+            S[i+0] = _mm256_sub_epi16(O[0], P[i+0]);
+            S[i+1] = _mm256_sub_epi16(O[1], P[i+1]);
+            S[i+0] = _mm256_abs_epi16(S[i+0]);
+            S[i+1] = _mm256_abs_epi16(S[i+1]);
+            sum[i+0] = _mm256_add_epi16(sum[i+0], S[i+0]);
+            sum[i+1] = _mm256_add_epi16(sum[i+1], S[i+1]);
+        }
+        p_org += i_orgx2;
+        p_pred0 += i_predx2;
+        p_pred1 += i_predx2;
+        p_pred2 += i_predx2;
+    }
+    for (i = 0; i < 6; i += 2) {
+        P[0] = _mm256_unpacklo_epi16(sum[i+0], zero);
+        P[1] = _mm256_unpackhi_epi16(sum[i+0], zero);
+        P[2] = _mm256_unpacklo_epi16(sum[i+1], zero);
+        P[3] = _mm256_unpackhi_epi16(sum[i+1], zero);
+        sum[i+0] = _mm256_add_epi32(P[0], P[1]);
+        sum[i+1] = _mm256_add_epi32(P[2], P[3]);
+        sum[i] = _mm256_add_epi32(sum[i], sum[i+1]);
+    }
+    sum[0] = _mm256_hadd_epi32(sum[0], sum[2]);
+    sum[4] = _mm256_hadd_epi32(sum[4], sum[4]);
+    sum[0] = _mm256_hadd_epi32(sum[0], sum[4]);
+
+    sad[0] = ((u32)_mm256_extract_epi32(sum[0], 0)) + ((u32)_mm256_extract_epi32(sum[0], 4));
+    sad[1] = ((u32)_mm256_extract_epi32(sum[0], 1)) + ((u32)_mm256_extract_epi32(sum[0], 5));
+    sad[2] = ((u32)_mm256_extract_epi32(sum[0], 2)) + ((u32)_mm256_extract_epi32(sum[0], 6));
+}
+
+void uavs3e_get_sad_x3_32_avx2(pel *p_org, int i_org, pel *p_pred0, pel *p_pred1, pel *p_pred2, int i_pred, u32 sad[3], int height)
+{
+    __m256i sum0, sum1, sum2;
+    __m256i zero = _mm256_setzero_si256();
+    __m256i o, p0, p1, p2, t0, t1, t2, t3, t4, t5;
+
+    sum0 = sum1 = sum2 = zero;
+
+    while (height--) {
+        o  = _mm256_loadu_si256((__m256i *)p_org);
+        p0 = _mm256_loadu_si256((__m256i *)p_pred0);
+        p1 = _mm256_loadu_si256((__m256i *)p_pred1);
+        p2 = _mm256_loadu_si256((__m256i *)p_pred2);
+        t0 = _mm256_sub_epi16(o, p0);
+        t1 = _mm256_sub_epi16(o, p1);
+        t2 = _mm256_sub_epi16(o, p2);
+        t0 = _mm256_abs_epi16(t0);
+        t1 = _mm256_abs_epi16(t1);
+        t2 = _mm256_abs_epi16(t2);
+
+        o  = _mm256_loadu_si256((__m256i *)(p_org + 16));
+        p0 = _mm256_loadu_si256((__m256i *)(p_pred0 + 16));
+        p1 = _mm256_loadu_si256((__m256i *)(p_pred1 + 16));
+        p2 = _mm256_loadu_si256((__m256i *)(p_pred2 + 16));
+        t3 = _mm256_sub_epi16(o, p0);
+        t4 = _mm256_sub_epi16(o, p1);
+        t5 = _mm256_sub_epi16(o, p2);
+        t3 = _mm256_abs_epi16(t3);
+        t4 = _mm256_abs_epi16(t4);
+        t5 = _mm256_abs_epi16(t5);
+
+        t0 = _mm256_add_epi16(t0, t3);
+        t1 = _mm256_add_epi16(t1, t4);
+        t2 = _mm256_add_epi16(t2, t5);
+        t3 = _mm256_unpacklo_epi16(t0, zero);
+        t4 = _mm256_unpackhi_epi16(t0, zero);
+        t5 = _mm256_unpacklo_epi16(t1, zero);
+        t0 = _mm256_unpackhi_epi16(t1, zero);
+        t1 = _mm256_unpacklo_epi16(t2, zero);
+        t2 = _mm256_unpackhi_epi16(t2, zero);
+
+        t3 = _mm256_add_epi32(t3, t4);
+        t0 = _mm256_add_epi32(t5, t0);
+        t1 = _mm256_add_epi32(t1, t2);
+
+        sum0 = _mm256_add_epi32(sum0, t3);
+        sum1 = _mm256_add_epi32(sum1, t0);
+        sum2 = _mm256_add_epi32(sum2, t1);
+
+        p_org += i_org;
+        p_pred0 += i_pred;
+        p_pred1 += i_pred;
+        p_pred2 += i_pred;
+    }
+    sum0 = _mm256_hadd_epi32(sum0, sum1);
+    sum2 = _mm256_hadd_epi32(sum2, sum2);
+    sum0 = _mm256_hadd_epi32(sum0, sum2);
+
+    sad[0] = ((u32)_mm256_extract_epi32(sum0, 0)) + ((u32)_mm256_extract_epi32(sum0, 4));
+    sad[1] = ((u32)_mm256_extract_epi32(sum0, 1)) + ((u32)_mm256_extract_epi32(sum0, 5));
+    sad[2] = ((u32)_mm256_extract_epi32(sum0, 2)) + ((u32)_mm256_extract_epi32(sum0, 6));
+}
+
+#define CAL_SUB_ABS_10BIT(i, t0, t1, t2) \
+        o = _mm256_loadu_si256((__m256i *)(p_org + 16*i));    \
+        p0 = _mm256_loadu_si256((__m256i *)(p_pred0 + 16*i)); \
+        p1 = _mm256_loadu_si256((__m256i *)(p_pred1 + 16*i)); \
+        p2 = _mm256_loadu_si256((__m256i *)(p_pred2 + 16*i)); \
+        t0 = _mm256_sub_epi16(o, p0);                       \
+        t1 = _mm256_sub_epi16(o, p1);                       \
+        t2 = _mm256_sub_epi16(o, p2);                       \
+        t0 = _mm256_abs_epi16(t0);                          \
+        t1 = _mm256_abs_epi16(t1);                          \
+        t2 = _mm256_abs_epi16(t2) 
+
+void uavs3e_get_sad_x3_64_avx2(pel *p_org, int i_org, pel *p_pred0, pel *p_pred1, pel *p_pred2, int i_pred, u32 sad[3], int height)
+{
+    __m256i sum0, sum1, sum2;
+    __m256i zero = _mm256_setzero_si256();
+    __m256i o, p0, p1, p2, t0, t1, t2, t3, t4, t5;
+
+    sum0 = sum1 = sum2 = zero;
+
+    while (height--) {
+        CAL_SUB_ABS_10BIT(0, t0, t1, t2);
+        CAL_SUB_ABS_10BIT(1, t3, t4, t5);
+
+        t0 = _mm256_add_epi16(t0, t3);
+        t1 = _mm256_add_epi16(t1, t4);
+        t2 = _mm256_add_epi16(t2, t5);
+
+        CAL_SUB_ABS_10BIT(2, t3, t4, t5);
+        t0 = _mm256_add_epi16(t0, t3);
+        t1 = _mm256_add_epi16(t1, t4);
+        t2 = _mm256_add_epi16(t2, t5);
+
+        CAL_SUB_ABS_10BIT(3, t3, t4, t5);
+        t0 = _mm256_add_epi16(t0, t3);
+        t1 = _mm256_add_epi16(t1, t4);
+        t2 = _mm256_add_epi16(t2, t5);
+
+        t3 = _mm256_unpacklo_epi16(t0, zero);
+        t4 = _mm256_unpackhi_epi16(t0, zero);
+        t5 = _mm256_unpacklo_epi16(t1, zero);
+        t0 = _mm256_unpackhi_epi16(t1, zero);
+        t1 = _mm256_unpacklo_epi16(t2, zero);
+        t2 = _mm256_unpackhi_epi16(t2, zero);
+
+        t3 = _mm256_add_epi32(t3, t4);
+        t0 = _mm256_add_epi32(t5, t0);
+        t1 = _mm256_add_epi32(t1, t2);
+
+        sum0 = _mm256_add_epi32(sum0, t3);
+        sum1 = _mm256_add_epi32(sum1, t0);
+        sum2 = _mm256_add_epi32(sum2, t1);
+
+        p_org += i_org;
+        p_pred0 += i_pred;
+        p_pred1 += i_pred;
+        p_pred2 += i_pred;
+    }
+    sum0 = _mm256_hadd_epi32(sum0, sum1);
+    sum2 = _mm256_hadd_epi32(sum2, sum2);
+    sum0 = _mm256_hadd_epi32(sum0, sum2);
+
+    sad[0] = ((u32)_mm256_extract_epi32(sum0, 0)) + ((u32)_mm256_extract_epi32(sum0, 4));
+    sad[1] = ((u32)_mm256_extract_epi32(sum0, 1)) + ((u32)_mm256_extract_epi32(sum0, 5));
+    sad[2] = ((u32)_mm256_extract_epi32(sum0, 2)) + ((u32)_mm256_extract_epi32(sum0, 6));
+}
+
+void uavs3e_get_sad_x3_128_avx2(pel *p_org, int i_org, pel *p_pred0, pel *p_pred1, pel *p_pred2, int i_pred, u32 sad[3], int height)
+{
+    __m256i sum0, sum1, sum2;
+    __m256i zero = _mm256_setzero_si256();
+    __m256i o, p0, p1, p2, t0, t1, t2, t3, t4, t5;
+    int i;
+
+    sum0 = sum1 = sum2 = zero;
+
+    while (height--) {
+        CAL_SUB_ABS_10BIT(0, t0, t1, t2);
+
+        for (i = 1; i < 8; i++) {
+            CAL_SUB_ABS_10BIT(i, t3, t4, t5);
+
+            t0 = _mm256_add_epi16(t0, t3);
+            t1 = _mm256_add_epi16(t1, t4);
+            t2 = _mm256_add_epi16(t2, t5);
+        }
+
+        t3 = _mm256_unpacklo_epi16(t0, zero);
+        t4 = _mm256_unpackhi_epi16(t0, zero);
+        t5 = _mm256_unpacklo_epi16(t1, zero);
+        t0 = _mm256_unpackhi_epi16(t1, zero);
+        t1 = _mm256_unpacklo_epi16(t2, zero);
+        t2 = _mm256_unpackhi_epi16(t2, zero);
+
+        t3 = _mm256_add_epi32(t3, t4);
+        t0 = _mm256_add_epi32(t5, t0);
+        t1 = _mm256_add_epi32(t1, t2);
+
+        sum0 = _mm256_add_epi32(sum0, t3);
+        sum1 = _mm256_add_epi32(sum1, t0);
+        sum2 = _mm256_add_epi32(sum2, t1);
+
+        p_org += i_org;
+        p_pred0 += i_pred;
+        p_pred1 += i_pred;
+        p_pred2 += i_pred;
+    }
+    sum0 = _mm256_hadd_epi32(sum0, sum1);
+    sum2 = _mm256_hadd_epi32(sum2, sum2);
+    sum0 = _mm256_hadd_epi32(sum0, sum2);
+
+    sad[0] = ((u32)_mm256_extract_epi32(sum0, 0)) + ((u32)_mm256_extract_epi32(sum0, 4));
+    sad[1] = ((u32)_mm256_extract_epi32(sum0, 1)) + ((u32)_mm256_extract_epi32(sum0, 5));
+    sad[2] = ((u32)_mm256_extract_epi32(sum0, 2)) + ((u32)_mm256_extract_epi32(sum0, 6));
+}
 
 u64 uavs3e_get_ssd_4_avx2(pel *p_org, int i_org, pel *p_pred, int i_pred, int height)
 {
