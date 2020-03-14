@@ -81,34 +81,55 @@ static void search_raster(inter_search_t *pi, int x, int y, int w, int h, s8 ref
         }
 
         pel* r = ref + min_cmv_y * i_ref;
-        u64 cost_mvx[(SEARCH_RANGE_IPEL_RA * 2 + 1) / 5 + 1];
-        u64* pcmvx = cost_mvx;
+        u32 cost_mvx[(SEARCH_RANGE_IPEL_RA * 2 + 1) / 5 + 1];
+        u32* pcmvx = cost_mvx;
 
         for (s16 mv_x = min_cmv_x; mv_x <= max_cmv_x; mv_x += search_step) {
             *pcmvx++ = GET_MVBITS_IPEL_X(mv_x) * lambda_mv;
         }
         for (s16 mv_y = min_cmv_y; mv_y <= max_cmv_y; mv_y += search_step) {
-            int cost_mvy = GET_MVBITS_IPEL_Y(mv_y) * lambda_mv;
+            u32 cost_mvy = GET_MVBITS_IPEL_Y(mv_y) * lambda_mv;
             s16 mv_x = min_cmv_x;
             pcmvx = cost_mvx;
 
-            for (; mv_x + 2 * search_step <= max_cmv_x; mv_x += 3 * search_step) {
+            for (; mv_x + 3 * search_step <= max_cmv_x; mv_x += 4 * search_step) {
+                u32 sad[4];
+
+                uavs3e_funs_handle.cost_sad_x4[widx](org, i_org, r + mv_x, 
+                                                                 r + mv_x + search_step,
+                                                                 r + mv_x + search_step * 2,
+                                                                 r + mv_x + search_step * 3, i_ref, sad, h);
+            
+                u64 cost0 = (cost_mvy + (*pcmvx++)) + ((u64)sad[0] << shift);
+                u64 cost1 = (cost_mvy + (*pcmvx++)) + ((u64)sad[1] << shift);
+                u64 cost2 = (cost_mvy + (*pcmvx++)) + ((u64)sad[2] << shift);
+                u64 cost3 = (cost_mvy + (*pcmvx++)) + ((u64)sad[3] << shift);
+
+                if (cost0 < *cost_best) { mv[0] = mv_x,                   mv[1] = mv_y, *cost_best = cost0; }
+                if (cost1 < *cost_best) { mv[0] = mv_x + search_step,     mv[1] = mv_y, *cost_best = cost1; }
+                if (cost2 < *cost_best) { mv[0] = mv_x + search_step * 2, mv[1] = mv_y, *cost_best = cost2; }
+                if (cost3 < *cost_best) { mv[0] = mv_x + search_step * 3, mv[1] = mv_y, *cost_best = cost3; }
+            }
+
+            if (mv_x + 2 * search_step <= max_cmv_x) {
                 u32 sad[3];
                 uavs3e_funs_handle.cost_sad_x3[widx](org, i_org, r + mv_x, 
                                                                  r + mv_x + search_step,
                                                                  r + mv_x + search_step * 2, i_ref, sad, h);
             
-                u64 cost0 = cost_mvy + (*pcmvx++) + ((u64)sad[0] << shift);
-                u64 cost1 = cost_mvy + (*pcmvx++) + ((u64)sad[1] << shift);
-                u64 cost2 = cost_mvy + (*pcmvx++) + ((u64)sad[2] << shift);
+                u64 cost0 = (cost_mvy + (*pcmvx++)) + ((u64)sad[0] << shift);
+                u64 cost1 = (cost_mvy + (*pcmvx++)) + ((u64)sad[1] << shift);
+                u64 cost2 = (cost_mvy + (*pcmvx++)) + ((u64)sad[2] << shift);
             
                 if (cost0 < *cost_best) { mv[0] = mv_x,                   mv[1] = mv_y, *cost_best = cost0; }
                 if (cost1 < *cost_best) { mv[0] = mv_x + search_step,     mv[1] = mv_y, *cost_best = cost1; }
                 if (cost2 < *cost_best) { mv[0] = mv_x + search_step * 2, mv[1] = mv_y, *cost_best = cost2; }
+
+                mv_x += 3 * search_step;
             }
 
             for (; mv_x <= max_cmv_x; mv_x += search_step) {
-                u64 cost = cost_mvy + (*pcmvx++) + block_pel_sad(widx, h, shift, org, r + mv_x, i_org, i_ref);
+                u64 cost = (cost_mvy + (*pcmvx++)) + block_pel_sad(widx, h, shift, org, r + mv_x, i_org, i_ref);
 
                 if (cost < *cost_best) {
                     mv[MV_X] = mv_x;
@@ -198,13 +219,13 @@ static int search_diamond(inter_search_t *pi, int x, int y, int w, int h, s8 ref
 
     /* 2. try core squre */
     if (max_step) {
-        u64 cost_mvx[13];
-        u64* pcmvx = cost_mvx;
+        u32 cost_mvx[13];
+        u32* pcmvx = cost_mvx;
         for (s16 mv_x = min_cmv_x; mv_x <= max_cmv_x; mv_x += core_step) {
             *pcmvx++ = GET_MVBITS_IPEL_X(mv_x) * lambda_mv;
         }
         for (s16 mv_y = min_cmv_y; mv_y <= max_cmv_y; mv_y += core_step) {
-            u64 cost_mvy = GET_MVBITS_IPEL_Y(mv_y) * lambda_mv;
+            u32 cost_mvy = GET_MVBITS_IPEL_Y(mv_y) * lambda_mv;
             pel *p = ref + mv_y * i_ref;
             pcmvx = cost_mvx;
 

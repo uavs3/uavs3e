@@ -301,6 +301,8 @@ typedef struct uavs3e_funs_handle_t {
 
     u32 (*cost_sad   [CU_SIZE_NUM])(pel *p_org, int i_org, pel *p_pred, int i_pred, int height);
     void(*cost_sad_x3[CU_SIZE_NUM])(pel *p_org, int i_org, pel *pred0, pel *pred1, pel *pred2, int i_pred, u32 sad[3], int height);
+    void(*cost_sad_x4[CU_SIZE_NUM])(pel *p_org, int i_org, pel *pred0, pel *pred1, pel *pred2, pel *pred3, int i_pred, u32 sad[4], int height);
+
     u64 (*cost_ssd   [CU_SIZE_NUM])(pel *p_org, int i_org, pel *p_pred, int i_pred, int height);
 
     u32 (*cost_satd[3][3])(pel *p_org, int i_org, pel *p_pred, int i_pred);

@@ -65,6 +65,36 @@ DEFINE_SAD_X3(32)
 DEFINE_SAD_X3(64)
 DEFINE_SAD_X3(128)
 
+#define DEFINE_SAD_X4(w) \
+static void com_get_sad_x4_##w(pel *p_org, int i_org, pel *pred0, pel *pred1, pel *pred2, pel *pred3,    \
+                                                                  int i_pred, u32 sad[4], int height) {  \
+    u32 uiSum0 = 0, uiSum1 = 0, uiSum2 = 0, uiSum3 = 0;                                                  \
+    while (height--) {                                                                                   \
+        for (int i = 0; i < w; i++) {                                                                    \
+            uiSum0 += abs(p_org[i] - pred0[i]);                                                          \
+            uiSum1 += abs(p_org[i] - pred1[i]);                                                          \
+            uiSum2 += abs(p_org[i] - pred2[i]);                                                          \
+            uiSum3 += abs(p_org[i] - pred3[i]);                                                          \
+        }                                                                                                \
+        p_org += i_org;                                                                                  \
+        pred0 += i_pred;                                                                                 \
+        pred1 += i_pred;                                                                                 \
+        pred2 += i_pred;                                                                                 \
+        pred3 += i_pred;                                                                                 \
+    }                                                                                                    \
+    sad[0] = uiSum0;                                                                                     \
+    sad[1] = uiSum1;                                                                                     \
+    sad[2] = uiSum2;                                                                                     \
+    sad[3] = uiSum3;                                                                                     \
+}
+
+DEFINE_SAD_X4(4)
+DEFINE_SAD_X4(8)
+DEFINE_SAD_X4(16)
+DEFINE_SAD_X4(32)
+DEFINE_SAD_X4(64)
+DEFINE_SAD_X4(128)
+
 #define DEFINE_SSD(w) \
     u64 com_get_ssd_##w(pel *p_org, int i_org, pel *p_pred, int i_pred, int height) { \
         int i;                                                                        \
@@ -755,6 +785,13 @@ void uavs3e_funs_init_cost_c()
     uavs3e_funs_handle.cost_sad_x3[3] = com_get_sad_x3_32;
     uavs3e_funs_handle.cost_sad_x3[4] = com_get_sad_x3_64;
     uavs3e_funs_handle.cost_sad_x3[5] = com_get_sad_x3_128;
+
+    uavs3e_funs_handle.cost_sad_x4[0] = com_get_sad_x4_4;
+    uavs3e_funs_handle.cost_sad_x4[1] = com_get_sad_x4_8;
+    uavs3e_funs_handle.cost_sad_x4[2] = com_get_sad_x4_16;
+    uavs3e_funs_handle.cost_sad_x4[3] = com_get_sad_x4_32;
+    uavs3e_funs_handle.cost_sad_x4[4] = com_get_sad_x4_64;
+    uavs3e_funs_handle.cost_sad_x4[5] = com_get_sad_x4_128;
 
     uavs3e_funs_handle.cost_ssd[0] = com_get_ssd_4;
     uavs3e_funs_handle.cost_ssd[1] = com_get_ssd_8;

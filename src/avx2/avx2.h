@@ -216,6 +216,13 @@ void uavs3e_get_sad_x3_32_avx2(pel *p_org, int i_org, pel *p_pred0, pel *pred1, 
 void uavs3e_get_sad_x3_64_avx2(pel *p_org, int i_org, pel *p_pred0, pel *pred1, pel *pred2, int i_pred, u32 sad[3], int height);
 void uavs3e_get_sad_x3_128_avx2(pel *p_org, int i_org, pel *p_pred0, pel *pred1, pel *pred2, int i_pred, u32 sad[3], int height);
 
+void uavs3e_get_sad_x4_4_avx2(pel *p_org, int i_org, pel *p_pred0, pel *pred1, pel *pred2, pel *pred3, int i_pred, u32 sad[4], int height);
+void uavs3e_get_sad_x4_8_avx2(pel *p_org, int i_org, pel *p_pred0, pel *pred1, pel *pred2, pel *pred3, int i_pred, u32 sad[4], int height);
+void uavs3e_get_sad_x4_16_avx2(pel *p_org, int i_org, pel *p_pred0, pel *pred1, pel *pred2, pel *pred3, int i_pred, u32 sad[4], int height);
+void uavs3e_get_sad_x4_32_avx2(pel *p_org, int i_org, pel *p_pred0, pel *pred1, pel *pred2, pel *pred3, int i_pred, u32 sad[4], int height);
+void uavs3e_get_sad_x4_64_avx2(pel *p_org, int i_org, pel *p_pred0, pel *pred1, pel *pred2, pel *pred3, int i_pred, u32 sad[4], int height);
+void uavs3e_get_sad_x4_128_avx2(pel *p_org, int i_org, pel *p_pred0, pel *pred1, pel *pred2, pel *pred3, int i_pred, u32 sad[4], int height);
+
 u64 uavs3e_get_ssd_4_avx2(pel *p_org, int i_org, pel *p_pred, int i_pred, int height);
 u64 uavs3e_get_ssd_8_avx2(pel *p_org, int i_org, pel *p_pred, int i_pred, int height);
 u64 uavs3e_get_ssd_16_avx2(pel *p_org, int i_org, pel *p_pred, int i_pred, int height);
