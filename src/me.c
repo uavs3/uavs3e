@@ -80,7 +80,6 @@ static void search_raster(inter_search_t *pi, int x, int y, int w, int h, s8 ref
             max_cmv_y = COM_MIN(mv[MV_Y] + search_step, pi->max_mv[MV_Y]);
         }
 
-        pel* r = ref + min_cmv_y * i_ref;
         u32 cost_mvx[(SEARCH_RANGE_IPEL_RA * 2 + 1) / 5 + 1];
         u32* pcmvx = cost_mvx;
 
@@ -88,57 +87,38 @@ static void search_raster(inter_search_t *pi, int x, int y, int w, int h, s8 ref
             *pcmvx++ = GET_MVBITS_IPEL_X(mv_x) * lambda_mv;
         }
         for (s16 mv_y = min_cmv_y; mv_y <= max_cmv_y; mv_y += search_step) {
+            pel* p = ref + mv_y * i_ref;
             u32 cost_mvy = GET_MVBITS_IPEL_Y(mv_y) * lambda_mv;
             s16 mv_x = min_cmv_x;
+            u32 sad[4];
+
             pcmvx = cost_mvx;
 
             for (; mv_x + 3 * search_step <= max_cmv_x; mv_x += 4 * search_step) {
-                u32 sad[4];
-
-                uavs3e_funs_handle.cost_sad_x4[widx](org, i_org, r + mv_x, 
-                                                                 r + mv_x + search_step,
-                                                                 r + mv_x + search_step * 2,
-                                                                 r + mv_x + search_step * 3, i_ref, sad, h);
-            
+                uavs3e_funs_handle.cost_sad_x4[widx](org, i_org, p + mv_x, p + mv_x + search_step, p + mv_x + search_step * 2, p + mv_x + search_step * 3, i_ref, sad, h);
                 u64 cost0 = (cost_mvy + (*pcmvx++)) + ((u64)sad[0] << shift);
                 u64 cost1 = (cost_mvy + (*pcmvx++)) + ((u64)sad[1] << shift);
                 u64 cost2 = (cost_mvy + (*pcmvx++)) + ((u64)sad[2] << shift);
                 u64 cost3 = (cost_mvy + (*pcmvx++)) + ((u64)sad[3] << shift);
-
                 if (cost0 < *cost_best) { mv[0] = mv_x,                   mv[1] = mv_y, *cost_best = cost0; }
                 if (cost1 < *cost_best) { mv[0] = mv_x + search_step,     mv[1] = mv_y, *cost_best = cost1; }
                 if (cost2 < *cost_best) { mv[0] = mv_x + search_step * 2, mv[1] = mv_y, *cost_best = cost2; }
                 if (cost3 < *cost_best) { mv[0] = mv_x + search_step * 3, mv[1] = mv_y, *cost_best = cost3; }
             }
-
             if (mv_x + 2 * search_step <= max_cmv_x) {
-                u32 sad[3];
-                uavs3e_funs_handle.cost_sad_x3[widx](org, i_org, r + mv_x, 
-                                                                 r + mv_x + search_step,
-                                                                 r + mv_x + search_step * 2, i_ref, sad, h);
-            
+                uavs3e_funs_handle.cost_sad_x3[widx](org, i_org, p + mv_x, p + mv_x + search_step, p + mv_x + search_step * 2, i_ref, sad, h);
                 u64 cost0 = (cost_mvy + (*pcmvx++)) + ((u64)sad[0] << shift);
                 u64 cost1 = (cost_mvy + (*pcmvx++)) + ((u64)sad[1] << shift);
                 u64 cost2 = (cost_mvy + (*pcmvx++)) + ((u64)sad[2] << shift);
-            
                 if (cost0 < *cost_best) { mv[0] = mv_x,                   mv[1] = mv_y, *cost_best = cost0; }
                 if (cost1 < *cost_best) { mv[0] = mv_x + search_step,     mv[1] = mv_y, *cost_best = cost1; }
                 if (cost2 < *cost_best) { mv[0] = mv_x + search_step * 2, mv[1] = mv_y, *cost_best = cost2; }
-
                 mv_x += 3 * search_step;
             }
-
             for (; mv_x <= max_cmv_x; mv_x += search_step) {
-                u64 cost = (cost_mvy + (*pcmvx++)) + block_pel_sad(widx, h, shift, org, r + mv_x, i_org, i_ref);
-
-                if (cost < *cost_best) {
-                    mv[MV_X] = mv_x;
-                    mv[MV_Y] = mv_y;
-                    *cost_best = cost;
-                }
+                u64 cost = (cost_mvy + (*pcmvx++)) + block_pel_sad(widx, h, shift, org, p + mv_x, i_org, i_ref);
+                if (cost < *cost_best) { mv[MV_X] = mv_x; mv[MV_Y] = mv_y; *cost_best = cost; }
             }
-            
-            r += search_step * i_ref;
         }
         search_step >>= 1;
 
@@ -187,8 +167,6 @@ static int search_diamond(inter_search_t *pi, int x, int y, int w, int h, s8 ref
     const s16 center_x = mv[MV_X];
     const s16 center_y = mv[MV_Y];
     const int widx     = CONV_LOG2(w) - 2;
-    s16 mv_best_x      = center_x;
-    s16 mv_best_y      = center_y;
 
     if (pi->curr_mvr > 2) {
         core_size += bi;
@@ -211,8 +189,8 @@ static int search_diamond(inter_search_t *pi, int x, int y, int w, int h, s8 ref
     u64 cost = block_pel_sad(widx, h, shift, org, p, i_org, i_ref) + (GET_MVBITS_IPEL_Y(center_y) + GET_MVBITS_IPEL_X(center_x)) * lambda_mv;
 
     if (cost < *cost_best) {
-        mv_best_x = center_x;
-        mv_best_y = center_y;
+        mv[MV_X] = center_x;
+        mv[MV_Y] = center_y;
         best_step = 0;
         *cost_best = cost;
     }
@@ -227,25 +205,42 @@ static int search_diamond(inter_search_t *pi, int x, int y, int w, int h, s8 ref
         for (s16 mv_y = min_cmv_y; mv_y <= max_cmv_y; mv_y += core_step) {
             u32 cost_mvy = GET_MVBITS_IPEL_Y(mv_y) * lambda_mv;
             pel *p = ref + mv_y * i_ref;
+            s16 mv_x = min_cmv_x;
+            u32 sad[4];
+
             pcmvx = cost_mvx;
 
-            for (s16 mv_x = min_cmv_x; mv_x <= max_cmv_x; mv_x += core_step, pcmvx++) {
-                if (mv_x != center_x || mv_y != center_y) {
-                    u64 cost = cost_mvy + (*pcmvx) + block_pel_sad(widx, h, shift, org, p + mv_x, i_org, i_ref);
-
-                    if (cost < *cost_best) {
-                        mv_best_x = mv_x;
-                        mv_best_y = mv_y;
-                        best_step = 2;
-                        *cost_best = cost;
-                    }
-                }
+            for (; mv_x + 3 * core_step <= max_cmv_x; mv_x += 4 * core_step) {
+                uavs3e_funs_handle.cost_sad_x4[widx](org, i_org, p + mv_x, p + mv_x + core_step, p + mv_x + core_step * 2, p + mv_x + core_step * 3, i_ref, sad, h);
+                u64 cost0 = (cost_mvy + (*pcmvx++)) + ((u64)sad[0] << shift);
+                u64 cost1 = (cost_mvy + (*pcmvx++)) + ((u64)sad[1] << shift);
+                u64 cost2 = (cost_mvy + (*pcmvx++)) + ((u64)sad[2] << shift);
+                u64 cost3 = (cost_mvy + (*pcmvx++)) + ((u64)sad[3] << shift);
+                if (cost0 < *cost_best) { mv[0] = mv_x,                 mv[1] = mv_y, *cost_best = cost0; }
+                if (cost1 < *cost_best) { mv[0] = mv_x + core_step,     mv[1] = mv_y, *cost_best = cost1; }
+                if (cost2 < *cost_best) { mv[0] = mv_x + core_step * 2, mv[1] = mv_y, *cost_best = cost2; }
+                if (cost3 < *cost_best) { mv[0] = mv_x + core_step * 3, mv[1] = mv_y, *cost_best = cost3; }
+            }
+            if (mv_x + 2 * core_step <= max_cmv_x) {
+                uavs3e_funs_handle.cost_sad_x3[widx](org, i_org, p + mv_x, p + mv_x + core_step, p + mv_x + core_step * 2, i_ref, sad, h);
+                u64 cost0 = (cost_mvy + (*pcmvx++)) + ((u64)sad[0] << shift);
+                u64 cost1 = (cost_mvy + (*pcmvx++)) + ((u64)sad[1] << shift);
+                u64 cost2 = (cost_mvy + (*pcmvx++)) + ((u64)sad[2] << shift);
+                if (cost0 < *cost_best) { mv[0] = mv_x,                 mv[1] = mv_y, *cost_best = cost0; }
+                if (cost1 < *cost_best) { mv[0] = mv_x + core_step,     mv[1] = mv_y, *cost_best = cost1; }
+                if (cost2 < *cost_best) { mv[0] = mv_x + core_step * 2, mv[1] = mv_y, *cost_best = cost2; }
+                mv_x += 3 * core_step;
+            }
+            for (; mv_x <= max_cmv_x; mv_x += core_step, pcmvx++) {
+                u64 cost = cost_mvy + (*pcmvx) + block_pel_sad(widx, h, shift, org, p + mv_x, i_org, i_ref);
+                if (cost < *cost_best) { mv[0] = mv_x; mv[1] = mv_y; *cost_best = cost; }
             }
         }
     }
 
-    mv[MV_X] = mv_best_x;
-    mv[MV_Y] = mv_best_y;
+    if (mv[0] != center_x || mv[1] != center_y) {
+        best_step = 2;
+    }
 
     if (bi) {
         return best_step;
@@ -274,17 +269,14 @@ static int search_diamond(inter_search_t *pi, int x, int y, int w, int h, s8 ref
                 u64 cost = block_pel_sad(widx, h, shift, org, ref + mv_x + mv_y * i_ref, i_org, i_ref) + (GET_MVBITS_IPEL_X(mv_x) + GET_MVBITS_IPEL_Y(mv_y)) * lambda_mv;
 
                 if (cost < *cost_best) {
-                    mv_best_x = mv_x;
-                    mv_best_y = mv_y;
+                    mv[MV_X] = mv_x;
+                    mv[MV_Y] = mv_y;
                     best_step = step;
                     *cost_best = cost;
                 }
             }
         }
     }
-
-    mv[MV_X] = mv_best_x;
-    mv[MV_Y] = mv_best_y;
 
     return best_step;
 }
@@ -414,7 +406,9 @@ u64 me_search_tz(inter_search_t *pi, int x, int y, int w, int h, int pic_width, 
         }
         search_diamond(pi, x, y, w, h, refi, lidx, mvp, mv, &cost_best, bi, MAX_REFINE_SEARCH_STEP);
     }
-
+    if (!bi) {
+        CP32(pi->mv_ipel, mv);
+    }
     mv[0] <<= 2, mv[1] <<= 2;
 
     if (pi->curr_mvr < 2) {

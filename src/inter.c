@@ -2000,20 +2000,14 @@ void analyze_inter_cu(core_t *core, lbac_t *sbac_best)
             }
 
             if (cur_info->hmvp_flag) {
-                if (cur_info->mvr_idx >= SKIP_MVR_IDX + 1 && (bst_info->cu_mode == MODE_SKIP)) {
+                if (cur_info->mvr_idx > 1 && (bst_info->cu_mode == MODE_SKIP)) {
                     break;
                 }
-            } else if (cur_info->mvr_idx >= SKIP_MVR_IDX && ((bst_info->cu_mode == MODE_SKIP || bst_info->cu_mode == MODE_DIR))) {
+            } else if (cur_info->mvr_idx && ((bst_info->cu_mode == MODE_SKIP || bst_info->cu_mode == MODE_DIR))) {
                 break;
             }
-
-            if (cur_info->mvr_idx >= FAST_MVR_IDX) {
-                if (abs(bst_info->mvd[REFP_0][MV_X]) <= 0 &&
-                abs(bst_info->mvd[REFP_0][MV_Y]) <= 0 &&
-                abs(bst_info->mvd[REFP_1][MV_X]) <= 0 &&
-                abs(bst_info->mvd[REFP_1][MV_Y]) <= 0) {
-                    break;
-                }
+            if (cur_info->mvr_idx > 1 && M32(bst_info->mvd[REFP_0]) == 0 && M32(bst_info->mvd[REFP_1]) == 0) {
+                break;
             }
         }
     }

@@ -245,6 +245,9 @@ void uavs3e_get_sad_x4_4_avx2(pel *p_org, int i_org, pel *p_pred0, pel *p_pred1,
         sum0 = _mm256_add_epi64(sum0, t0);
         sum1 = _mm256_add_epi64(sum1, t1);
 
+        if (height == 0) {
+            goto End;
+        }
         p_org   += i_org << 2;
         p_pred0 += i_pred << 2;
         p_pred1 += i_pred << 2;
@@ -252,6 +255,7 @@ void uavs3e_get_sad_x4_4_avx2(pel *p_org, int i_org, pel *p_pred0, pel *p_pred1,
         p_pred3 += i_pred << 2;
     }
 
+End:
     sad[0] = (u32)(_mm256_extract_epi32(sum0, 4) + _mm256_extract_epi32(sum0, 6));
     sad[1] = (u32)(_mm256_extract_epi32(sum0, 0) + _mm256_extract_epi32(sum0, 2));
     sad[2] = (u32)(_mm256_extract_epi32(sum1, 4) + _mm256_extract_epi32(sum1, 6));
@@ -281,13 +285,16 @@ void uavs3e_get_sad_x4_8_avx2(pel *p_org, int i_org, pel *p_pred0, pel *p_pred1,
         sum0 = _mm256_add_epi64(sum0, S0);
         sum1 = _mm256_add_epi64(sum1, S1);
 
+        if (height == 0) {
+            goto End;
+        }
         p_org   += i_org2;
         p_pred0 += i_pred2;
         p_pred1 += i_pred2;
         p_pred2 += i_pred2;
         p_pred3 += i_pred2;
     }
-
+End:
     sad[0] = (u32)(_mm256_extract_epi32(sum0, 4) + _mm256_extract_epi32(sum0, 6));
     sad[1] = (u32)(_mm256_extract_epi32(sum0, 0) + _mm256_extract_epi32(sum0, 2));
     sad[2] = (u32)(_mm256_extract_epi32(sum1, 4) + _mm256_extract_epi32(sum1, 6));

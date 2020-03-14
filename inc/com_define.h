@@ -96,8 +96,6 @@
 /************************* AMVR ************************************************/
 #define MAX_NUM_MVR                        5  /* 0 (1/4-pel) ~ 4 (4-pel) */
 #define MAX_NUM_AFFINE_MVR                 3
-#define FAST_MVR_IDX                       2
-#define SKIP_MVR_IDX                       1
 
 /************************* DEBLOCK ************************************************/
 #define EDGE_TYPE_LUMA                     0x1
