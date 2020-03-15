@@ -380,9 +380,6 @@ static int get_max_search_range(inter_search_t *pi, const s16 mvp[2], int x, int
 
 u64 me_search_tz(inter_search_t *pi, int x, int y, int w, int h, int pic_width, int pic_height, s8 refi, int lidx, const s16 mvp[MV_D], s16 mv[MV_D], int bi)
 {
-    s16 range[MV_RANGE_DIM][MV_D];
-    com_pic_t *ref_pic = pi->refp[refi][lidx].pic;
-
     if (!get_max_search_range(pi, mvp, x, y, pic_width, pic_height)) {
         return COM_UINT64_MAX;
     }
@@ -401,6 +398,9 @@ u64 me_search_tz(inter_search_t *pi, int x, int y, int w, int h, int pic_width, 
     if (!bi && (abs(mvp[MV_X] - (mv[MV_X] << 2)) > 2 || abs(mvp[MV_Y] - (mv[MV_Y] << 2)) > 2)) {
         if (best_step > RASTER_SEARCH_THD) {
             int mvr = pi->curr_mvr;
+            s16 range[MV_RANGE_DIM][MV_D];
+            com_pic_t *ref_pic = pi->refp[refi][lidx].pic;
+
             get_raster_range(pi, ref_pic, mv, range, COM_ABS((int)(pi->ptr - ref_pic->ptr)), mvr);
             search_raster(pi, x, y, w, h, refi, lidx, range, mvp, mv, &cost_best);
         }

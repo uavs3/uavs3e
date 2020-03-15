@@ -52,10 +52,10 @@
 #endif
 
 enc_cfg_t   cfg;
-static char fn_cfg[256] = "\0";
-static char fn_input[256] = "\0";
+static char fn_cfg   [256] = "\0";
+static char fn_input [256] = "\0";
 static char fn_output[256] = "\0";
-static char fn_rec[256] = "\0";
+static char fn_rec   [256] = "\0";
 static int  max_frames = 0;
 static int  t_ds_ratio = 1;
 static int  g_loglevel = LOG_LEVEL_1;
@@ -63,7 +63,7 @@ static int  frame_to_be_encoded;
 
 static app_cfg_t options[] = {
     {
-        CFG_KEY_NULL, "config", CFG_TYPE_STRING,
+        'c', "config", CFG_TYPE_STRING,
         fn_cfg,
         "file name of configuration"
         ,0 
@@ -139,7 +139,7 @@ static app_cfg_t options[] = {
         ,0 
     },
     {
-        'd',  "input_bit_depth", CFG_TYPE_INTEGER,
+        'd',  "input_bit_depth", CFG_TYPE_INTEGER | CFG_TYPE_MANDATORY,
         &cfg.bit_depth_input,
         "input bitdepth (8(default), 10) "
         ,0 
@@ -180,6 +180,13 @@ static app_cfg_t options[] = {
         "qp offset for cr, disable:0 (default)"
         ,0 
     },
+    {
+        CFG_KEY_NULL,  "speed_level", CFG_TYPE_INTEGER,
+        &cfg.speed_level,
+        "Level of coding speed"
+        ,0 
+    },
+
     {
         CFG_KEY_NULL,  "wpp_threads", CFG_TYPE_INTEGER,
         &cfg.wpp_threads,
@@ -904,14 +911,12 @@ void enc_cfg_init(enc_cfg_t *cfg)
 {
     memset(cfg, 0, sizeof(enc_cfg_t));
 
-    cfg->qp                  =  23;
-    cfg->fps_num             =  50;
-    cfg->fps_den             =   1;
-    cfg->i_period            =  48;
-    cfg->bit_depth_input     =   8;
+    cfg->qp                  =  34;
+    cfg->i_period            =  32;
     cfg->bit_depth_internal  =   8;
-    cfg->use_pic_sign        =   0;
+    cfg->use_pic_sign        =   1;
     cfg->max_b_frames        =  15;
+    cfg->close_gop           =   0;
     cfg->amvr_enable         =   1;
     cfg->affine_enable       =   1;
     cfg->smvd_enable         =   1;
@@ -931,6 +936,8 @@ void enc_cfg_init(enc_cfg_t *cfg)
     cfg->chroma_format       =   1;
     cfg->filter_cross_patch  =   1;
     cfg->colocated_patch     =   0;
+    cfg->patch_width         =   0;
+    cfg->patch_height        =   0;
     cfg->ctu_size            = 128;
     cfg->min_cu_size         =   4;
     cfg->max_part_ratio      =   8;
@@ -941,6 +948,7 @@ void enc_cfg_init(enc_cfg_t *cfg)
     cfg->max_dt_size         =  64;
     cfg->qp_offset_cb        =   0;
     cfg->qp_offset_cr        =   0;
+    cfg->speed_level         =   0;
     cfg->wpp_threads         =   1;
     cfg->frm_threads         =   1;
     cfg->rc_type             =   0;
@@ -986,7 +994,7 @@ int main(int argc, const char **argv)
     if (strlen(fn_output) != 0) {
         fpo = fopen(fn_output, "wb");
         if (fpo == NULL) {
-            print_log(0, "cannot open stream file (%s)\n", fn_input);
+            print_log(0, "cannot open stream file (%s)\n", fn_output);
             print_usage();
             return -1;
         }
@@ -1000,7 +1008,11 @@ int main(int argc, const char **argv)
         }
     }
 
-    frame_to_be_encoded = (max_frames + t_ds_ratio - 1) / t_ds_ratio;
+    if (max_frames) {
+        frame_to_be_encoded = (max_frames + t_ds_ratio - 1) / t_ds_ratio;
+    } else {
+        frame_to_be_encoded = -1;
+    }
 
     /* create encoder */
     h = uavs3e_create(&cfg, NULL);
@@ -1098,7 +1110,10 @@ int main(int argc, const char **argv)
     }
 
     char end_code[4] = { 0, 0, 1, 0xB1 };
-    fwrite(end_code, 1, 4, fpo);
+
+    if (fpo) {
+        fwrite(end_code, 1, 4, fpo);
+    }
 
     print_log(1, "===============================================================================\n");
     psnr_avg[0] /= frame_cnt;

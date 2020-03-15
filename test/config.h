@@ -250,7 +250,8 @@ static int app_parse_all(int argc, const char *argv[], app_cfg_t *ops)
         if (o->val_type & CFG_TYPE_MANDATORY) {
             if (o->flag == 0) {
                 /* not filled all mandatory argument */
-                return o->key;
+                printf("%s[-%c] is mandatory!\n", o->key_long, o->key);
+                return -1;
             }
         }
         o++;

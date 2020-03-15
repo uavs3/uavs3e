@@ -116,6 +116,7 @@ typedef struct uavs3e_enc_cfg_t {
     int            qp_offset_cb;
     int            qp_offset_cr;
 
+    int            speed_level;
     int            wpp_threads;
     int            frm_threads;
 
