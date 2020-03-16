@@ -23,6 +23,8 @@
 #include "uavs3e.h"
 #include "bitstream.h"
 
+#define SPEED_LEVEL(x, p) ((p) >= (x))
+
 #define MAX_BS_BUF                        (32*1024*1024)
 #define RDO_WITH_DBLOCK                            1 // include DBK changes to luma samples into distortion
 #define DT_INTRA_BOUNDARY_FILTER_OFF        1 ///< turn off boundary filter if intra DT is ON
@@ -117,6 +119,7 @@ typedef struct uavs3e_enc_inter_data_t {
     u8  *tab_mvbits;
     int  tab_mvbits_offset;
 
+    int fast_me;
 } inter_search_t;
 
 typedef struct uavs3e_lbac_t {

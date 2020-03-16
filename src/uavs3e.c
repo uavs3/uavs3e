@@ -863,6 +863,8 @@ void *enc_pic_thread(enc_pic_t *ep, pic_thd_param_t *p)
     } else {
         if (pic_org->layer_id < 3) {
             uavs3e_threadpool_set_priority(ep->wpp_threads_pool, THREAD_PRIORITY_HIGHEST);
+        } else if (pic_org->b_ref == 0) {
+            uavs3e_threadpool_set_priority(ep->wpp_threads_pool, THREAD_PRIORITY_LOWEST);
         }
         for (int lcu_y = 0; lcu_y < info->pic_height_in_lcu; lcu_y++) {
             enc_lcu_row_t *row = &ep->array_row[lcu_y];
@@ -878,9 +880,7 @@ void *enc_pic_thread(enc_pic_t *ep, pic_thd_param_t *p)
             uavs3e_threadpool_wait(ep->wpp_threads_pool, row);
             p->total_qp += row->total_qp;
         }
-        if (pic_org->layer_id < 3) {
-            uavs3e_threadpool_set_priority(ep->wpp_threads_pool, THREAD_PRIORITY_NORMAL);
-        }
+        uavs3e_threadpool_set_priority(ep->wpp_threads_pool, THREAD_PRIORITY_NORMAL);
     }
     printf("\n");
 

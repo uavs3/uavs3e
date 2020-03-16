@@ -43,8 +43,48 @@ static void com_mv_mvr_check(s16* mv, int mvr)
     }
 }
 
-static void search_raster(inter_search_t *pi, int x, int y, int w, int h, s8 refi, int lidx, s16 range[MV_RANGE_DIM][MV_D], const s16 mvp[MV_D], s16 mv[MV_D], u64 *cost_best)
+static void get_raster_range(inter_search_t *pi, int lidx, int refi, s16 center[MV_D], s16 range[MV_RANGE_DIM][MV_D], int search_step)
 {
+    com_pic_t *ref_pic = pi->refp[refi][lidx].pic;
+    int mvr = pi->curr_mvr;
+    int dist = COM_ABS((int)(pi->ptr - ref_pic->ptr));
+    int max_sr = pi->max_search_range >> COM_MAX(3 - mvr, 0);
+    int range_xy = COM_CLIP3(max_sr >> 2, max_sr, (max_sr * dist + (pi->gop_size >> 1)) / pi->gop_size);
+    int range_x = range_xy;
+    int range_y = range_xy;
+
+    if (mvr && pi->fast_me) {
+        range_x = COM_ABS(pi->mv_ipel[lidx][refi][0] - center[0]) * 4;
+        range_y = COM_ABS(pi->mv_ipel[lidx][refi][1] - center[1]) * 4;
+        range_x = COM_MAX(range_x, max_sr >> 2);
+        range_y = COM_MAX(range_y, max_sr >> 2);
+        range_x = COM_MIN(range_x, range_xy);
+        range_y = COM_MIN(range_y, range_xy);
+    }
+
+    if (mvr > 2) {
+        int shift = mvr - 2;
+        range_x = (range_x >> shift) << shift;
+        range_y = (range_y >> shift) << shift;
+    }
+
+    /* define search range for int-pel search and clip it if needs */
+    range[MV_RANGE_MIN][MV_X] = COM_CLIP3(pi->min_mv[MV_X], pi->max_mv[MV_X], center[MV_X] - (s16)range_x);
+    range[MV_RANGE_MAX][MV_X] = COM_CLIP3(pi->min_mv[MV_X], pi->max_mv[MV_X], center[MV_X] + (s16)range_x);
+    range[MV_RANGE_MIN][MV_Y] = COM_CLIP3(pi->min_mv[MV_Y], pi->max_mv[MV_Y], center[MV_Y] - (s16)range_y);
+    range[MV_RANGE_MAX][MV_Y] = COM_CLIP3(pi->min_mv[MV_Y], pi->max_mv[MV_Y], center[MV_Y] + (s16)range_y);
+
+    com_assert(range[MV_RANGE_MIN][MV_X] <= range[MV_RANGE_MAX][MV_X]);
+    com_assert(range[MV_RANGE_MIN][MV_Y] <= range[MV_RANGE_MAX][MV_Y]);
+}
+
+
+static void search_raster(inter_search_t *pi, int x, int y, int w, int h, s8 refi, int lidx, const s16 mvp[MV_D], s16 mv[MV_D], u64 *cost_best)
+{
+    static const int step_base[5] = { 5, 5, 5, 6, 8 };
+    static const int step_min[5] = { 1, 1, 1, 2, 4 };
+    s16 range[MV_RANGE_DIM][MV_D];
+
     int bit_depth      = pi->bit_depth;
     int i_org          = pi->i_org;
     pel *org           = pi->org;
@@ -56,13 +96,12 @@ static void search_raster(inter_search_t *pi, int x, int y, int w, int h, s8 ref
     int i_ref          = ref_pic->stride_luma;
     pel *ref           = ref_pic->y + y * i_ref + x;
     int shift          = 16 - (bit_depth - 8); // sad << 16 for u64 cost
+    const int widx     = CONV_LOG2(w) - 2;
+    int search_step    = COM_MAX(step_base[pi->curr_mvr], COM_MIN(w >> 1, h >> 1)) * (refi + 1);
+    int round          = 0;
+    int step_shift     = pi->curr_mvr - 2;
 
-    static const int step_base[5] = { 5, 5, 5, 6, 8 };
-    static const int step_min [5] = { 1, 1, 1, 2, 4 };
-    const int widx  = CONV_LOG2(w) - 2;
-    int search_step = COM_MAX(step_base[pi->curr_mvr], COM_MIN(w >> 1, h >> 1)) * (refi + 1);
-    int round = 0;
-    int step_shift = pi->curr_mvr - 2;
+    get_raster_range(pi, lidx, refi, mv, range, search_step);
 
     while (search_step >= step_min[pi->curr_mvr]) {
         s16 min_cmv_x, min_cmv_y;
@@ -126,26 +165,6 @@ static void search_raster(inter_search_t *pi, int x, int y, int w, int h, s8 ref
             search_step = (search_step >> step_shift) << step_shift;
         }
     }
-}
-
-static void get_raster_range(inter_search_t *pi, com_pic_t *ref_pic, s16 center[MV_D], s16 range[MV_RANGE_DIM][MV_D], int dist, int mvr)
-{
-    int max_sr = pi->max_search_range >> COM_MAX(3 - mvr, 0);
-    int range_xy = COM_CLIP3(max_sr >> 2, max_sr, (max_sr * dist + (pi->gop_size >> 1)) / pi->gop_size);
-
-    if (mvr > 2) {
-        int shift = mvr - 2;
-        range_xy = (range_xy >> shift) << shift;
-    }
-
-    /* define search range for int-pel search and clip it if needs */
-    range[MV_RANGE_MIN][MV_X] = COM_CLIP3(pi->min_mv[MV_X], pi->max_mv[MV_X], center[MV_X] - (s16)range_xy);
-    range[MV_RANGE_MAX][MV_X] = COM_CLIP3(pi->min_mv[MV_X], pi->max_mv[MV_X], center[MV_X] + (s16)range_xy);
-    range[MV_RANGE_MIN][MV_Y] = COM_CLIP3(pi->min_mv[MV_Y], pi->max_mv[MV_Y], center[MV_Y] - (s16)range_xy);
-    range[MV_RANGE_MAX][MV_Y] = COM_CLIP3(pi->min_mv[MV_Y], pi->max_mv[MV_Y], center[MV_Y] + (s16)range_xy);
-
-    com_assert(range[MV_RANGE_MIN][MV_X] <= range[MV_RANGE_MAX][MV_X]);
-    com_assert(range[MV_RANGE_MIN][MV_Y] <= range[MV_RANGE_MAX][MV_Y]);
 }
 
 static int search_diamond(inter_search_t *pi, int x, int y, int w, int h, s8 refi, int lidx, const s16 mvp[MV_D], s16 mv[MV_D], u64* cost_best, int bi, int max_step)
@@ -397,17 +416,12 @@ u64 me_search_tz(inter_search_t *pi, int x, int y, int w, int h, int pic_width, 
 
     if (!bi && (abs(mvp[MV_X] - (mv[MV_X] << 2)) > 2 || abs(mvp[MV_Y] - (mv[MV_Y] << 2)) > 2)) {
         if (best_step > RASTER_SEARCH_THD) {
-            int mvr = pi->curr_mvr;
-            s16 range[MV_RANGE_DIM][MV_D];
-            com_pic_t *ref_pic = pi->refp[refi][lidx].pic;
-
-            get_raster_range(pi, ref_pic, mv, range, COM_ABS((int)(pi->ptr - ref_pic->ptr)), mvr);
-            search_raster(pi, x, y, w, h, refi, lidx, range, mvp, mv, &cost_best);
+            search_raster(pi, x, y, w, h, refi, lidx, mvp, mv, &cost_best);
         }
         search_diamond(pi, x, y, w, h, refi, lidx, mvp, mv, &cost_best, bi, MAX_REFINE_SEARCH_STEP);
     }
     if (!bi) {
-        CP32(pi->mv_ipel, mv);
+        CP32(pi->mv_ipel[lidx][refi], mv);
     }
     mv[0] <<= 2, mv[1] <<= 2;
 

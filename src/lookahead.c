@@ -83,6 +83,7 @@ double cal_pic_cost(enc_ctrl_t *h, com_img_t *img_org, s16(*map_mv)[REFP_NUM][MV
 
             pi->org = org;
             pi->i_org = i_org;
+            pi->fast_me = 0;
 
             for (int lidx = 0; lidx <= ((h->pichdr.slice_type == SLICE_P) ? PRED_L0 : PRED_L1); lidx++) { // uni-prediction (L0 or L1)
                 pi->num_refp = (u8)h->rpm.num_refp[lidx];

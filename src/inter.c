@@ -929,6 +929,7 @@ static void analyze_uni_pred(core_t *core, lbac_t *sbac_best, double *cost_L0L1,
 
     pi->i_org = core->pic_org->stride_luma;
     pi->org = core->pic_org->y + y * pi->i_org + x;
+    pi->fast_me = SPEED_LEVEL(1, core->param->speed_level);
 
     for (int lidx = 0; lidx <= ((core->slice_type == SLICE_P) ? PRED_L0 : PRED_L1); lidx++) {
         u64 best_mecost = COM_UINT64_MAX;
@@ -1027,6 +1028,7 @@ static void analyze_bi(core_t *core, lbac_t *sbac_best, s16 mv_L0L1[REFP_NUM][MV
         ALIGNED_32(pel org_bi[MAX_CU_DIM]);
         pi->i_org = cu_width;
         pi->org = org_bi;
+        pi->fast_me = 0;
 
         com_mc_cu(x, y, info->pic_width, info->pic_height, cu_width, cu_height, refi, cur_info->mv, core->refp, pred, cu_width, CHANNEL_L, bit_depth);
         create_bi_org(org, pred[Y_C], pic_org->stride_luma, cu_width, cu_height, org_bi, cu_width, info->bit_depth_internal);
