@@ -82,7 +82,7 @@ int same_motion(com_motion_t motion1, com_motion_t motion2);
 u16 com_get_avail_intra(int x_scu, int y_scu, int i_scu, int scup, com_scu_t *map_scu);
 
 com_pic_t *com_pic_create(int w, int h, int pad_l, int pad_c, int *err);
-void       com_pic_free(com_pic_t *pic);
+void       com_pic_destroy(com_pic_t *pic);
 
 com_subpel_t* com_subpel_create(int width, int height, int pad_l, int pad_c, int *err);
 void          com_subpel_free(com_subpel_t *p);

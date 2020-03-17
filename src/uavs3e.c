@@ -179,7 +179,7 @@ static void pic_enc_free(enc_pic_t *ep)
     for (int i = 0; i < ep->info.pic_height_in_lcu; i++) {
         uavs3e_sem_destroy(&ep->array_row[i].sem);
     }
-    com_pic_free(ep->pic_alf_Rec);
+    com_pic_destroy(ep->pic_alf_Rec);
     core_free(ep->main_core);
     
     com_mfree(ep);

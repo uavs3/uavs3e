@@ -215,7 +215,7 @@ ERR:
     return NULL;
 }
 
-void com_pic_free(com_pic_t *pic)
+void com_pic_destroy(com_pic_t *pic)
 {
     if (pic) {
         if (pic->img) {

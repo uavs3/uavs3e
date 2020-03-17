@@ -263,7 +263,7 @@ ERR:
         *err = ret;
     }
     if (pic) {
-        com_pic_free(pic);
+        com_pic_destroy(pic);
     }
     return NULL;
 }
@@ -451,7 +451,7 @@ int com_refm_free(com_pic_manager_t *pm)
 
     for (i = 0; i < pm->max_pb_size; i++) {
         if (pm->pic[i]) {
-            com_pic_free(pm->pic[i]);
+            com_pic_destroy(pm->pic[i]);
         }
         if (pm->subpel[i]) {
             com_subpel_free(pm->subpel[i]);

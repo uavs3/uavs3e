@@ -63,7 +63,7 @@ static int  frame_to_be_encoded;
 
 static app_cfg_t options[] = {
     {
-        'c', "config", CFG_TYPE_STRING,
+        CFG_KEY_NULL, "config", CFG_TYPE_STRING,
         fn_cfg,
         "file name of configuration"
         ,0 
