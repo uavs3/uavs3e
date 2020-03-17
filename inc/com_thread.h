@@ -52,8 +52,9 @@ typedef volatile long atom_t;   // 32 bits, signed
 #define uavs3e_sem_wait     sem_wait
 #define uavs3e_sem_post     sem_post
 
-#define THREAD_PRIORITY_HIGHEST 1
-#define THREAD_PRIORITY_NORMAL  0
+#define THREAD_PRIORITY_HIGHEST 2
+#define THREAD_PRIORITY_NORMAL  1
+#define THREAD_PRIORITY_LOWEST  0
 
 #endif
 
