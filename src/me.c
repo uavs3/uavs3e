@@ -55,9 +55,11 @@ static void get_raster_range(inter_search_t *pi, int lidx, int refi, s16 center[
 
     if (mvr && pi->fast_me) {
         range_x = COM_ABS(pi->mv_ipel[lidx][refi][0] - center[0]) * 4;
-        range_y = COM_ABS(pi->mv_ipel[lidx][refi][1] - center[1]) * 4;
+        range_y = COM_ABS(pi->mv_ipel[lidx][refi][1] - center[1]) * 2;
         range_x = COM_MAX(range_x, max_sr >> 2);
         range_y = COM_MAX(range_y, max_sr >> 2);
+        range_x = COM_MAX(range_x, search_step * 8);
+        range_y = COM_MAX(range_y, search_step * 4);
         range_x = COM_MIN(range_x, range_xy);
         range_y = COM_MIN(range_y, range_xy);
     }

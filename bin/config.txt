@@ -16,7 +16,7 @@ internal_bit_depth      : 8                               # internal bit depth (
 TemporalSubsampleRatio  : 1                               # temporal subsampling ratio
 
 #========== speed/quality trade-off ==============
-speed_level             : 0
+speed_level             : 1
 
 #========== parallel configuration ===============
 wpp_threads             : 4                                # Number of Threads for WPP

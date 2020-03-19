@@ -929,7 +929,7 @@ static void analyze_uni_pred(core_t *core, lbac_t *sbac_best, double *cost_L0L1,
 
     pi->i_org = core->pic_org->stride_luma;
     pi->org = core->pic_org->y + y * pi->i_org + x;
-    pi->fast_me = SPEED_LEVEL(1, core->param->speed_level);
+    pi->fast_me = core->param->speed_level;
 
     for (int lidx = 0; lidx <= ((core->slice_type == SLICE_P) ? PRED_L0 : PRED_L1); lidx++) {
         u64 best_mecost = COM_UINT64_MAX;
