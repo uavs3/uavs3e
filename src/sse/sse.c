@@ -346,29 +346,22 @@ void uavs3e_funs_init_sse()
     for (i = IPD_HOR + 1; i < IPD_CNT; i++) {
         uavs3e_funs_handle.intra_pred_ang[i] = uavs3e_ipred_ang_y_sse;
     }
-    //uavs3e_funs_handle.intra_pred_ang[3] = uavs3e_ipred_ang_x_3_sse;
+
     uavs3e_funs_handle.intra_pred_ang[4] = uavs3e_ipred_ang_x_4_sse;
-    //uavs3e_funs_handle.intra_pred_ang[5] = uavs3e_ipred_ang_x_5_sse;
-    //uavs3e_funs_handle.intra_pred_ang[6] = uavs3e_ipred_ang_x_6_sse;
-    //uavs3e_funs_handle.intra_pred_ang[7] = uavs3e_ipred_ang_x_7_sse;
+    uavs3e_funs_handle.intra_pred_ang[6] = uavs3e_ipred_ang_x_6_sse;
     uavs3e_funs_handle.intra_pred_ang[8] = uavs3e_ipred_ang_x_8_sse;
-    //uavs3e_funs_handle.intra_pred_ang[9] = uavs3e_ipred_ang_x_9_sse;
-    //uavs3e_funs_handle.intra_pred_ang[10] = uavs3e_ipred_ang_x_10_sse;
-    //uavs3e_funs_handle.intra_pred_ang[11] = uavs3e_ipred_ang_x_11_sse;
+    uavs3e_funs_handle.intra_pred_ang[10] = uavs3e_ipred_ang_x_10_sse;
+    uavs3e_funs_handle.intra_pred_ang[11] = uavs3e_ipred_ang_x_11_sse;
     
-    //uavs3e_funs_handle.intra_pred_ang[14] = uavs3e_ipred_ang_xy_14_sse;
+    uavs3e_funs_handle.intra_pred_ang[14] = uavs3e_ipred_ang_xy_14_sse;
     uavs3e_funs_handle.intra_pred_ang[16] = uavs3e_ipred_ang_xy_16_sse;
     uavs3e_funs_handle.intra_pred_ang[18] = uavs3e_ipred_ang_xy_18_sse;
     uavs3e_funs_handle.intra_pred_ang[20] = uavs3e_ipred_ang_xy_20_sse;
-    //uavs3e_funs_handle.intra_pred_ang[22] = uavs3e_ipred_ang_xy_22_sse;
+    uavs3e_funs_handle.intra_pred_ang[22] = uavs3e_ipred_ang_xy_22_sse;
     
-    //uavs3e_funs_handle.intra_pred_ang[25] = uavs3e_ipred_ang_y_25_sse;
-    //uavs3e_funs_handle.intra_pred_ang[26] = uavs3e_ipred_ang_y_26_sse;
-    //uavs3e_funs_handle.intra_pred_ang[27] = uavs3e_ipred_ang_y_27_sse;
+    uavs3e_funs_handle.intra_pred_ang[26] = uavs3e_ipred_ang_y_26_sse;
     uavs3e_funs_handle.intra_pred_ang[28] = uavs3e_ipred_ang_y_28_sse;
-    //uavs3e_funs_handle.intra_pred_ang[29] = uavs3e_ipred_ang_y_29_sse;
-    //uavs3e_funs_handle.intra_pred_ang[30] = uavs3e_ipred_ang_y_30_sse;
-    //uavs3e_funs_handle.intra_pred_ang[31] = uavs3e_ipred_ang_y_31_sse;
+    uavs3e_funs_handle.intra_pred_ang[30] = uavs3e_ipred_ang_y_30_sse;
     uavs3e_funs_handle.intra_pred_ang[32] = uavs3e_ipred_ang_y_32_sse;
 }
 

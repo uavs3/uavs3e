@@ -196,8 +196,22 @@ void uavs3e_funs_init_avx2()
     for (i = IPD_BI + 1; i < IPD_VER; i++) {
         uavs3e_funs_handle.intra_pred_ang[i] = uavs3e_ipred_ang_x_avx2;
     }
+    for (i = IPD_HOR + 1; i < IPD_CNT; i++) {
+        uavs3e_funs_handle.intra_pred_ang[i] = uavs3e_ipred_ang_y_avx2;
+    }
     uavs3e_funs_handle.intra_pred_ang[4] = uavs3e_ipred_ang_x_4_avx2;
+    uavs3e_funs_handle.intra_pred_ang[6] = uavs3e_ipred_ang_x_6_avx2;
     uavs3e_funs_handle.intra_pred_ang[8] = uavs3e_ipred_ang_x_8_avx2;
+    uavs3e_funs_handle.intra_pred_ang[10] = uavs3e_ipred_ang_x_10_avx2;
+    uavs3e_funs_handle.intra_pred_ang[26] = uavs3e_ipred_ang_y_26_avx2;
+    uavs3e_funs_handle.intra_pred_ang[28] = uavs3e_ipred_ang_y_28_avx2;
+    uavs3e_funs_handle.intra_pred_ang[30] = uavs3e_ipred_ang_y_30_avx2;
+    uavs3e_funs_handle.intra_pred_ang[32] = uavs3e_ipred_ang_y_32_avx2;
+    uavs3e_funs_handle.intra_pred_ang[14] = uavs3e_ipred_ang_xy_14_avx2;
+    uavs3e_funs_handle.intra_pred_ang[16] = uavs3e_ipred_ang_xy_16_avx2;
+    uavs3e_funs_handle.intra_pred_ang[18] = uavs3e_ipred_ang_xy_18_avx2;
+    uavs3e_funs_handle.intra_pred_ang[20] = uavs3e_ipred_ang_xy_20_avx2;
+    uavs3e_funs_handle.intra_pred_ang[22] = uavs3e_ipred_ang_xy_22_avx2;
 
     uavs3e_funs_handle.intra_pred_dc = uavs3e_ipred_dc_avx2;
     uavs3e_funs_handle.intra_pred_ver = uavs3e_ipred_ver_avx2;
