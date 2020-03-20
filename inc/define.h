@@ -43,8 +43,6 @@
 #define ENC_ECU_DEPTH                      4 // for early CU termination
 #define ENC_ECU_ADAPTIVE                   1 // for early CU termination
 
-/* maximum pico_img count */
-#define ENC_MAX_INPUT_BUF      32
 #define MAX_REORDER_BUF        33
 
 /* maximum cost value */

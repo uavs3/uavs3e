@@ -232,6 +232,8 @@ static int refine_input_cfg(enc_cfg_t *param, enc_cfg_t *cfg_org)
     com_assert_rv(param->max_dt_size == 16 || param->max_dt_size == 32 || param->max_dt_size == 64, COM_ERR_INVALID_ARGUMENT);
     com_assert_rv(param->min_cu_size <= param->ctu_size, COM_ERR_INVALID_ARGUMENT);
 
+    com_assert_rv(com_tbl_log2[param->max_b_frames + 1] != -1, COM_ERR_INVALID_ARGUMENT);
+    com_assert_rv(param->max_b_frames < MAX_REORDER_BUF - 1, COM_ERR_INVALID_ARGUMENT);
 
 #if (BIT_DEPTH == 8)
     if (param->bit_depth_internal == 10) {
@@ -1185,7 +1187,7 @@ void *uavs3e_create(enc_cfg_t *cfg, int *err)
 
     com_refm_create(&h->rpm, MAX_PB_SIZE + h->cfg.frm_threads, info->pic_width, info->pic_height);
 
-    h->ilist_size = ENC_MAX_INPUT_BUF + h->cfg.frm_threads;
+    h->ilist_size = MAX_REORDER_BUF + h->cfg.frm_threads;
     h->ilist_imgs = com_malloc(sizeof(com_img_t*) * h->ilist_size);
 
     h->pic_thd_params = (pic_thd_param_t*)com_malloc(sizeof(pic_thd_param_t) * h->cfg.frm_threads);
