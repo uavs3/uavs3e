@@ -214,8 +214,8 @@ void com_df_set_edge(com_info_t *info, com_map_t *map, u8 *edge, int i_edge, com
 static void avs3_always_inline com_df_cal_y_param(com_pic_header_t *pichdr, int QPP, int QPQ, int QPOFFS, int shift, int *alpha, int *beta)
 {
     int QP = (QPP + QPQ + 1 - QPOFFS - QPOFFS) >> 1;
-    *alpha = ALPHA_TABLE[COM_CLIP3(MIN_QUANT, MAX_QUANT_BASE, QP + pichdr->alpha_c_offset)] << shift;
-    *beta = BETA_TABLE[COM_CLIP3(MIN_QUANT, MAX_QUANT_BASE, QP + pichdr->beta_offset)] << shift;
+    *alpha = ALPHA_TABLE[COM_CLIP3(0, MAX_QUANT_BASE, QP + pichdr->alpha_c_offset)] << shift;
+    *beta = BETA_TABLE[COM_CLIP3(0, MAX_QUANT_BASE, QP + pichdr->beta_offset)] << shift;
 }
 
 static void avs3_always_inline com_df_cal_c_param(com_pic_header_t *pichdr, int QPP, int QPQ, int QPOFFS, int shift, int *alpha, int *beta, int delta)
@@ -235,8 +235,8 @@ static void avs3_always_inline com_df_cal_c_param(com_pic_header_t *pichdr, int 
 
     QP = (c_p_QPuv + c_q_QPuv + 1) >> 1;
 
-    *alpha = ALPHA_TABLE[COM_CLIP3(MIN_QUANT, MAX_QUANT_BASE, QP + pichdr->alpha_c_offset)] << shift;
-    *beta = BETA_TABLE[COM_CLIP3(MIN_QUANT, MAX_QUANT_BASE, QP + pichdr->beta_offset)] << shift;
+    *alpha = ALPHA_TABLE[COM_CLIP3(0, MAX_QUANT_BASE, QP + pichdr->alpha_c_offset)] << shift;
+    *beta = BETA_TABLE[COM_CLIP3(0, MAX_QUANT_BASE, QP + pichdr->beta_offset)] << shift;
 }
 
 void com_df_lcu(com_info_t *info, com_pic_header_t *pichdr, com_map_t *map, com_pic_t *pic, int lcu_x, int lcu_y)

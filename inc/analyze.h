@@ -24,7 +24,6 @@
 #define RATE_TO_COST_LAMBDA(l, r)       ((double)r * l)
 #define RATE_TO_COST_SQRT_LAMBDA(l, r)  ((double)r * l)
 
-void enc_mode_init_frame   (core_t *core);
 int  enc_mode_init_lcu     (core_t *core);
 int  enc_mode_analyze_lcu  (core_t *core, const lbac_t *lbac);
 

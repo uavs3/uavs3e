@@ -944,6 +944,7 @@ static void analyze_uni_pred(core_t *core, lbac_t *sbac_best, double *cost_L0L1,
             com_derive_mvp(core->info, core->ptr, core->cu_scup_in_pic, lidx, refi_cur, cur_info->hmvp_flag, core->cnt_hmvp_cands,
                            core->motion_cands, core->map, core->refp, cur_info->mvr_idx, cu_width, cu_height, mvp);
 
+            pi->ref_pic = core->refp[refi_cur][lidx].pic;
             u64 mecost = me_search_tz(pi, x, y, cu_width, cu_height, core->info->pic_width, core->info->pic_height, refi_cur, lidx, mvp, mv, 0);
 
             if (mecost < best_mecost) {
@@ -1039,6 +1040,7 @@ static void analyze_bi(core_t *core, lbac_t *sbac_best, s16 mv_L0L1[REFP_NUM][MV
         pi->num_refp = (u8)core->num_refp[lidx_ref];
 
         for (refi_cur = 0; refi_cur < pi->num_refp; refi_cur++) {
+            pi->ref_pic = core->refp[refi_cur][lidx_ref].pic;
             mecost = me_search_tz(pi, x, y, cu_width, cu_height, core->info->pic_width, core->info->pic_height, refi_cur, lidx_ref, pi->mvp_scale[lidx_ref][refi_cur], pi->mv_scale[lidx_ref][refi_cur], 1);
             if (mecost < best_mecost) {
                 refi_best = refi_cur;
@@ -1343,7 +1345,7 @@ static u64 affine_me_gradient(inter_search_t *pi, int x, int y, int cu_width_log
     int cu_height = 1 << cu_height_log2;
     u64 cost, cost_best = COM_UINT64_MAX;
     s8 ri = *refi;
-    com_pic_t *refp = pi->refp[ri][lidx].pic;
+    com_pic_t *refp = pi->ref_pic;
     ALIGNED_32(pel pred[MAX_CU_DIM]);
     pel *org = pi->org;
     int s_org = pi->i_org;
@@ -1679,7 +1681,7 @@ static void analyze_affine_uni(core_t *core, lbac_t *sbac_best, CPMV aff_mv_L0L1
                     affine_mv[vertex][MV_Y] = affine_mvp[vertex][MV_Y];
                 }
             }
-
+            pi->ref_pic = core->refp[refi_cur][lidx].pic;
             mecost = affine_me_gradient(pi, x, y, cu_width_log2, cu_height_log2, &refi_cur, lidx, affine_mvp, affine_mv, 0, vertex_num, sub_w, sub_h);
 
             t0 = (lidx == 0) ? refi_cur : REFI_INVALID;
@@ -1820,6 +1822,7 @@ static void analyze_affine_bi(core_t *core, lbac_t *sbac_best, CPMV aff_mv_L0L1[
 
         for (refi_cur = 0; refi_cur < pi->num_refp; refi_cur++) {
             refi[lidx_ref] = refi_cur;
+            pi->ref_pic = core->refp[refi_cur][lidx_ref].pic;
             mecost = affine_me_gradient(pi, x, y, cu_width_log2, cu_height_log2, &refi[lidx_ref], lidx_ref, \
             pi->affine_mvp_scale[lidx_ref][refi_cur], pi->affine_mv_scale[lidx_ref][refi_cur], 1, vertex_num, 8, 8);
 

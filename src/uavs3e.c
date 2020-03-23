@@ -192,7 +192,11 @@ static int refine_input_cfg(enc_cfg_t *param, enc_cfg_t *cfg_org)
     if (param->bit_depth_internal == 0) {
         param->bit_depth_internal = param->bit_depth_input;
     }
-
+    if (param->bit_depth_internal == 8) {
+        param->qp = COM_CLIP3(0, MAX_QUANT_BASE, param->qp);
+    } else {
+        param->qp = COM_CLIP3(-16, MAX_QUANT_BASE, param->qp);
+    }
     param->pic_width  = (param->horizontal_size + PIC_ALIGN_SIZE - 1) / PIC_ALIGN_SIZE * PIC_ALIGN_SIZE;
     param->pic_height = (param->vertical_size   + PIC_ALIGN_SIZE - 1) / PIC_ALIGN_SIZE * PIC_ALIGN_SIZE;
 
@@ -209,10 +213,10 @@ static int refine_input_cfg(enc_cfg_t *param, enc_cfg_t *cfg_org)
     param->frm_threads = COM_MAX(param->frm_threads, 1);
 
     /* check input parameters */
-    com_assert_rv(param->pic_width > 0 && param->pic_height > 0, COM_ERR_INVALID_ARGUMENT);
+    com_assert_rv (param->pic_width > 0 && param->pic_height > 0, COM_ERR_INVALID_ARGUMENT);
     com_assert_rv((param->pic_width & (MIN_CU_SIZE - 1)) == 0, COM_ERR_INVALID_ARGUMENT);
     com_assert_rv((param->pic_height & (MIN_CU_SIZE - 1)) == 0, COM_ERR_INVALID_ARGUMENT);
-    com_assert_rv(param->qp >= (MIN_QUANT - (8 *(param->bit_depth_internal - 8))), COM_ERR_INVALID_ARGUMENT);
+    com_assert_rv(param->qp >= ( - (8 *(param->bit_depth_internal - 8))), COM_ERR_INVALID_ARGUMENT);
     com_assert_rv(param->qp <= MAX_QUANT_BASE, COM_ERR_INVALID_ARGUMENT); // this assertion is align with the constraint for input QP
     com_assert_rv(param->i_period >= 0, COM_ERR_INVALID_ARGUMENT);
 
@@ -677,6 +681,7 @@ void *enc_lcu_row(core_t *core, enc_lcu_row_t *row)
     core->ptr            = pic_ctx->ptr;
     core->num_refp       = pic_ctx->num_refp;
     core->slice_type     = pichdr->slice_type;
+    core->pinter.ptr     = core->ptr;
 
     memcpy(core->linebuf_sao,      pic_ctx->linebuf_sao,                sizeof(pel *) * 3);
     memcpy(core->linebuf_intra[0], pic_ctx->linebuf_intra[core->lcu_y], sizeof(pel *) * 3);
@@ -692,15 +697,7 @@ void *enc_lcu_row(core_t *core, enc_lcu_row_t *row)
         core->wq[0] = core->wq[1] = NULL;
     }
 
-    enc_mode_init_frame(core);
-
     com_mset_x64a(core->motion_cands, 0, sizeof(com_motion_t)*ALLOWED_HMVP_NUM);
-
-    for (int lidx = 0; lidx < 2; lidx++) {
-        for (int ref = 0; ref < core->num_refp[lidx]; ref++) {
-            wait_ref_available(core->refp[ref][lidx].pic, info->pic_height);
-        }
-    }
 
     for (core->lcu_x = 0; core->lcu_x < info->pic_width_in_lcu; core->lcu_x++) {
         com_info_t *info = core->info;
@@ -720,7 +717,7 @@ void *enc_lcu_row(core_t *core, enc_lcu_row_t *row)
             int test_delta_qp = (((core->lcu_x + 1) * 5 + core->lcu_y * 3 + core->ptr * 6) % 16) + ((((core->lcu_x + 2) * 3 + core->lcu_y * 5 + core->ptr) % 8) << 4); //lower 4 bits and higher 3 bits
             int max_abs_delta_qp = 32 + (info->bit_depth_internal - 8) * 4;
             lcu_qp = last_lcu_qp + (test_delta_qp % (max_abs_delta_qp * 2 + 1)) - max_abs_delta_qp;
-            lcu_qp = COM_CLIP3(MIN_QUANT, (MAX_QUANT_BASE + info->qp_offset_bit_depth), lcu_qp);
+            lcu_qp = COM_CLIP3(0, (MAX_QUANT_BASE + info->qp_offset_bit_depth), lcu_qp);
             last_lcu_qp = lcu_qp;
         }
         *map_qp++ = (u8)lcu_qp;
@@ -730,8 +727,8 @@ void *enc_lcu_row(core_t *core, enc_lcu_row_t *row)
         adj_qp_cb = core->lcu_qp_y + pichdr->chroma_quant_param_delta_cb - info->qp_offset_bit_depth;
         adj_qp_cr = core->lcu_qp_y + pichdr->chroma_quant_param_delta_cr - info->qp_offset_bit_depth;
 
-        adj_qp_cb = COM_CLIP(adj_qp_cb, MIN_QUANT - 16, MAX_QUANT_BASE);
-        adj_qp_cr = COM_CLIP(adj_qp_cr, MIN_QUANT - 16, MAX_QUANT_BASE);
+        adj_qp_cb = COM_CLIP(adj_qp_cb, -16, MAX_QUANT_BASE);
+        adj_qp_cr = COM_CLIP(adj_qp_cr, -16, MAX_QUANT_BASE);
 
         if (adj_qp_cb >= 0) {
             adj_qp_cb = com_tbl_qp_chroma_ajudst[COM_MIN(MAX_QUANT_BASE, adj_qp_cb)];
@@ -739,8 +736,8 @@ void *enc_lcu_row(core_t *core, enc_lcu_row_t *row)
         if (adj_qp_cr >= 0) {
             adj_qp_cr = com_tbl_qp_chroma_ajudst[COM_MIN(MAX_QUANT_BASE, adj_qp_cr)];
         }
-        core->lcu_qp_u = COM_CLIP(adj_qp_cb + info->qp_offset_bit_depth, MIN_QUANT, MAX_QUANT_BASE + info->qp_offset_bit_depth);
-        core->lcu_qp_v = COM_CLIP(adj_qp_cr + info->qp_offset_bit_depth, MIN_QUANT, MAX_QUANT_BASE + info->qp_offset_bit_depth);
+        core->lcu_qp_u = COM_CLIP(adj_qp_cb + info->qp_offset_bit_depth, 0, MAX_QUANT_BASE + info->qp_offset_bit_depth);
+        core->lcu_qp_v = COM_CLIP(adj_qp_cr + info->qp_offset_bit_depth, 0, MAX_QUANT_BASE + info->qp_offset_bit_depth);
 
         lcu_qp -= info->qp_offset_bit_depth; // calculate lambda for 8-bit distortion
         row->total_qp += lcu_qp;
@@ -1023,7 +1020,7 @@ void *enc_pic_thread(enc_pic_t *ep, pic_thd_param_t *p)
     pic_rec->picture_qp        = pic_org->picture_qp;
     pic_rec->picture_satd      = pic_org->picture_satd;
     pic_rec->picture_satd_blur = pic_org->picture_satd_blur;
-    pic_rec->layer_id       = pic_org->layer_id;
+    pic_rec->layer_id          = pic_org->layer_id;
 
     return ep;
 }
@@ -1204,7 +1201,7 @@ void *uavs3e_create(enc_cfg_t *cfg, int *err)
 
     avs3e_init_rc(&h->rc, &h->cfg);
 
-    inter_search_t *pi = &h->preprocess_pinter;
+    inter_search_t *pi = &h->loka_pinter;
     pi->bit_depth = info->bit_depth_internal;
     pi->gop_size  = info->gop_size;
     pi->max_search_range = info->sqh.low_delay ? SEARCH_RANGE_IPEL_LD : SEARCH_RANGE_IPEL_RA;
@@ -1363,15 +1360,23 @@ int uavs3e_enc(void *id, enc_stat_t *stat, com_img_t *img_enc)
 
     set_pic_header(h, pic_rec);
 
-    if (h->cfg.rc_type == RC_TYPE_NULL) {
-        int qp = COM_CLIP3(MIN_QUANT - h->info.qp_offset_bit_depth, MAX_QUANT_BASE, h->cfg.qp);
-        qp = (int)(enc_get_hgop_qp(qp, pic_org.layer_id, h->info.sqh.low_delay) + 0.5);
-        pic_org.picture_qp = (u8)COM_CLIP3(MIN_QUANT, (MAX_QUANT_BASE + h->info.qp_offset_bit_depth), qp + h->info.qp_offset_bit_depth);
-    } else {
-        pic_org.picture_satd = cal_pic_cost(h, node.img, pic_rec->map_mv);
-        int qp = h->rc.get_qp(h->rc.handle, h, &pic_org);
-        pic_org.picture_qp = (u8)COM_CLIP3(MIN_QUANT, (MAX_QUANT_BASE + h->info.qp_offset_bit_depth), qp + h->info.qp_offset_bit_depth);
+    for (int lidx = 0; lidx < 2; lidx++) {
+        for (int ref = 0; ref < h->rpm.num_refp[lidx]; ref++) {
+            wait_ref_available(h->refp[ref][lidx].pic, info->pic_height);
+        }
     }
+
+    int base_qp;
+    pic_org.picture_satd = loka_estimate_coding_cost(h, node.img);
+
+    if (h->cfg.rc_type == RC_TYPE_NULL) {
+        base_qp = (int)(enc_get_hgop_qp(h->cfg.qp, pic_org.layer_id, h->info.sqh.low_delay) + 0.5);
+    } else {
+        base_qp = h->rc.get_qp(h->rc.handle, h, &pic_org);
+    }
+    pic_org.picture_qp = (u8)COM_CLIP3(0, (MAX_QUANT_BASE + h->info.qp_offset_bit_depth), base_qp + h->info.qp_offset_bit_depth);
+
+
     //find a qp_offset_cb that makes com_tbl_qp_chroma_ajudst[qp + qp_offset_cb] equal to com_tbl_qp_chroma_adjust_enc[qp + 1]
     int opt_c_dqp;
     int qp_l = pic_org.picture_qp - h->info.qp_offset_bit_depth;

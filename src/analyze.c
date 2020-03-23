@@ -1395,18 +1395,6 @@ static double mode_coding_tree(core_t *core, lbac_t *sbac_cur, int x0, int y0, i
     return (cost_best > MAX_D_COST_EXT) ? MAX_D_COST : cost_best;
 }
 
-void enc_mode_init_frame(core_t *core)
-{
-    /* initialize pinter */
-    inter_search_t *pi;
-    
-    pi         = &core->pinter;
-    pi->refp   =  core->refp;
-    pi->map_mv =  core->map->map_mv;
-    pi->ptr    =  core->ptr;
-
-}
-
 int enc_mode_init_lcu(core_t *core)
 {
     core->pinter.lambda_mv = (u32)floor(65536.0 * core->sqrt_lambda[0]);

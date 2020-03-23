@@ -95,8 +95,7 @@ typedef struct uavs3e_enc_inter_data_t {
 
     /*** picture level ***/
     s64  ptr;                           /* current frame numbser */
-    s16(*map_mv)[REFP_NUM][MV_D];       /* motion vector map     */
-    com_ref_pic_t(*refp)[REFP_NUM];     /* reference pictures    */
+    com_pic_t *ref_pic;
 
     /*** local data ***/
     u8   num_refp;
@@ -421,7 +420,7 @@ struct uavs3e_enc_ctrl_t {
     int              pic_thd_active;
 
     /*** RC data ***/
-    inter_search_t  preprocess_pinter;
+    inter_search_t  loka_pinter;
     enc_rc_handle_t rc;
 };
 

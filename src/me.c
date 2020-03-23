@@ -45,7 +45,7 @@ static void com_mv_mvr_check(s16* mv, int mvr)
 
 static void get_raster_range(inter_search_t *pi, int lidx, int refi, s16 center[MV_D], s16 range[MV_RANGE_DIM][MV_D], int search_step)
 {
-    com_pic_t *ref_pic = pi->refp[refi][lidx].pic;
+    com_pic_t *ref_pic = pi->ref_pic;
     int mvr = pi->curr_mvr;
     int dist = COM_ABS((int)(pi->ptr - ref_pic->ptr));
     int max_sr = pi->max_search_range >> COM_MAX(3 - mvr, 0);
@@ -90,7 +90,7 @@ static void search_raster(inter_search_t *pi, int x, int y, int w, int h, s8 ref
     int bit_depth      = pi->bit_depth;
     int i_org          = pi->i_org;
     pel *org           = pi->org;
-    com_pic_t *ref_pic = pi->refp[refi][lidx].pic;
+    com_pic_t *ref_pic = pi->ref_pic;
     u8 *tab_mvbits_x   = pi->tab_mvbits - (mvp[MV_X] >> pi->curr_mvr);
     u8 *tab_mvbits_y   = pi->tab_mvbits - (mvp[MV_Y] >> pi->curr_mvr);
     int mvr_idx        = pi->curr_mvr;
@@ -175,7 +175,7 @@ static int search_diamond(inter_search_t *pi, int x, int y, int w, int h, s8 ref
     int bit_depth      = pi->bit_depth;
     int i_org          = pi->i_org;
     pel *org           = pi->org;
-    com_pic_t *ref_pic = pi->refp[refi][lidx].pic;
+    com_pic_t *ref_pic = pi->ref_pic;
     u8 *tab_mvbits_x   = pi->tab_mvbits - (mvp[MV_X] >> pi->curr_mvr);
     u8 *tab_mvbits_y   = pi->tab_mvbits - (mvp[MV_Y] >> pi->curr_mvr);
     int mvr_idx        = pi->curr_mvr;
@@ -314,7 +314,7 @@ static u64 me_sub_pel_search(inter_search_t *pi, int x, int y, int w, int h, s8 
     int max_posx = pi->max_coord[MV_X];
     int max_posy = pi->max_coord[MV_Y];
     int widx = CONV_LOG2(w) - MIN_CU_LOG2;
-    com_pic_t *ref_pic = pi->refp[refi][lidx].pic;
+    com_pic_t *ref_pic = pi->ref_pic;
     int i_ref = ref_pic->stride_luma;
     pel *ref = ref_pic->y + y * i_ref + x;
     u8 *tab_mvbits_x = pi->tab_mvbits - (mvp[MV_X] >> pi->curr_mvr);
