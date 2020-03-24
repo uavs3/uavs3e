@@ -22,7 +22,10 @@
 #include "tables.h"
 
 /*** rc ***/
-void avs3e_init_rc(enc_rc_handle_t* rc, enc_cfg_t *param);
+void rc_init(enc_rc_t* p, enc_cfg_t *param);
+int  rc_get_qp(enc_rc_t *p, com_pic_t *pic, int qp_l0, int qp_l1);
+void rc_update(enc_rc_t *p, com_pic_t *pic, char *ext_info, int info_buf_size);
+void rc_destroy(enc_rc_t *p);
 
 /*** alf ***/
 int enc_alf_avs2(enc_pic_t *ep, com_pic_t *pic_rec, com_pic_t *pic_org, double lambda);

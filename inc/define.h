@@ -49,23 +49,6 @@
 #define MAX_D_COST                (1.7e+308)
 #define MAX_D_COST_EXT            (MAX_D_COST * 0.999999999)
 
-typedef struct uavs3e_enc_rc_handle_t enc_rc_handle_t;
-typedef struct uavs3e_enc_ctrl_t enc_ctrl_t;
-
-typedef void*(*rc_frame_init_t   )(enc_cfg_t *param);
-typedef int  (*rc_frame_get_qp_t )(void *rc_handle, enc_ctrl_t *h, com_pic_t *pic);
-typedef void (*rc_frame_update_t )(void *rc_handle, com_pic_t *pic, char *ext_info, int info_buf_size);
-typedef void (*rc_frame_destroy_t)(void *rc_handle);
-
-struct uavs3e_enc_rc_handle_t {
-    int type;
-    void *handle;
-    rc_frame_init_t    init;
-    rc_frame_get_qp_t  get_qp;
-    rc_frame_update_t  update;
-    rc_frame_destroy_t destroy;
-};
-
 /*****************************************************************************
  * input picture buffer structure
  *****************************************************************************/
@@ -363,7 +346,48 @@ typedef struct uavs3e_enc_pic_t {
     enc_lcu_row_t  *array_row;
     core_t         *main_core;     /* for SBAC */
 
+    inter_search_t  rc_pinter;
 } enc_pic_t;
+
+typedef struct uavs3e_enc_rc_t
+{
+    /* Sequence level const data */
+    int       type;
+    int       low_delay;
+    double    target_bitrate;
+    double    max_bitrate;
+    double    frame_rate;
+    int       frame_pixels;
+    double    rfConstant;
+    int       win_size;
+    int       min_qp;
+    int       max_qp;
+
+    /* Sequence level global data */
+    double    total_factor;
+    long long total_subgops;
+    long long total_bits;
+    long long total_frms;
+
+    /* Sequence level local data */
+    double    shortTermCplxSum;
+    double    shortTermCplxCount;
+
+    int      *win_bits_list;
+    int       win_bits;
+    int       win_idx;
+    int       win_frames;
+
+    /* Sub-GOP level */
+    int       subgop_frms;
+    long long subgop_bits;
+    double    subgop_cplx;   // we use top-level frame's cplx   as subgop_cplx
+    double    subgop_qscale; // we use top-level frame's qscale as subgop_qscale
+
+    /* sync data */
+    uavs3e_pthread_mutex_t mutex;
+
+} enc_rc_t;
 
 typedef struct uavs3e_pic_thd_param_t {
     com_pic_t         pic_org;
@@ -372,7 +396,9 @@ typedef struct uavs3e_pic_thd_param_t {
     com_pic_header_t  pichdr;
     int               num_refp[REFP_NUM];        /* number of reference pictures */
     com_ref_pic_t     refp[MAX_REFS][REFP_NUM];  /* reference picture (0: foward, 1: backward) */
+    com_pic_t        *top_pic[REFP_NUM];
     s64               ptr;                       /* current picture's presentation temporal reference */
+    enc_rc_t         *rc;
 
     /*** coding results ***/
     int           total_bytes;
@@ -386,7 +412,7 @@ typedef struct uavs3e_pic_thd_param_t {
  *
  * All have to be stored are in this structure.
  *****************************************************************************/
-struct uavs3e_enc_ctrl_t {
+typedef struct uavs3e_enc_ctrl_t {
     enc_cfg_t         cfg;                           /* encoding parameter */
 
     com_img_t        *img_rlist[MAX_REORDER_BUF];    /*  inputted images */
@@ -411,6 +437,7 @@ struct uavs3e_enc_ctrl_t {
     com_info_t        info;
     com_pic_header_t  pichdr;
     com_ref_pic_t     refp[MAX_REFS][REFP_NUM];      /* reference picture (0: foward, 1: backward) */
+    com_pic_t        *top_pic[REFP_NUM];             /* used for RC */
 
     /*** parallel data ***/
     threadpool_t   *frm_threads_pool;
@@ -419,10 +446,9 @@ struct uavs3e_enc_ctrl_t {
     int              pic_thd_tail;
     int              pic_thd_active;
 
-    /*** RC data ***/
-    inter_search_t  loka_pinter;
-    enc_rc_handle_t rc;
-};
+    /*** Rate control data ***/
+    enc_rc_t         rc;
+} enc_ctrl_t;
 
 int  enc_pic_finish (enc_ctrl_t *h, pic_thd_param_t *pic_thd, enc_stat_t *stat);
 

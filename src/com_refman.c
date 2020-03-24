@@ -49,7 +49,7 @@ void com_refm_build_ref_buf(com_pic_manager_t *pm)
     }
 }
 
-int com_refm_create_rpl(com_pic_manager_t *pm, com_pic_header_t *pichdr, com_ref_pic_t(*refp)[REFP_NUM], int top_pic)
+int com_refm_create_rpl(com_pic_manager_t *pm, com_pic_header_t *pichdr, com_ref_pic_t(*refp)[REFP_NUM], com_pic_t *top_pic[REFP_NUM], int is_top_level)
 {
     int idx_nearest_l0;
     int num0 = 0, num1 = 0;
@@ -64,7 +64,6 @@ int com_refm_create_rpl(com_pic_manager_t *pm, com_pic_header_t *pichdr, com_ref
         pichdr->rpl_l1.num = pichdr->rpl_l1.active = 0;
         return COM_OK;
     }
-
     for (int i = 0; i < pm->cur_num_ref_pics; i++) {
         com_pic_t *pic = pic_ref[i];
         if (pic->ptr < pichdr->poc) {
@@ -73,7 +72,7 @@ int com_refm_create_rpl(com_pic_manager_t *pm, com_pic_header_t *pichdr, com_ref
             break;
         }
     }
-    if (top_pic) {
+    if (is_top_level) {
         for (int i = idx_nearest_l0; i >= 0; i--) {
             if (pic_ref[i]->layer_id < FRM_DEPTH_2) {
                 pic_ref_l0[num0++] = pic_ref[i];
@@ -98,7 +97,18 @@ int com_refm_create_rpl(com_pic_manager_t *pm, com_pic_header_t *pichdr, com_ref
     for (int i = 0; num1 < pichdr->rpl_l1.active && i < num0; i++, num1++) {
         pic_ref_l1[num1] = pic_ref_l0[i];
     }
-
+    for (int i = 0; i < num0; i++) {
+        if (pic_ref_l0[i]->layer_id <= FRM_DEPTH_1) {
+            top_pic[0] = pic_ref_l0[i];
+            break;
+        }
+    }
+    for (int i = 0; i < num1; i++) {
+        if (pic_ref_l1[i]->layer_id <= FRM_DEPTH_1) {
+            top_pic[1] = pic_ref_l1[i];
+            break;
+        }
+    }
 
     /********************************************************************************************/
     /* L0 list */
@@ -109,7 +119,6 @@ int com_refm_create_rpl(com_pic_manager_t *pm, com_pic_header_t *pichdr, com_ref
     for (int i = 0; i < num0; i++) {
         com_pic_t *pic = pic_ref_l0[i];
         rpl->delta_doi[i] = (int)(pichdr->dtr % DOI_CYCLE_LENGTH - pic->dtr);
-
         if (i < rpl->active) {
             set_refp(&refp[i][REFP_0], pic);
         }

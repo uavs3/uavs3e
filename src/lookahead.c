@@ -46,7 +46,7 @@ static void get_ipred_neighbor(pel *dst, int x, int y, int w, int h, int pic_wid
     }
 }
 
-double loka_get_frm_cost(inter_search_t *pi, com_img_t *img_org, com_img_t **ref_l0, com_img_t **ref_l1, int num_ref[2], int bit_depth)
+double loka_estimate_coding_cost(inter_search_t *pi, com_img_t *img_org, com_img_t **ref_l0, com_img_t **ref_l1, int num_ref[2], int bit_depth)
 {
     const int    base_qp = 32;
     const double base_lambda = 1.43631 * pow(2.0, (base_qp - 16.0) / 4.0);
@@ -71,7 +71,7 @@ double loka_get_frm_cost(inter_search_t *pi, com_img_t *img_org, com_img_t **ref
 
 #if WRITE_REC_PIC
     static pel *buf = NULL;
-    if (buf == NULL) buf = malloc(info->pic_width * info->pic_height);
+    if (buf == NULL) buf = malloc(pic_width * pic_height);
     static FILE *fp = NULL;
     if (fp == NULL) fp = fopen("preprocess.yuv", "wb");
     static FILE *fp_org = NULL;
@@ -106,7 +106,7 @@ double loka_get_frm_cost(inter_search_t *pi, com_img_t *img_org, com_img_t **ref
                     u32 cost = com_had(UNIT_SIZE, UNIT_SIZE, org, pred_buf, i_org, UNIT_SIZE, bit_depth);
                     if (cost < min_cost) {
 #if WRITE_REC_PIC 
-                        uavs3e_funs_handle.ipcpy[UNIT_WIDX](pred_buf, UNIT_SIZE, buf + y * info->pic_width + x, info->pic_width, UNIT_SIZE, UNIT_SIZE);
+                        uavs3e_funs_handle.ipcpy[UNIT_WIDX](pred_buf, UNIT_SIZE, buf + y * pic_width + x, pic_width, UNIT_SIZE, UNIT_SIZE);
 #endif
                         min_cost = cost;
 
@@ -126,7 +126,7 @@ double loka_get_frm_cost(inter_search_t *pi, com_img_t *img_org, com_img_t **ref
 
                 if (cost < min_cost) {
 #if WRITE_REC_PIC 
-                    uavs3e_funs_handle.ipcpy[UNIT_WIDX](pred_buf, UNIT_SIZE, buf + y * info->pic_width + x, info->pic_width, UNIT_SIZE, UNIT_SIZE);
+                    uavs3e_funs_handle.ipcpy[UNIT_WIDX](pred_buf, UNIT_SIZE, buf + y * pic_width + x, pic_width, UNIT_SIZE, UNIT_SIZE);
 #endif
                     min_cost = cost;
                 }
@@ -136,31 +136,11 @@ double loka_get_frm_cost(inter_search_t *pi, com_img_t *img_org, com_img_t **ref
     }
 
 #if WRITE_REC_PIC
-    fwrite(buf, 1, info->pic_width * info->pic_height, fp);
-    fwrite(pic_org->y, 1, info->pic_width * info->pic_height, fp_org);
+    fwrite(buf, 1, pic_width * pic_height, fp);
+    fwrite(img_org->planes[0], 1, pic_width * pic_height, fp_org);
 #endif
 
 #undef WRITE_REC_PIC
 
-    if (img_org->ptr == 4) {
-        printf("%f\n", total_cost);
-        getchar();
-    }
     return total_cost / (pic_width / UNIT_SIZE) / (pic_height / UNIT_SIZE) / UNIT_SIZE / UNIT_SIZE;
-}
-
-double loka_estimate_coding_cost(enc_ctrl_t *h, com_img_t *img_org)
-{
-    com_img_t *ref_l0[2];
-    com_img_t *ref_l1[2];
-    int ref_num[2] = { h->rpm.num_refp[0] ,h->rpm.num_refp[1] };
-
-    for (int refi = 0; refi < ref_num[PRED_L0]; refi++) {
-        ref_l0[refi] = h->refp[refi][PRED_L0].pic->img;
-    }
-    for (int refi = 0; refi < ref_num[PRED_L1]; refi++) {
-        ref_l1[refi] = h->refp[refi][PRED_L1].pic->img;
-    }
-
-    return loka_get_frm_cost(&h->loka_pinter, img_org, ref_l0, ref_l1, ref_num, h->info.bit_depth_internal);
 }

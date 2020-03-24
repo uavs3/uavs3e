@@ -19,7 +19,7 @@
 #ifndef _ENC_LOOKAHEAD_H_
 #define _ENC_LOOKAHEAD_H_
 
-double loka_estimate_coding_cost(enc_ctrl_t *h, com_img_t *img_org);
+double loka_estimate_coding_cost(inter_search_t *pi, com_img_t *img_org, com_img_t **ref_l0, com_img_t **ref_l1, int num_ref[2], int bit_depth);
 
 
 #endif //_ENC_LOOKAHEAD_H_

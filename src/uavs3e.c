@@ -166,6 +166,14 @@ static enc_pic_t *pic_enc_alloc(com_info_t *info)
 
     ep->main_core = core_alloc(info);
 
+    inter_search_t *pi = &ep->rc_pinter;
+    pi->bit_depth = info->bit_depth_internal;
+    pi->gop_size  = info->gop_size;
+    pi->max_search_range = info->sqh.low_delay ? SEARCH_RANGE_IPEL_LD : SEARCH_RANGE_IPEL_RA;
+    pi->max_coord[MV_X] = (s16)info->pic_width  + 4;
+    pi->max_coord[MV_Y] = (s16)info->pic_height + 4;
+    inter_search_create(pi, info->pic_width, info->pic_height);
+
     return ep;
 }
 
@@ -181,7 +189,8 @@ static void pic_enc_free(enc_pic_t *ep)
     }
     com_pic_destroy(ep->pic_alf_Rec);
     core_free(ep->main_core);
-    
+    inter_search_free(&ep->rc_pinter);
+
     com_mfree(ep);
 }
 
@@ -501,6 +510,8 @@ static void set_pic_header(enc_ctrl_t *h, com_pic_t *pic_rec)
         }
     }
 
+    h->top_pic[0] = h->top_pic[1] = NULL;
+
     if (pichdr->poc == 0) {
         pichdr->ref_pic_list_sps_flag[0] = 1;
         pichdr->ref_pic_list_sps_flag[1] = 1;
@@ -512,7 +523,15 @@ static void set_pic_header(enc_ctrl_t *h, com_pic_t *pic_rec)
         h->rpm.ptr_l_l_ip = 0;
     } else {
         int is_ld = h->info.sqh.low_delay;
-        int top_pic = pic_rec->layer_id < FRM_DEPTH_2 && !is_ld;
+        int is_top = pic_rec->layer_id < FRM_DEPTH_2 && !is_ld;
+
+        for (int i = 0; i < h->rpm.cur_num_ref_pics; i++) {
+            com_pic_t *ref = h->rpm.pic[i];
+            if (ref && ref->b_ref && ref->layer_id <= FRM_DEPTH_1 && (h->top_pic[0] == NULL || h->top_pic[0]->ptr < ref->ptr)) {
+                h->top_pic[0] = ref;
+            }
+        }
+
         com_refm_remove_ref_pic(&h->rpm, pichdr, pic_rec, h->cfg.close_gop, is_ld);
         com_refm_build_ref_buf (&h->rpm);
 
@@ -526,8 +545,14 @@ static void set_pic_header(enc_ctrl_t *h, com_pic_t *pic_rec)
             pichdr->rpl_l0.active = MAX_RA_ACTIVE;
             pichdr->rpl_l1.active = MAX_RA_ACTIVE;
         }
-        com_refm_create_rpl(&h->rpm, pichdr, h->refp, top_pic);
+        com_refm_create_rpl(&h->rpm, pichdr, h->refp, h->top_pic, is_top);
         com_refm_pick_seqhdr_idx(&h->info.sqh, pichdr);
+
+        for (int i = 0; i < 2; i++) {
+            if (h->top_pic[i]) {
+                com_img_addref(h->top_pic[i]->img);
+            }
+        }
     }
     com_refm_insert_rec_pic(&h->rpm, pic_rec, h->refp);
 }
@@ -631,6 +656,9 @@ int enc_pic_finish(enc_ctrl_t *h, pic_thd_param_t *pic_thd, enc_stat_t *stat)
     com_img_release(imgb_c);
 
     for (i = 0; i < REFP_NUM; i++) {
+        if (pic_thd->top_pic[i]) {
+            com_img_release(pic_thd->top_pic[i]->img);
+        }
         stat->refpic_num[i] = pic_thd->num_refp[i];
         for (j = 0; j < stat->refpic_num[i]; j++) {
             com_pic_t *refpic = pic_thd->refp[j][i].pic;
@@ -800,9 +828,69 @@ void *enc_lcu_row(core_t *core, enc_lcu_row_t *row)
     return core;
 }
 
+void enc_get_pic_qp(enc_pic_t *ep, pic_thd_param_t *p)
+{
+    com_pic_header_t *pichdr   = &p->pichdr;
+    enc_cfg_t        *param    =  p->param;
+    com_pic_t        *pic_org  = &p->pic_org;
+    com_info_t       *info     = &ep->info;
+    com_img_t        *img_org  = pic_org->img;
+    com_img_t        *ref_l0[2];
+    com_img_t        *ref_l1[2];
+    int               base_qp;
+
+    for (int refi = 0; refi < p->num_refp[PRED_L0]; refi++) {
+        ref_l0[refi] = p->refp[refi][PRED_L0].pic->img;
+    }
+    for (int refi = 0; refi < p->num_refp[PRED_L1]; refi++) {
+        ref_l1[refi] = p->refp[refi][PRED_L1].pic->img;
+    }
+    for (int lidx = 0; lidx < 2; lidx++) {
+        for (int ref = 0; ref < p->num_refp[lidx]; ref++) {
+            wait_ref_available(p->refp[ref][lidx].pic, info->pic_height);
+        }
+        if (p->top_pic[lidx]) {
+            wait_ref_available(p->top_pic[lidx], info->pic_height);
+        }
+    }
+
+    pic_org->picture_satd = loka_estimate_coding_cost(&ep->rc_pinter, img_org, ref_l0, ref_l1, p->num_refp, info->bit_depth_internal);
+
+    if (param->rc_type == RC_TYPE_NULL) {
+        base_qp = (int)(enc_get_hgop_qp(param->qp, pic_org->layer_id, info->sqh.low_delay) + 0.5);
+    } else {
+        int qp_l0 = p->top_pic[0] ? (int)(p->top_pic[0]->picture_qp_real + 0.5) : -1;
+        int qp_l1 = p->top_pic[1] ? (int)(p->top_pic[1]->picture_qp_real + 0.5) : -1;
+        base_qp = rc_get_qp(p->rc, pic_org, qp_l0, qp_l1);
+    }
+    pic_org->picture_qp = (u8)COM_CLIP3(0, (MAX_QUANT_BASE + info->qp_offset_bit_depth), base_qp + info->qp_offset_bit_depth);
+
+
+    //find a qp_offset_cb that makes com_tbl_qp_chroma_ajudst[qp + qp_offset_cb] equal to com_tbl_qp_chroma_adjust_enc[qp + 1]
+    int opt_c_dqp;
+    int qp_l = pic_org->picture_qp - info->qp_offset_bit_depth;
+    int target_chroma_qp = com_tbl_qp_chroma_adjust_enc[COM_CLIP(qp_l + 1, 0, 63)];
+
+    for (opt_c_dqp = -5; opt_c_dqp < 10; opt_c_dqp++) {
+        if (target_chroma_qp == com_tbl_qp_chroma_ajudst[COM_CLIP(qp_l + opt_c_dqp, 0, 63)]) {
+            break;
+        }
+    }
+    opt_c_dqp = COM_MIN(opt_c_dqp, 63 - qp_l);
+
+    pichdr->chroma_quant_param_delta_cb = param->qp_offset_cb + opt_c_dqp;
+    pichdr->chroma_quant_param_delta_cr = param->qp_offset_cr + opt_c_dqp;
+
+    if (pichdr->chroma_quant_param_delta_cb == 0 && pichdr->chroma_quant_param_delta_cr == 0) {
+        pichdr->chroma_quant_param_disable_flag = 1;
+    } else {
+        pichdr->chroma_quant_param_disable_flag = 0;
+    }
+}
+
 void *enc_pic_thread(enc_pic_t *ep, pic_thd_param_t *p)
 {
-    enc_pic_param_t pic_ctx;
+    enc_pic_param_t   pic_ctx;
     enc_cfg_t          *param = p->param;
     com_patch_header_t pathdr;
     com_pic_header_t  *pichdr = &p->pichdr;
@@ -811,6 +899,8 @@ void *enc_pic_thread(enc_pic_t *ep, pic_thd_param_t *p)
     com_map_t            *map = &ep->map;
     com_info_t          *info = &ep->info;
     com_img_t        *img_org = pic_org->img;
+
+    enc_get_pic_qp(ep, p);
 
     map->map_refi = pic_rec->map_refi;
     map->map_mv   = pic_rec->map_mv;
@@ -892,6 +982,13 @@ void *enc_pic_thread(enc_pic_t *ep, pic_thd_param_t *p)
         pichdr->m_alfPictureParam = NULL;
         pichdr->pic_alf_on = NULL;
     }
+
+    pic_rec->picture_qp_real   = (p->total_qp * 1.0 / info->f_lcu) - info->qp_offset_bit_depth;
+    pic_rec->picture_qp        = pic_org->picture_qp;
+    pic_rec->picture_satd      = pic_org->picture_satd;
+    pic_rec->picture_satd_blur = pic_org->picture_satd_blur;
+    pic_rec->layer_id          = pic_org->layer_id;
+
     if (pic_org->b_ref) {
         com_img_padding(pic_rec->img, 3, 0);
         com_if_luma_frame(pic_rec->subpel->imgs, ep->ip_tmp_buf, info->bit_depth_internal);
@@ -1015,12 +1112,6 @@ void *enc_pic_thread(enc_pic_t *ep, pic_thd_param_t *p)
     /* set stat */
     p->total_bytes +=  BS_GET_BYTES(&bs);
     pic_rec->picture_bits = (p->total_bytes - p->user_bytes) * 8;
-
-    pic_rec->picture_qp_real   = (p->total_qp * 1.0 / info->f_lcu) - info->qp_offset_bit_depth;
-    pic_rec->picture_qp        = pic_org->picture_qp;
-    pic_rec->picture_satd      = pic_org->picture_satd;
-    pic_rec->picture_satd_blur = pic_org->picture_satd_blur;
-    pic_rec->layer_id          = pic_org->layer_id;
 
     return ep;
 }
@@ -1199,15 +1290,8 @@ void *uavs3e_create(enc_cfg_t *cfg, int *err)
 
     uavs3e_threadpool_init(&h->frm_threads_pool, h->cfg.frm_threads, h->cfg.frm_threads, (void * (*)(void *))pic_enc_alloc, &h->info, (void(*)(void *))pic_enc_free);
 
-    avs3e_init_rc(&h->rc, &h->cfg);
+    rc_init(&h->rc, &h->cfg);
 
-    inter_search_t *pi = &h->loka_pinter;
-    pi->bit_depth = info->bit_depth_internal;
-    pi->gop_size  = info->gop_size;
-    pi->max_search_range = info->sqh.low_delay ? SEARCH_RANGE_IPEL_LD : SEARCH_RANGE_IPEL_RA;
-    pi->max_coord[MV_X] = (s16)info->pic_width + 4;
-    pi->max_coord[MV_Y] = (s16)info->pic_height + 4;
-    inter_search_create(pi, info->pic_width, info->pic_height);
 
 #if defined(ENABLE_FUNCTION_C)
     uavs3e_funs_init_c();
@@ -1270,6 +1354,8 @@ void uavs3e_free(void *id)
             com_img_release(h->ilist_imgs[i]);
         }
     }
+    rc_destroy(&h->rc);
+
     com_mfree(h->ilist_imgs);
 
     com_mfree(h);
@@ -1306,7 +1392,7 @@ int uavs3e_enc(void *id, enc_stat_t *stat, com_img_t *img_enc)
                 h->pic_thd_active--;
 
                 if (h->cfg.rc_type != RC_TYPE_NULL) {
-                    h->rc.update(h->rc.handle, pic_thd_param->pic_rec, stat->ext_info, stat->ext_info_buf_size);
+                    rc_update(&h->rc, pic_thd_param->pic_rec, stat->ext_info, stat->ext_info_buf_size);
                 }
                 return COM_OK;
             } else {
@@ -1360,44 +1446,6 @@ int uavs3e_enc(void *id, enc_stat_t *stat, com_img_t *img_enc)
 
     set_pic_header(h, pic_rec);
 
-    for (int lidx = 0; lidx < 2; lidx++) {
-        for (int ref = 0; ref < h->rpm.num_refp[lidx]; ref++) {
-            wait_ref_available(h->refp[ref][lidx].pic, info->pic_height);
-        }
-    }
-
-    int base_qp;
-    pic_org.picture_satd = loka_estimate_coding_cost(h, node.img);
-
-    if (h->cfg.rc_type == RC_TYPE_NULL) {
-        base_qp = (int)(enc_get_hgop_qp(h->cfg.qp, pic_org.layer_id, h->info.sqh.low_delay) + 0.5);
-    } else {
-        base_qp = h->rc.get_qp(h->rc.handle, h, &pic_org);
-    }
-    pic_org.picture_qp = (u8)COM_CLIP3(0, (MAX_QUANT_BASE + h->info.qp_offset_bit_depth), base_qp + h->info.qp_offset_bit_depth);
-
-
-    //find a qp_offset_cb that makes com_tbl_qp_chroma_ajudst[qp + qp_offset_cb] equal to com_tbl_qp_chroma_adjust_enc[qp + 1]
-    int opt_c_dqp;
-    int qp_l = pic_org.picture_qp - h->info.qp_offset_bit_depth;
-    int target_chroma_qp = com_tbl_qp_chroma_adjust_enc[COM_CLIP(qp_l + 1, 0, 63)];
-
-    for (opt_c_dqp = -5; opt_c_dqp < 10; opt_c_dqp++) {
-        if (target_chroma_qp == com_tbl_qp_chroma_ajudst[COM_CLIP(qp_l + opt_c_dqp, 0, 63)]) {
-            break;
-        }
-    }
-    opt_c_dqp = COM_MIN(opt_c_dqp, 63 - qp_l);
-
-    pichdr->chroma_quant_param_delta_cb = h->cfg.qp_offset_cb + opt_c_dqp;
-    pichdr->chroma_quant_param_delta_cr = h->cfg.qp_offset_cr + opt_c_dqp;
-
-    if (pichdr->chroma_quant_param_delta_cb == 0 && pichdr->chroma_quant_param_delta_cr == 0) {
-        pichdr->chroma_quant_param_disable_flag = 1;
-    } else {
-        pichdr->chroma_quant_param_disable_flag = 0;
-    }
-
     /* encode one picture */
     if (h->prev_ptr >= 0) {
         img_org->dts = img_org->pts + (pichdr->dtr - img_org->ptr) * (img_org->pts - h->prev_pts) / (img_org->ptr - h->prev_ptr);
@@ -1409,9 +1457,12 @@ int uavs3e_enc(void *id, enc_stat_t *stat, com_img_t *img_enc)
     h->prev_pts = img_org->pts;
 
     pic_thd_param_t *pic_thd_param = &h->pic_thd_params[h->pic_thd_head];
-    pic_thd_param->param     = &h->cfg;
-    pic_thd_param->pic_rec   = pic_rec;
-    pic_thd_param->ptr       = img_org->ptr;
+    pic_thd_param->param      = &h->cfg;
+    pic_thd_param->pic_rec    = pic_rec;
+    pic_thd_param->ptr        = img_org->ptr;
+    pic_thd_param->rc         = &h->rc;
+    pic_thd_param->top_pic[0] = h->top_pic[0];
+    pic_thd_param->top_pic[1] = h->top_pic[1];
 
     memcpy(&pic_thd_param->pic_org,  &pic_org,         sizeof(com_pic_t));
     memcpy(&pic_thd_param->pichdr,   &h->pichdr,       sizeof(com_pic_header_t));
@@ -1432,7 +1483,7 @@ int uavs3e_enc(void *id, enc_stat_t *stat, com_img_t *img_enc)
         h->pic_thd_active--;
 
         if (h->cfg.rc_type != RC_TYPE_NULL) {
-            h->rc.update(h->rc.handle, pic_thd_param->pic_rec, stat->ext_info, stat->ext_info_buf_size);
+            rc_update(&h->rc, pic_thd_param->pic_rec, stat->ext_info, stat->ext_info_buf_size);
         }
         return COM_OK;
     } else {
