@@ -1564,10 +1564,10 @@ void uavs3e_ipred_ang_y_avx2(pel *pSrc, pel *dst, int i_dst, int mode, int width
             __m128i C3_2 = _mm_set1_epi16(((32 - offset3) << 8) | (64 - offset3));
             __m128i C4_2 = _mm_set1_epi16(((32 - offset4) << 8) | (64 - offset4));
 
-            __m256i C13_1 = _mm256_setr_m128i(C1_1, C3_1);
-            __m256i C24_1 = _mm256_setr_m128i(C2_1, C4_1);
-            __m256i C13_2 = _mm256_setr_m128i(C1_2, C3_2);
-            __m256i C24_2 = _mm256_setr_m128i(C2_2, C4_2);
+            __m256i C13_1 = _mm256_set_m128i(C3_1, C1_1);
+            __m256i C24_1 = _mm256_set_m128i(C4_1, C2_1);
+            __m256i C13_2 = _mm256_set_m128i(C3_2, C1_2);
+            __m256i C24_2 = _mm256_set_m128i(C4_2, C2_2);
 
             for (int j = 0; j < height; j += 8) {
                 __m256i mSrc13 = _mm256_loadu2_m128i((__m128i*)p3, (__m128i*)p1);
