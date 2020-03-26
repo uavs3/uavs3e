@@ -34,9 +34,11 @@ max_dt_size             : 64
 
 #======== Coding Structure =======================
 i_period                : 32                               # I-picture period
-max_b_frames            : 15                               # Number of maximum B frames (1,3,7,15)
-frames                  : 49                                # maximum number of frames to be encoded
+max_b_frames            : 15                               # Number of maximum B frames (1,3,7,15,31)
+frames                  : 49                               # maximum number of frames to be encoded
 close_gop               : 0                                # use close gop
+scenecut                : 0                                # scenecut threshold (0~100, 0:off)
+adaptive_gop            : 0                                # adaptive length of sub-gop
 
 #======= Quantization ============================
 qp                      : 34                               # QP value (-16~63 for 10-bit internal encoding precision, 0~63 for 8-bit internal encoding precision)

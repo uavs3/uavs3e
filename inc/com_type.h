@@ -432,6 +432,10 @@ typedef struct uavs3e_com_info_t {
 
     int                     max_b_frames;
     int                     gop_size;
+
+    /* global table for ME */
+    u8  *tab_mvbits;
+
 } com_info_t;
 
 #endif /* _COM_H_ */

@@ -46,7 +46,7 @@ static void get_ipred_neighbor(pel *dst, int x, int y, int w, int h, int pic_wid
     }
 }
 
-double loka_estimate_coding_cost(inter_search_t *pi, com_img_t *img_org, com_img_t **ref_l0, com_img_t **ref_l1, int num_ref[2], int bit_depth)
+double loka_estimate_coding_cost(inter_search_t *pi, com_img_t *img_org, com_img_t **ref_l0, com_img_t **ref_l1, int num_ref[2], int bit_depth, double *icost)
 {
     const int    base_qp = 32;
     const double base_lambda = 1.43631 * pow(2.0, (base_qp - 16.0) / 4.0);
@@ -55,6 +55,7 @@ double loka_estimate_coding_cost(inter_search_t *pi, com_img_t *img_org, com_img
     int pic_height = img_org->height[0];
 
     double total_cost = 0;
+    double total_icost = 0;
     int i_org = img_org->stride[0] / sizeof(pel);
     com_pic_t pic = { 0 };
     com_subpel_t subpel;
@@ -119,6 +120,7 @@ double loka_estimate_coding_cost(inter_search_t *pi, com_img_t *img_org, com_img
 
             int avaliable_nb = (x ? AVAIL_LE : 0) | (y ? AVAIL_UP : 0) | ((x && y) ? AVAIL_UP_LE : 0);
             static tab_s8 ipm_tab[] = { 0, 1, 2, 4, 8, 12, 16, 20, 24, 28, 32 };
+            u32 min_icost = COM_UINT64_MAX;
 
             for (int i = 0; i < sizeof(ipm_tab); i++) {
                 com_intra_pred(nb_buf + INTRA_NEIB_MID, pred_buf, ipm_tab[i], UNIT_SIZE, UNIT_SIZE, bit_depth, avaliable_nb, 0);
@@ -130,8 +132,12 @@ double loka_estimate_coding_cost(inter_search_t *pi, com_img_t *img_org, com_img
 #endif
                     min_cost = cost;
                 }
+                if (cost < min_icost) {
+                    min_icost = cost;
+                }
             }
             total_cost += min_cost;
+            total_icost += min_icost;
         }        
     }
 
@@ -142,5 +148,21 @@ double loka_estimate_coding_cost(inter_search_t *pi, com_img_t *img_org, com_img
 
 #undef WRITE_REC_PIC
 
+    if (icost) {
+        *icost = total_icost / (pic_width / UNIT_SIZE) / (pic_height / UNIT_SIZE) / UNIT_SIZE / UNIT_SIZE;
+    }
+
     return total_cost / (pic_width / UNIT_SIZE) / (pic_height / UNIT_SIZE) / UNIT_SIZE / UNIT_SIZE;
+}
+
+int loka_check_scenecut(inter_search_t *pi, com_img_t *img_org, com_img_t *img_last, int bit_depth, int threshold)
+{
+    double pcost, icost;
+    int num_refp[2] = { 1, 0 };
+    com_img_t *ref_l0[1] = { img_last };
+
+    pcost = loka_estimate_coding_cost(pi, img_org, ref_l0, NULL, num_refp, bit_depth, &icost);
+
+
+    return 0;
 }

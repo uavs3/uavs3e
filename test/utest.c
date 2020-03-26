@@ -169,6 +169,18 @@ static app_cfg_t options[] = {
         ,0
     },
     {
+        CFG_KEY_NULL,  "scenecut", CFG_TYPE_INTEGER,
+        &cfg.scenecut,
+        "scenecut threshold (0~100, 0:off)"
+        ,0
+    },
+    {
+        CFG_KEY_NULL,  "adaptive_gop", CFG_TYPE_INTEGER,
+        &cfg.adaptive_gop,
+        "adaptive length of sub-gop"
+        ,0
+    },
+    {
         CFG_KEY_NULL,  "qp_offset_cb", CFG_TYPE_INTEGER,
         &cfg.qp_offset_cb,
         "qp offset for cb, disable:0 (default)"

@@ -379,16 +379,23 @@ static u64 me_sub_pel_search(inter_search_t *pi, int x, int y, int w, int h, s8 
     return cost_best;
 }
 
-static int get_max_search_range(inter_search_t *pi, const s16 mvp[2], int x, int y, int pic_width, int pic_height)
+static int get_max_search_range(inter_search_t *pi, const s16 mvp[2], int x, int y, int w, int h, int pic_width, int pic_height)
 {
     int max_table_offset = (pi->tab_mvbits_offset << pi->curr_mvr) >> 2;
     int mvp_x = mvp[0] >> 2;
     int mvp_y = mvp[1] >> 2;
 
-    pi->min_mv[0] = COM_MAX(-MAX_CU_SIZE + 1 - x, mvp_x - max_table_offset + 4);
-    pi->min_mv[1] = COM_MAX(-MAX_CU_SIZE + 1 - y, mvp_y - max_table_offset + 4);
-    pi->max_mv[0] = COM_MIN(pic_width    - 1 - x, mvp_x + max_table_offset - 4);
-    pi->max_mv[1] = COM_MIN(pic_height   - 1 - y, mvp_y + max_table_offset - 4);
+    if (pi->is_padding) {
+        pi->min_mv[0] = COM_MAX(-MAX_CU_SIZE + 1 - x, mvp_x - max_table_offset + 4);
+        pi->min_mv[1] = COM_MAX(-MAX_CU_SIZE + 1 - y, mvp_y - max_table_offset + 4);
+        pi->max_mv[0] = COM_MIN(pic_width  - 1 - x,   mvp_x + max_table_offset - 4);
+        pi->max_mv[1] = COM_MIN(pic_height - 1 - y,   mvp_y + max_table_offset - 4);
+    } else {
+        pi->min_mv[0] = COM_MAX(- x, mvp_x - max_table_offset + 4);
+        pi->min_mv[1] = COM_MAX(- y, mvp_y - max_table_offset + 4);
+        pi->max_mv[0] = COM_MIN(pic_width  - 1 - x - w, mvp_x + max_table_offset - 4);
+        pi->max_mv[1] = COM_MIN(pic_height - 1 - y - h, mvp_y + max_table_offset - 4);
+    }
 
     com_ipel_range_rounding(pi->min_mv, pi->curr_mvr); 
     com_ipel_range_rounding(pi->max_mv, pi->curr_mvr);
@@ -401,7 +408,7 @@ static int get_max_search_range(inter_search_t *pi, const s16 mvp[2], int x, int
 
 u64 me_search_tz(inter_search_t *pi, int x, int y, int w, int h, int pic_width, int pic_height, s8 refi, int lidx, const s16 mvp[MV_D], s16 mv[MV_D], int bi)
 {
-    if (!get_max_search_range(pi, mvp, x, y, pic_width, pic_height)) {
+    if (!get_max_search_range(pi, mvp, x, y, w, h, pic_width, pic_height)) {
         return COM_UINT64_MAX;
     }
     if (!bi) {
