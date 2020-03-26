@@ -55,7 +55,7 @@ tab_u32 com_tbl_target_size_list[27][2] = {
 
 tab_s8 com_tbl_log2[257] = {
     /* 0, 1 */
-    -1, -1,
+    -1, 0,
     /* 2, 3 */
     1, -1,
     /* 4 ~ 7 */

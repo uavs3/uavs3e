@@ -361,6 +361,9 @@ void com_refm_remove_ref_pic(com_pic_manager_t *pm, com_pic_header_t *pichdr, co
                 if (ref && ref->b_ref && ref->ptr < pm->ptr_l_ip && ref->layer_id > FRM_DEPTH_2) {
                     remove_ref_pic(pm, i--);
                 }
+                if (ref && ref->b_ref && ref->ptr < pm->ptr_l_l_ip) {
+                    remove_ref_pic(pm, i--);
+                }
             }
             pm->ptr_l_l_ip = pm->ptr_l_ip;
             pm->ptr_l_ip = pic->ptr;

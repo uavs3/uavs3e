@@ -221,6 +221,11 @@ static int refine_input_cfg(enc_cfg_t *param, enc_cfg_t *cfg_org)
     param->wpp_threads = COM_CLIP3(1, (param->pic_height + param->ctu_size - 1) / param->ctu_size, param->wpp_threads);
     param->frm_threads = COM_MAX(param->frm_threads, 1);
 
+    if (param->i_period == 1) {
+        param->max_b_frames = 0;
+        param->close_gop = 1;
+    }
+
     /* check input parameters */
     com_assert_rv (param->pic_width > 0 && param->pic_height > 0, COM_ERR_INVALID_ARGUMENT);
     com_assert_rv((param->pic_width & (MIN_CU_SIZE - 1)) == 0, COM_ERR_INVALID_ARGUMENT);
