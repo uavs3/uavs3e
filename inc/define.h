@@ -42,6 +42,7 @@
 #define DT_SAVE_LOAD                       1  // fast algorithm: save & load best part_size
 #define ENC_ECU_DEPTH                      4 // for early CU termination
 #define ENC_ECU_ADAPTIVE                   1 // for early CU termination
+#define PRMS_RMD                           1 // for ipm: rough mode decision 
 
 #define MAX_REORDER_BUF        33
 
