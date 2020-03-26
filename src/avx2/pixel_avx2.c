@@ -225,8 +225,8 @@ void uavs3e_recon_w16_avx2(s16 *resi, pel *pred, int i_pred, int width, int heig
     if (cbf == 0) {
         __m128i p0, p1;
         for (i = 0; i < height; i += 2) {
-            p0 = _mm_load_si128((const __m128i *)(pred));
-            p1 = _mm_load_si128((const __m128i *)(pred + i_pred));
+            p0 = _mm_loadu_si128((const __m128i *)(pred));
+            p1 = _mm_loadu_si128((const __m128i *)(pred + i_pred));
 
             _mm_storeu_si128((__m128i *)(rec), p0);
             _mm_storeu_si128((__m128i *)(rec + i_rec), p1);
@@ -238,8 +238,8 @@ void uavs3e_recon_w16_avx2(s16 *resi, pel *pred, int i_pred, int width, int heig
         __m256i zero = _mm256_setzero_si256();
         __m256i m0, m1, r0, r1;
         for (i = 0; i < height; i += 2) {
-            p0 = _mm_load_si128((const __m128i *)(pred));
-            p1 = _mm_load_si128((const __m128i *)(pred + i_pred));
+            p0 = _mm_loadu_si128((const __m128i *)(pred));
+            p1 = _mm_loadu_si128((const __m128i *)(pred + i_pred));
             r0 = _mm256_load_si256((const __m256i *)(resi));
             r1 = _mm256_load_si256((const __m256i *)(resi + 16));
             m0 = _mm256_set_m128i(p1, p0);
@@ -270,8 +270,8 @@ void uavs3e_recon_w32_avx2(s16 *resi, pel *pred, int i_pred, int width, int heig
         int i_pred2 = i_pred << 1;
         __m256i p0, p1;
         for (i = 0; i < height; i += 2) {
-            p0 = _mm256_load_si256((const __m256i *)(pred));
-            p1 = _mm256_load_si256((const __m256i *)(pred + i_pred));
+            p0 = _mm256_loadu_si256((const __m256i *)(pred));
+            p1 = _mm256_loadu_si256((const __m256i *)(pred + i_pred));
 
             _mm256_storeu_si256((__m256i *)(rec), p0);
             _mm256_storeu_si256((__m256i *)(rec + i_rec), p1);
@@ -282,7 +282,7 @@ void uavs3e_recon_w32_avx2(s16 *resi, pel *pred, int i_pred, int width, int heig
         __m256i zero = _mm256_setzero_si256();
         __m256i m0, m1, r0, r1;
         for (i = 0; i < height; i++) {
-            m0 = _mm256_load_si256((const __m256i *)(pred));
+            m0 = _mm256_loadu_si256((const __m256i *)(pred));
             r0 = _mm256_load_si256((const __m256i *)(resi));
             r1 = _mm256_load_si256((const __m256i *)(resi + 16));
             m0 = _mm256_permute4x64_epi64(m0, 0xd8);
@@ -311,15 +311,15 @@ void uavs3e_recon_w64_avx2(s16 *resi, pel *pred, int i_pred, int width, int heig
         int i_rec2 = i_rec << 1;
         int i_pred2 = i_pred << 1;
         for (i = 0; i < height; i += 2) {
-            p0 = _mm256_load_si256((const __m256i *)(pred));
-            p1 = _mm256_load_si256((const __m256i *)(pred + 32));
-            p2 = _mm256_load_si256((const __m256i *)(pred + i_pred));
-            p3 = _mm256_load_si256((const __m256i *)(pred + i_pred + 32));
+            p0 = _mm256_loadu_si256((const __m256i *)(pred));
+            p1 = _mm256_loadu_si256((const __m256i *)(pred + 32));
+            p2 = _mm256_loadu_si256((const __m256i *)(pred + i_pred));
+            p3 = _mm256_loadu_si256((const __m256i *)(pred + i_pred + 32));
 
-            _mm256_store_si256((__m256i *)(rec), p0);
-            _mm256_store_si256((__m256i *)(rec + 32), p1);
-            _mm256_store_si256((__m256i *)(rec + i_rec), p2);
-            _mm256_store_si256((__m256i *)(rec + i_rec + 32), p3);
+            _mm256_storeu_si256((__m256i *)(rec), p0);
+            _mm256_storeu_si256((__m256i *)(rec + 32), p1);
+            _mm256_storeu_si256((__m256i *)(rec + i_rec), p2);
+            _mm256_storeu_si256((__m256i *)(rec + i_rec + 32), p3);
             rec += i_rec2;
             pred += i_pred2;
         }
@@ -327,8 +327,8 @@ void uavs3e_recon_w64_avx2(s16 *resi, pel *pred, int i_pred, int width, int heig
         __m256i zero = _mm256_setzero_si256();
         __m256i m0, m1, m2, m3, r0, r1, r2, r3;
         for (i = 0; i < height; i++) {
-            m0 = _mm256_load_si256((const __m256i *)(pred));
-            m1 = _mm256_load_si256((const __m256i *)(pred + 32));
+            m0 = _mm256_loadu_si256((const __m256i *)(pred));
+            m1 = _mm256_loadu_si256((const __m256i *)(pred + 32));
             r0 = _mm256_load_si256((const __m256i *)(resi));
             r1 = _mm256_load_si256((const __m256i *)(resi + 16));
             r2 = _mm256_load_si256((const __m256i *)(resi + 32));
@@ -349,8 +349,8 @@ void uavs3e_recon_w64_avx2(s16 *resi, pel *pred, int i_pred, int width, int heig
             m0 = _mm256_permute4x64_epi64(m0, 0xd8);
             m2 = _mm256_permute4x64_epi64(m2, 0xd8);
 
-            _mm256_store_si256((__m256i *)(rec), m0);
-            _mm256_store_si256((__m256i *)(rec + 32), m2);
+            _mm256_storeu_si256((__m256i *)(rec), m0);
+            _mm256_storeu_si256((__m256i *)(rec + 32), m2);
 
             pred += i_pred;
             rec  += i_rec;
@@ -757,8 +757,8 @@ void uavs3e_recon_w8_avx2(s16 *resi, pel *pred, int i_pred, int width, int heigh
     if (cbf == 0) {
         __m128i p0, p1;
         for (i = 0; i < height; i += 2) {
-            p0 = _mm_load_si128((const __m128i *)(pred));
-            p1 = _mm_load_si128((const __m128i *)(pred + i_pred));
+            p0 = _mm_loadu_si128((const __m128i *)(pred));
+            p1 = _mm_loadu_si128((const __m128i *)(pred + i_pred));
 
             _mm_storeu_si128((__m128i *)(rec), p0);
             _mm_storeu_si128((__m128i *)(rec + i_rec), p1);
@@ -798,8 +798,8 @@ void uavs3e_recon_w16_avx2(s16 *resi, pel *pred, int i_pred, int width, int heig
     if (cbf == 0) {
         __m256i p0, p1;
         for (i = 0; i < height; i += 2) {
-            p0 = _mm256_load_si256((const __m256i *)(pred));
-            p1 = _mm256_load_si256((const __m256i *)(pred + i_pred));
+            p0 = _mm256_loadu_si256((const __m256i *)(pred));
+            p1 = _mm256_loadu_si256((const __m256i *)(pred + i_pred));
 
             _mm256_storeu_si256((__m256i *)(rec), p0);
             _mm256_storeu_si256((__m256i *)(rec + i_rec), p1);
@@ -813,8 +813,8 @@ void uavs3e_recon_w16_avx2(s16 *resi, pel *pred, int i_pred, int width, int heig
         __m256i min = _mm256_setzero_si256();
         __m256i max = _mm256_set1_epi16((1 << bit_depth) - 1);
         for (i = 0; i < height; i += 2) {
-            p0 = _mm256_load_si256((const __m256i *)(pred));
-            p1 = _mm256_load_si256((const __m256i *)(pred + i_pred));
+            p0 = _mm256_loadu_si256((const __m256i *)(pred));
+            p1 = _mm256_loadu_si256((const __m256i *)(pred + i_pred));
             r0 = _mm256_load_si256((const __m256i *)(resi));
             r1 = _mm256_load_si256((const __m256i *)(resi + 16));
 
@@ -844,10 +844,10 @@ void uavs3e_recon_w32_avx2(s16 *resi, pel *pred, int i_pred, int width, int heig
         int i_pred2 = i_pred << 1;
         __m256i p0, p1, p2, p3;
         for (i = 0; i < height; i += 2) {
-            p0 = _mm256_load_si256((const __m256i *)(pred));
-            p1 = _mm256_load_si256((const __m256i *)(pred + 16));
-            p2 = _mm256_load_si256((const __m256i *)(pred + i_pred));
-            p3 = _mm256_load_si256((const __m256i *)(pred + i_pred + 16));
+            p0 = _mm256_loadu_si256((const __m256i *)(pred));
+            p1 = _mm256_loadu_si256((const __m256i *)(pred + 16));
+            p2 = _mm256_loadu_si256((const __m256i *)(pred + i_pred));
+            p3 = _mm256_loadu_si256((const __m256i *)(pred + i_pred + 16));
 
             _mm256_storeu_si256((__m256i *)(rec), p0);
             _mm256_storeu_si256((__m256i *)(rec + 16), p1);
@@ -862,8 +862,8 @@ void uavs3e_recon_w32_avx2(s16 *resi, pel *pred, int i_pred, int width, int heig
         __m256i min = _mm256_setzero_si256();
         __m256i max = _mm256_set1_epi16((1 << bit_depth) - 1);
         for (i = 0; i < height; i++) {
-            m0 = _mm256_load_si256((const __m256i *)(pred));
-            m1 = _mm256_load_si256((const __m256i *)(pred + 16));
+            m0 = _mm256_loadu_si256((const __m256i *)(pred));
+            m1 = _mm256_loadu_si256((const __m256i *)(pred + 16));
             r0 = _mm256_load_si256((const __m256i *)(resi));
             r1 = _mm256_load_si256((const __m256i *)(resi + 16));
 
@@ -891,15 +891,15 @@ void uavs3e_recon_w64_avx2(s16 *resi, pel *pred, int i_pred, int width, int heig
     if (cbf == 0) {
         __m256i p0, p1, p2, p3;
         for (i = 0; i < height; i++) {
-            p0 = _mm256_load_si256((const __m256i *)(pred));
-            p1 = _mm256_load_si256((const __m256i *)(pred + 16));
-            p2 = _mm256_load_si256((const __m256i *)(pred + 32));
-            p3 = _mm256_load_si256((const __m256i *)(pred + 48));
+            p0 = _mm256_loadu_si256((const __m256i *)(pred));
+            p1 = _mm256_loadu_si256((const __m256i *)(pred + 16));
+            p2 = _mm256_loadu_si256((const __m256i *)(pred + 32));
+            p3 = _mm256_loadu_si256((const __m256i *)(pred + 48));
 
-            _mm256_store_si256((__m256i *)(rec), p0);
-            _mm256_store_si256((__m256i *)(rec + 16), p1);
-            _mm256_store_si256((__m256i *)(rec + 32), p2);
-            _mm256_store_si256((__m256i *)(rec + 48), p3);
+            _mm256_storeu_si256((__m256i *)(rec), p0);
+            _mm256_storeu_si256((__m256i *)(rec + 16), p1);
+            _mm256_storeu_si256((__m256i *)(rec + 32), p2);
+            _mm256_storeu_si256((__m256i *)(rec + 48), p3);
             rec += i_rec;
             pred += i_pred;
         }
@@ -909,10 +909,10 @@ void uavs3e_recon_w64_avx2(s16 *resi, pel *pred, int i_pred, int width, int heig
         __m256i min = _mm256_setzero_si256();
         __m256i max = _mm256_set1_epi16((1 << bit_depth) - 1);
         for (i = 0; i < height; i++) {
-            m0 = _mm256_load_si256((const __m256i *)(pred));
-            m1 = _mm256_load_si256((const __m256i *)(pred + 16));
-            m2 = _mm256_load_si256((const __m256i *)(pred + 32));
-            m3 = _mm256_load_si256((const __m256i *)(pred + 48));
+            m0 = _mm256_loadu_si256((const __m256i *)(pred));
+            m1 = _mm256_loadu_si256((const __m256i *)(pred + 16));
+            m2 = _mm256_loadu_si256((const __m256i *)(pred + 32));
+            m3 = _mm256_loadu_si256((const __m256i *)(pred + 48));
             r0 = _mm256_load_si256((const __m256i *)(resi));
             r1 = _mm256_load_si256((const __m256i *)(resi + 16));
             r2 = _mm256_load_si256((const __m256i *)(resi + 32));
@@ -932,10 +932,10 @@ void uavs3e_recon_w64_avx2(s16 *resi, pel *pred, int i_pred, int width, int heig
             m2 = _mm256_min_epi16(m2, max);
             m3 = _mm256_min_epi16(m3, max);
 
-            _mm256_store_si256((__m256i *)(rec), m0);
-            _mm256_store_si256((__m256i *)(rec + 16), m1);
-            _mm256_store_si256((__m256i *)(rec + 32), m2);
-            _mm256_store_si256((__m256i *)(rec + 48), m3);
+            _mm256_storeu_si256((__m256i *)(rec), m0);
+            _mm256_storeu_si256((__m256i *)(rec + 16), m1);
+            _mm256_storeu_si256((__m256i *)(rec + 32), m2);
+            _mm256_storeu_si256((__m256i *)(rec + 48), m3);
 
             pred += i_pred;
             rec += i_rec;

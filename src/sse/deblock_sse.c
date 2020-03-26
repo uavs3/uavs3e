@@ -1348,14 +1348,14 @@ void uavs3e_deblock_hor_luma_sse(pel *src, int stride, int alpha, int beta, int 
     __m128i c_6 = _mm_set1_epi16(6);
     __m128i c_8 = _mm_set1_epi16(8);
 
-    TL3 = _mm_load_si128((__m128i *)(src - inc4));
-    TL2 = _mm_load_si128((__m128i *)(src - inc3));
-    TL1 = _mm_load_si128((__m128i *)(src - inc2));
-    TL0 = _mm_load_si128((__m128i *)(src - inc));
-    TR0 = _mm_load_si128((__m128i *)(src + 0));
-    TR1 = _mm_load_si128((__m128i *)(src + inc));
-    TR2 = _mm_load_si128((__m128i *)(src + inc2));
-    TR3 = _mm_load_si128((__m128i *)(src + inc3));
+    TL3 = _mm_loadu_si128((__m128i *)(src - inc4));
+    TL2 = _mm_loadu_si128((__m128i *)(src - inc3));
+    TL1 = _mm_loadu_si128((__m128i *)(src - inc2));
+    TL0 = _mm_loadu_si128((__m128i *)(src - inc));
+    TR0 = _mm_loadu_si128((__m128i *)(src + 0));
+    TR1 = _mm_loadu_si128((__m128i *)(src + inc));
+    TR2 = _mm_loadu_si128((__m128i *)(src + inc2));
+    TR3 = _mm_loadu_si128((__m128i *)(src + inc3));
 
     M0 = _mm_set_epi32(flag1, flag1, flag0, flag0);
 

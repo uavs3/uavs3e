@@ -366,8 +366,8 @@ void uavs3e_recon_w16_sse(s16 *resi, pel *pred, int i_pred, int width, int heigh
     if (cbf == 0) {
         __m128i p0, p1;
         for (i = 0; i < height; i += 2) {
-            p0 = _mm_load_si128((const __m128i *)(pred));
-            p1 = _mm_load_si128((const __m128i *)(pred + i_pred));
+            p0 = _mm_loadu_si128((const __m128i *)(pred));
+            p1 = _mm_loadu_si128((const __m128i *)(pred + i_pred));
 
             _mm_storeu_si128((__m128i *)(rec), p0);
             _mm_storeu_si128((__m128i *)(rec + i_rec), p1);
@@ -378,8 +378,8 @@ void uavs3e_recon_w16_sse(s16 *resi, pel *pred, int i_pred, int width, int heigh
         __m128i zero = _mm_setzero_si128();
         __m128i p0, p1, p2, p3, r0, r1, r2, r3;
         for (i = 0; i < height; i += 2) {
-            p0 = _mm_load_si128((const __m128i *)(pred));
-            p1 = _mm_load_si128((const __m128i *)(pred + i_pred));
+            p0 = _mm_loadu_si128((const __m128i *)(pred));
+            p1 = _mm_loadu_si128((const __m128i *)(pred + i_pred));
             r0 = _mm_load_si128((const __m128i *)(resi));
             r1 = _mm_load_si128((const __m128i *)(resi + 8));
             r2 = _mm_load_si128((const __m128i *)(resi + 16));
@@ -415,15 +415,15 @@ void uavs3e_recon_w32_sse(s16 *resi, pel *pred, int i_pred, int width, int heigh
         int i_pred2 = i_pred << 1;
 
         for (i = 0; i < height; i += 2) {
-            p0 = _mm_load_si128((const __m128i *)(pred));
-            p1 = _mm_load_si128((const __m128i *)(pred + 16));
-            p2 = _mm_load_si128((const __m128i *)(pred + i_pred));
-            p3 = _mm_load_si128((const __m128i *)(pred + i_pred + 16));
+            p0 = _mm_loadu_si128((const __m128i *)(pred));
+            p1 = _mm_loadu_si128((const __m128i *)(pred + 16));
+            p2 = _mm_loadu_si128((const __m128i *)(pred + i_pred));
+            p3 = _mm_loadu_si128((const __m128i *)(pred + i_pred + 16));
 
-            _mm_store_si128((__m128i *)(rec), p0);
-            _mm_store_si128((__m128i *)(rec + 16), p1);
-            _mm_store_si128((__m128i *)(rec + i_rec), p2);
-            _mm_store_si128((__m128i *)(rec + i_rec + 16), p3);
+            _mm_storeu_si128((__m128i *)(rec), p0);
+            _mm_storeu_si128((__m128i *)(rec + 16), p1);
+            _mm_storeu_si128((__m128i *)(rec + i_rec), p2);
+            _mm_storeu_si128((__m128i *)(rec + i_rec + 16), p3);
             rec += i_rec2;
             pred += i_pred2;
         }
@@ -431,8 +431,8 @@ void uavs3e_recon_w32_sse(s16 *resi, pel *pred, int i_pred, int width, int heigh
         __m128i zero = _mm_setzero_si128();
         __m128i p0, p1, p2, p3, r0, r1, r2, r3;
         for (i = 0; i < height; i++) {
-            p0 = _mm_load_si128((const __m128i *)(pred));
-            p1 = _mm_load_si128((const __m128i *)(pred + 16));
+            p0 = _mm_loadu_si128((const __m128i *)(pred));
+            p1 = _mm_loadu_si128((const __m128i *)(pred + 16));
             r0 = _mm_load_si128((const __m128i *)(resi));
             r1 = _mm_load_si128((const __m128i *)(resi + 8));
             r2 = _mm_load_si128((const __m128i *)(resi + 16));
@@ -449,8 +449,8 @@ void uavs3e_recon_w32_sse(s16 *resi, pel *pred, int i_pred, int width, int heigh
             p0 = _mm_packus_epi16(p0, p1);
             p2 = _mm_packus_epi16(p2, p3);
 
-            _mm_store_si128((__m128i *)(rec), p0);
-            _mm_store_si128((__m128i *)(rec + 16), p2);
+            _mm_storeu_si128((__m128i *)(rec), p0);
+            _mm_storeu_si128((__m128i *)(rec + 16), p2);
 
             pred += i_pred;
             rec += i_rec;
@@ -465,15 +465,15 @@ void uavs3e_recon_w64_sse(s16 *resi, pel *pred, int i_pred, int width, int heigh
     if (cbf == 0) {
         __m128i p0, p1, p2, p3;
         for (i = 0; i < height; i++) {
-            p0 = _mm_load_si128((const __m128i *)(pred));
-            p1 = _mm_load_si128((const __m128i *)(pred + 16));
-            p2 = _mm_load_si128((const __m128i *)(pred + 32));
-            p3 = _mm_load_si128((const __m128i *)(pred + 48));
+            p0 = _mm_loadu_si128((const __m128i *)(pred));
+            p1 = _mm_loadu_si128((const __m128i *)(pred + 16));
+            p2 = _mm_loadu_si128((const __m128i *)(pred + 32));
+            p3 = _mm_loadu_si128((const __m128i *)(pred + 48));
 
-            _mm_store_si128((__m128i *)(rec), p0);
-            _mm_store_si128((__m128i *)(rec + 16), p1);
-            _mm_store_si128((__m128i *)(rec + 32), p2);
-            _mm_store_si128((__m128i *)(rec + 48), p3);
+            _mm_storeu_si128((__m128i *)(rec), p0);
+            _mm_storeu_si128((__m128i *)(rec + 16), p1);
+            _mm_storeu_si128((__m128i *)(rec + 32), p2);
+            _mm_storeu_si128((__m128i *)(rec + 48), p3);
             rec += i_rec;
             pred += i_pred;
         }
@@ -482,10 +482,10 @@ void uavs3e_recon_w64_sse(s16 *resi, pel *pred, int i_pred, int width, int heigh
         __m128i p0, p1, p2, p3, p4, p5, p6, p7;
         __m128i r0, r1, r2, r3, r4, r5, r6, r7;
         for (i = 0; i < height; i++) {
-            p0 = _mm_load_si128((const __m128i *)(pred));
-            p1 = _mm_load_si128((const __m128i *)(pred + 16));
-            p2 = _mm_load_si128((const __m128i *)(pred + 32));
-            p3 = _mm_load_si128((const __m128i *)(pred + 48));
+            p0 = _mm_loadu_si128((const __m128i *)(pred));
+            p1 = _mm_loadu_si128((const __m128i *)(pred + 16));
+            p2 = _mm_loadu_si128((const __m128i *)(pred + 32));
+            p3 = _mm_loadu_si128((const __m128i *)(pred + 48));
             r0 = _mm_load_si128((const __m128i *)(resi));
             r1 = _mm_load_si128((const __m128i *)(resi + 8));
             r2 = _mm_load_si128((const __m128i *)(resi + 16));
@@ -517,10 +517,10 @@ void uavs3e_recon_w64_sse(s16 *resi, pel *pred, int i_pred, int width, int heigh
             p4 = _mm_packus_epi16(p4, p5);
             p6 = _mm_packus_epi16(p6, p7);
 
-            _mm_store_si128((__m128i *)(rec), p0);
-            _mm_store_si128((__m128i *)(rec + 16), p2);
-            _mm_store_si128((__m128i *)(rec + 32), p4);
-            _mm_store_si128((__m128i *)(rec + 48), p6);
+            _mm_storeu_si128((__m128i *)(rec), p0);
+            _mm_storeu_si128((__m128i *)(rec + 16), p2);
+            _mm_storeu_si128((__m128i *)(rec + 32), p4);
+            _mm_storeu_si128((__m128i *)(rec + 48), p6);
 
             pred += i_pred;
             rec += i_rec;
