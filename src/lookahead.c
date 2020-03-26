@@ -55,7 +55,7 @@ double loka_estimate_coding_cost(inter_search_t *pi, com_img_t *img_org, com_img
     int pic_height = img_org->height[0];
 
     double total_cost = 0;
-    int i_org = img_org->stride[0];
+    int i_org = img_org->stride[0] / sizeof(pel);
     com_pic_t pic = { 0 };
     com_subpel_t subpel;
 
@@ -82,7 +82,7 @@ double loka_estimate_coding_cost(inter_search_t *pi, com_img_t *img_org, com_img
         for (int x = 0; x < pic_width - UNIT_SIZE + 1; x += UNIT_SIZE) {
             ALIGNED_32(pel pred_buf[MAX_CU_DIM]);
             u64 min_cost = COM_UINT64_MAX;
-            pel *org = (pel*)img_org->planes[0] + y * img_org->stride[0] + x;
+            pel *org = (pel*)img_org->planes[0] + y * i_org + x;
 
             pi->org = org;
 
