@@ -56,7 +56,7 @@ double loka_estimate_coding_cost(inter_search_t *pi, com_img_t *img_org, com_img
 
     double total_cost = 0;
     double total_icost = 0;
-    int i_org = img_org->stride[0] / sizeof(pel);
+    int i_org = STRIDE_IMGB2PIC(img_org->stride[0]);
     com_pic_t pic = { 0 };
     com_subpel_t subpel;
 
@@ -94,7 +94,7 @@ double loka_estimate_coding_cost(inter_search_t *pi, com_img_t *img_org, com_img
                     com_img_t *ref_img = (lidx ? ref_l1 : ref_l0)[refi];
                     pic.ptr = ref_img->ptr;
                     pic.img = ref_img;
-                    pic.stride_luma = ref_img->stride[0];
+                    pic.stride_luma = STRIDE_IMGB2PIC(ref_img->stride[0]);
                     pic.y = ref_img->planes[0];
                     pic.subpel->imgs[0][0] = ref_img;
 

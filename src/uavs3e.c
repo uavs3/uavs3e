@@ -81,9 +81,6 @@ static enc_pic_t *pic_enc_alloc(com_info_t *info)
 
     int total_mem_size =
         ALIGN_MASK * 1 + sizeof(enc_pic_t) +
-        ALIGN_MASK * 2 + MAX_BS_BUF * 2 +                                                                       // bs_buf + bs_buf_demulate
-        ALIGN_MASK * 1 + (linebuf_intra_size + sizeof(pel *) * 3) * info->pic_height_in_lcu +                   // linebuf_intra
-        ALIGN_MASK * 3 + sizeof(pel) * ((info->pic_width + MAX_CU_SIZE) * 2 + 3) +                              // linebuf_sao
         ALIGN_MASK * 1 + sizeof( enc_cu_t) * info->f_lcu +                                                      // map_cu_data
         ALIGN_MASK * 1 + sizeof(       s8) * info->f_lcu * info->cus_in_lcu * MAX_CU_DEPTH * NUM_BLOCK_SHAPE +  // map.map_split
         ALIGN_MASK * 1 + sizeof(       s8) * info->f_lcu +                                                      // map.map_qp
@@ -92,12 +89,15 @@ static enc_pic_t *pic_enc_alloc(com_info_t *info)
         ALIGN_MASK * 1 + sizeof(       s8) * info->f_scu +                                                      // map.map_ipm
         ALIGN_MASK * 1 + sizeof(       s8) * info->f_scu +                                                      // map.map_patch
         ALIGN_MASK * 1 + sizeof(      u32) * info->f_scu +                                                      // map.map_pos
-        ALIGN_MASK * 1 + sizeof(u8) * info->f_lcu +                                                             // alf_var_map
+        ALIGN_MASK * 1 + (linebuf_intra_size + sizeof(pel *) * 3) * info->pic_height_in_lcu +                   // linebuf_intra
+        ALIGN_MASK * 3 + sizeof(pel) * ((info->pic_width + MAX_CU_SIZE) * 2 + 3) +                              // linebuf_sao
+        ALIGN_MASK * 1 + sizeof(             u8) * info->f_lcu +                                                // alf_var_map
         ALIGN_MASK * 1 + sizeof( enc_alf_corr_t) * info->f_lcu * N_C +                                          // Enc_ALF.m_alfCorr
         ALIGN_MASK * 1 + sizeof(           BOOL) * info->f_lcu * N_C +                                          // Enc_ALF.m_AlfLCUEnabled
         ALIGN_MASK * 1 + sizeof(com_sao_param_t) * info->f_lcu * N_C +                                          // sao_blk_params 
         ALIGN_MASK * 1 + sizeof(enc_lcu_row_t) * info->pic_height_in_lcu +                                      // array_row
-        ALIGN_MASK * 3 + sizeof(s16) * (info->pic_height + 2 * 8) * (info->pic_width + 2 * 8) +                 // ip_tmp_buf
+        ALIGN_MASK * 2 + MAX_BS_BUF * 2 +                                                                       // bs_buf + bs_buf_demulate
+        ALIGN_MASK * 3 + sizeof(s16) * (info->pic_height + 2 * 8) * (info->pic_width + 2 * 8) * 3 +             // ip_tmp_buf
         ALIGN_MASK;
 
     buf = com_malloc(total_mem_size);
@@ -105,12 +105,11 @@ static enc_pic_t *pic_enc_alloc(com_info_t *info)
     GIVE_BUFFER(ep, buf, sizeof(enc_pic_t));
     memcpy(&ep->info, info, sizeof(com_info_t));
 
-    GIVE_BUFFER(ep->map_cu_data, buf, sizeof(enc_cu_t) * info->f_lcu);
-
+    GIVE_BUFFER(ep->map_cu_data    , buf, sizeof(enc_cu_t ) * info->f_lcu);
     GIVE_BUFFER(ep->map.map_split  , buf, sizeof(s8       ) * info->f_lcu * info->cus_in_lcu * MAX_CU_DEPTH * NUM_BLOCK_SHAPE);
     GIVE_BUFFER(ep->map.map_qp     , buf, sizeof(s8       ) * info->f_lcu);
-    GIVE_BUFFER(ep->map.map_edge   , buf, sizeof(u8       ) * info->f_scu); ep->map.map_edge  += info->i_scu + 1;
     GIVE_BUFFER(ep->map.map_scu    , buf, sizeof(com_scu_t) * info->f_scu); ep->map.map_scu   += info->i_scu + 1;
+    GIVE_BUFFER(ep->map.map_edge   , buf, sizeof(u8       ) * info->f_scu); ep->map.map_edge  += info->i_scu + 1;
     GIVE_BUFFER(ep->map.map_ipm    , buf, sizeof(s8       ) * info->f_scu); ep->map.map_ipm   += info->i_scu + 1;
     GIVE_BUFFER(ep->map.map_patch  , buf, sizeof(s8       ) * info->f_scu); ep->map.map_patch += info->i_scu + 1;
     GIVE_BUFFER(ep->map.map_pos    , buf, sizeof(u32      ) * info->f_scu); ep->map.map_pos   += info->i_scu + 1;
@@ -138,8 +137,8 @@ static enc_pic_t *pic_enc_alloc(com_info_t *info)
     GIVE_BUFFER(ep->Enc_ALF.m_alfCorr,       buf, sizeof( enc_alf_corr_t) * info->f_lcu * N_C);
     GIVE_BUFFER(ep->Enc_ALF.m_AlfLCUEnabled, buf, sizeof(           BOOL) * info->f_lcu * N_C);
     GIVE_BUFFER(ep->sao_blk_params,          buf, sizeof(com_sao_param_t) * info->f_lcu * N_C);
+    GIVE_BUFFER(ep->array_row,               buf, sizeof(enc_lcu_row_t  ) * info->pic_height_in_lcu);
     GIVE_BUFFER(ep->bs_buf_demulate,         buf, MAX_BS_BUF);
-    GIVE_BUFFER(ep->array_row,               buf, sizeof(enc_lcu_row_t) * info->pic_height_in_lcu);
 
     GIVE_BUFFER(ep->ip_tmp_buf[0],           buf, sizeof(s16) * (info->pic_width + 2 * 8) * (info->pic_height + 2 * 8));
     GIVE_BUFFER(ep->ip_tmp_buf[1],           buf, sizeof(s16) * (info->pic_width + 2 * 8) * (info->pic_height + 2 * 8));
