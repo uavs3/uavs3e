@@ -175,6 +175,12 @@ static app_cfg_t options[] = {
         ,0
     },
     {
+        CFG_KEY_NULL,  "lookahead", CFG_TYPE_INTEGER,
+        &cfg.lookahead,
+        "size of lookahead window"
+        ,0
+    },
+    {
         CFG_KEY_NULL,  "adaptive_gop", CFG_TYPE_INTEGER,
         &cfg.adaptive_gop,
         "adaptive length of sub-gop"
@@ -784,8 +790,14 @@ static void print_config(void *h, enc_cfg_t param)
     printf("\tbitdepth coding          : %d\n", param.bit_depth_internal);
     printf("\tframe rate               : %d / %d\n", param.fps_num, param.fps_den);
     printf("\tintra picture period     : %d\n", param.i_period);
+    printf("\tclose_gop                : %d\n", param.close_gop);
     printf("\tmax b frames             : %d\n", param.max_b_frames);
     printf("\tsignature                : %d\n", param.use_pic_sign);
+
+    printf("\n< LookAhead Info >\n");
+    printf("\tlookahead                : %d\n", param.lookahead);
+    printf("\tscenecut                 : %d\n", param.scenecut);
+    printf("\tadaptive_gop             : %d\n", param.adaptive_gop);
 
     printf("\n< Parallel Info >\n");
     printf("\tWPP threads              : %d\n", param.wpp_threads);
@@ -851,7 +863,7 @@ static void print_config(void *h, enc_cfg_t param)
     printf("\n");
 
     //quant
-    printf("\tQuant: WeightedQuant: %d, ", param.wq_enable);
+    printf("\tQuant: WeightedQuant: %d ", param.wq_enable);
     printf("\n");
 
     fflush(stdout);

@@ -213,6 +213,7 @@ static int refine_input_cfg(enc_cfg_t *param, enc_cfg_t *cfg_org)
     if (param->max_b_frames == 0) {
         param->adaptive_gop = 0;
     }
+    param->lookahead = COM_MAX(param->lookahead, param->max_b_frames + 1);
 
     /* check input parameters */
     com_assert_rv (param->pic_width > 0 && param->pic_height > 0, COM_ERR_INVALID_ARGUMENT);
@@ -1109,123 +1110,50 @@ void *enc_pic_thread(enc_pic_t *ep, pic_thd_param_t *p)
     return ep;
 }
 
-void push_sub_gop(enc_ctrl_t *h, int start, int num, int level)
-{
-    if (num <= 2) {
-        if (h->img_rlist[start].img) {
-            input_node_t *node = &h->node_list[h->node_size++];
-            node->img = h->img_rlist[start].img;
-            node->b_ref = 0;
-            node->layer_id = level;
-            node->type = SLICE_B;
-
-            if (num == 2 && h->img_rlist[start + 1].img) {
-                node = &h->node_list[h->node_size++];
-                node->img = h->img_rlist[start + 1].img;
-                node->b_ref = 0;
-                node->layer_id = level;
-                node->type = SLICE_B;
-            }
-        }
-    } else {
-        int idx = start + num / 2;
-
-        if (h->img_rlist[idx].img) {
-            input_node_t *node = &h->node_list[h->node_size++];
-            node->img = h->img_rlist[idx].img;
-            node->b_ref = 1;
-            node->layer_id = level;
-            node->type = SLICE_B;
-        }
-        push_sub_gop(h, start, num / 2, level + 1);
-        push_sub_gop(h, idx + 1,  num - num / 2 - 1, level + 1);
-    }
-}
-
-static int enc_push_frm(enc_ctrl_t *h, com_img_t *img)
+static void enc_push_frm(enc_ctrl_t *h, com_img_t *img)
 {
     img->ptr = h->ptr++;
 
     com_img_addref(img);
 
-#define SET_INPUT_NODE(node,i,r,l,t) { node->img = i; node->b_ref = r; node->layer_id = l; node->type = t; }
-
     if (h->cfg.i_period == 1) { // AI
-        input_node_t *node = &h->node_list[h->node_size++];
-        SET_INPUT_NODE(node, img, 1, FRM_DEPTH_0, SLICE_I);
+        add_input_node(h, img, 1, FRM_DEPTH_0, SLICE_I);
         h->lastI_ptr = img->ptr;
-        return COM_OK;
+        return;
     }
     if (h->info.sqh.low_delay) { // LD
-        input_node_t *node = &h->node_list[h->node_size++];
         if (h->lastI_ptr == -1 || (h->cfg.i_period && img->ptr - h->lastI_ptr == h->cfg.i_period)) {
-            SET_INPUT_NODE(node, img, 1, FRM_DEPTH_0, SLICE_I);
+            add_input_node(h, img, 1, FRM_DEPTH_0, SLICE_I);
             h->lastI_ptr = img->ptr;
         } else {
             static tab_s8 tbl_slice_depth_P[4] = { FRM_DEPTH_3,  FRM_DEPTH_2, FRM_DEPTH_3, FRM_DEPTH_1 };
             int frm_depth = tbl_slice_depth_P[(img->ptr - h->lastI_ptr - 1) % 4];
-            SET_INPUT_NODE(node, img, 1, frm_depth, SLICE_B);
+            add_input_node(h, img, 1, frm_depth, SLICE_B);
         }
-        return COM_OK;
+        return;
     }
 
     /*** RA ***/
 
     if (h->lastI_ptr == -1) { // First frame
-        input_node_t *node = &h->node_list[h->node_size++];
-        SET_INPUT_NODE(node, img, 1, FRM_DEPTH_0, SLICE_I);
+        add_input_node(h, img, 1, FRM_DEPTH_0, SLICE_I);
         h->lastI_ptr = img->ptr;
         h->img_lastIP = img;
         com_img_addref(img);
-        return COM_OK;
+        return;
     } 
-
-#define UPDATE_LAST_IP(h,img) { com_img_release(h->img_lastIP);  h->img_lastIP = img; com_img_addref(img); }
 
     com_img_t *last_img = h->img_rsize ? h->img_rlist[h->img_rsize - 1].img : h->img_lastIP;
+    int bit_depth = h->info.bit_depth_internal;
 
     h->img_rlist[h->img_rsize].img = img;
-    h->img_rlist[h->img_rsize].sc = loka_check_scenecut(&h->pinter, img, last_img, h->info.bit_depth_internal, h->cfg.scenecut);
+    h->img_rlist[h->img_rsize].sc_ratio = loka_get_sc_ratio(&h->pinter, img, last_img, bit_depth);
     h->img_rsize++;
 
-    if (h->cfg.i_period && img->ptr - h->lastI_ptr == h->cfg.i_period) { // insert I frame
-        if (h->cfg.close_gop) {
-            if (h->img_rsize > 1) {
-                input_node_t *node = &h->node_list[h->node_size++];
-                SET_INPUT_NODE(node, h->img_rlist[h->img_rsize - 2].img, 1, FRM_DEPTH_1, SLICE_B);
-                if (h->img_rsize > 2) {
-                    push_sub_gop(h, 0, h->img_rsize - 2, FRM_DEPTH_2);
-                }
-            }
-            input_node_t *node = &h->node_list[h->node_size++];
-            SET_INPUT_NODE(node, h->img_rlist[h->img_rsize - 1].img, 1, FRM_DEPTH_0, SLICE_I);
-            UPDATE_LAST_IP(h, h->img_rlist[h->img_rsize - 1].img);
-        } else {
-            input_node_t *node = &h->node_list[h->node_size++];
-            SET_INPUT_NODE(node, h->img_rlist[h->img_rsize - 1].img, 1, FRM_DEPTH_0, SLICE_I);
-            UPDATE_LAST_IP(h, h->img_rlist[h->img_rsize - 1].img);
-
-            if (h->img_rsize - 1 > 0) {
-                push_sub_gop(h, 0, h->img_rsize - 1, FRM_DEPTH_2);
-            }
-        }
-        h->img_rsize = 0;
-        h->lastI_ptr = img->ptr;
-        return COM_OK;
-    } 
-    
-    if (h->img_rsize == h->cfg.max_b_frames + 1) {
-        input_node_t *node = &h->node_list[h->node_size++];
-        SET_INPUT_NODE(node, h->img_rlist[h->img_rsize - 1].img, 1, FRM_DEPTH_1, SLICE_B);
-        UPDATE_LAST_IP(h, h->img_rlist[h->img_rsize - 1].img);
-
-        if (h->img_rsize - 1 > 0) {
-            push_sub_gop(h, 0, h->img_rsize - 1, FRM_DEPTH_2);
-        }
-        h->img_rsize = 0;
+    if (h->img_rsize < h->cfg.lookahead) {
+        return;
     }
-
-    return COM_OK;
+    loka_slicetype_decision(h);
 }
 
 void *uavs3e_create(enc_cfg_t *cfg, int *err)
@@ -1271,8 +1199,10 @@ void *uavs3e_create(enc_cfg_t *cfg, int *err)
 
     com_refm_create(&h->rpm, MAX_PB_SIZE + h->cfg.frm_threads, info->pic_width, info->pic_height);
 
-    h->ilist_size = MAX_REORDER_BUF + h->cfg.frm_threads + 1 /* lastIP */; 
+    h->ilist_size = h->cfg.lookahead + h->cfg.frm_threads + 1 /* lastIP */; 
     h->ilist_imgs = com_malloc(sizeof(com_img_t*) * h->ilist_size);
+
+    h->img_rlist = com_malloc(sizeof(analyze_node_t) * h->cfg.lookahead);
 
     h->pic_thd_params = (pic_thd_param_t*)com_malloc(sizeof(pic_thd_param_t) * h->cfg.frm_threads);
 
@@ -1358,6 +1288,7 @@ void uavs3e_free(void *id)
     inter_search_free(h->tab_mvbits, h->tab_mvbits_offset);
 
     com_mfree(h->ilist_imgs);
+    com_mfree(h->img_rlist);
 
     com_mfree(h);
     com_scan_tbl_delete();
@@ -1370,17 +1301,15 @@ int uavs3e_enc(void *id, enc_stat_t *stat, com_img_t *img_enc)
     int gop_size = h->info.gop_size;
 
     if (img_enc) {
-        ret = enc_push_frm(h, img_enc);
+        enc_push_frm(h, img_enc);
 
         /* store input picture and return if needed */
-        if (h->ptr < h->cfg.max_b_frames + 1) {
+        if (h->ptr < h->cfg.lookahead && h->cfg.max_b_frames) {
             return COM_OK_OUT_NOT_AVAILABLE;
         }
     } else { // flush
-        if (h->img_rsize) {
-            push_sub_gop(h, 0, h->cfg.max_b_frames, FRM_DEPTH_2);
-            memset(h->img_rlist, 0, sizeof(com_img_t*) * MAX_REORDER_BUF);
-            h->img_rsize = 0;
+        if (h->img_rsize && !h->node_size) {
+            loka_slicetype_decision(h);
         }
 
         /* check whether input pictures are remaining or not in node_input[] */
@@ -1411,6 +1340,7 @@ int uavs3e_enc(void *id, enc_stat_t *stat, com_img_t *img_enc)
     for (int i = 0; i < h->node_size - 1; i++) {
         h->node_list[i] = h->node_list[i + 1];
     }
+    memset(&h->node_list[h->node_size - 1], 0, sizeof(input_node_t));
     h->node_size--;
     
     com_img_t *img_org = node.img;

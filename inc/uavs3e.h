@@ -77,6 +77,7 @@ typedef struct uavs3e_enc_cfg_t {
     int            max_b_frames;
     int            close_gop;
     int            scenecut;
+    int            lookahead;
     int            adaptive_gop;
     int            amvr_enable;
     int            affine_enable;
