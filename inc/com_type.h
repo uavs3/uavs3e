@@ -51,7 +51,6 @@ typedef struct uavs3e_com_pic_t {
     
     /*** extension info **/
     double       picture_satd;                   /* [org] */
-    double       picture_satd_blur;              /* [rec] */
     int          picture_qp;                     /* [org] */
     double       picture_qp_real;                /* [rec] - real qp in bit depth of 8 */
     int          picture_bits;                   /* [rec] */

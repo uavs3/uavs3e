@@ -853,12 +853,11 @@ void enc_get_pic_qp(enc_pic_t *ep, pic_thd_param_t *p)
     if (param->rc_type == RC_TYPE_NULL) {
         base_qp = (int)(enc_get_hgop_qp(param->qp, pic_org->layer_id, info->sqh.low_delay) + 0.5);
     } else {
-        int qp_l0 = p->top_pic[0] ? (int)(p->top_pic[0]->picture_qp_real + 0.5) : -1;
-        int qp_l1 = p->top_pic[1] ? (int)(p->top_pic[1]->picture_qp_real + 0.5) : -1;
+        int qp_l0 = p->top_pic[0] ? ((int)(p->top_pic[0]->picture_qp_real + 0.5) + (p->top_pic[0]->layer_id == FRM_DEPTH_0 ? 3 : 0)) : -1;
+        int qp_l1 = p->top_pic[1] ? ((int)(p->top_pic[1]->picture_qp_real + 0.5) + (p->top_pic[1]->layer_id == FRM_DEPTH_0 ? 3 : 0)) : -1;
         base_qp = rc_get_qp(p->rc, pic_org, qp_l0, qp_l1);
     }
     pic_org->picture_qp = (u8)COM_CLIP3(0, (MAX_QUANT_BASE + info->qp_offset_bit_depth), base_qp + info->qp_offset_bit_depth);
-
 
     //find a qp_offset_cb that makes com_tbl_qp_chroma_ajudst[qp + qp_offset_cb] equal to com_tbl_qp_chroma_adjust_enc[qp + 1]
     int opt_c_dqp;
@@ -980,7 +979,6 @@ void *enc_pic_thread(enc_pic_t *ep, pic_thd_param_t *p)
     pic_rec->picture_qp_real   = (p->total_qp * 1.0 / info->f_lcu) - info->qp_offset_bit_depth;
     pic_rec->picture_qp        = pic_org->picture_qp;
     pic_rec->picture_satd      = pic_org->picture_satd;
-    pic_rec->picture_satd_blur = pic_org->picture_satd_blur;
     pic_rec->layer_id          = pic_org->layer_id;
 
     if (pic_org->b_ref) {

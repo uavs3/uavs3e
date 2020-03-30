@@ -79,9 +79,10 @@ void rc_update(enc_rc_t *p, com_pic_t *pic, char *ext_info, int info_buf_size)
         p->total_subgops++;
         p->subgop_frms = 0;
         p->subgop_bits = 0;
-        p->subgop_cplx = pic->picture_satd_blur;
+        p->subgop_cplx = pow(pic->picture_satd, 1 - QCompress);
         p->subgop_qscale = uavs3e_qp2qScale(pic->picture_qp_real);
     }
+    printf("===> factor: %f\n", pic->picture_bits * uavs3e_qp2qScale(pic->picture_qp_real) / pow(pic->picture_satd, 1 - QCompress));
     p->subgop_frms++;
     p->subgop_bits += pic->picture_bits;
 
@@ -97,10 +98,10 @@ void rc_update(enc_rc_t *p, com_pic_t *pic, char *ext_info, int info_buf_size)
     p->win_frames = COM_MIN(p->win_frames + 1, p->win_size);
 
     if (ext_info) {
-        sprintf(ext_info, "layer:%d cost:%5.2f br:%9.2fkbps", pic->layer_id, pic->picture_satd, p->total_bits / (p->total_frms / p->frame_rate) / 1000);
+        sprintf(ext_info, "layer:%d cost:%5.2f brTal:%9.2fkbps", pic->layer_id, pic->picture_satd, p->total_bits / (p->total_frms / p->frame_rate) / 1000);
 
         if (p->total_subgops > 0) {
-            sprintf(ext_info, "%s C:%9.2f", ext_info, p->total_factor / p->total_subgops);
+            sprintf(ext_info, "%s factor:%9.2f", ext_info, p->total_factor / p->total_subgops);
         }
         if (p->win_frames == p->win_size) {
             sprintf(ext_info, "%s brCur:%9.2fkbps", ext_info, p->win_bits * p->frame_rate / p->win_frames / 1000);
@@ -125,8 +126,11 @@ int rc_get_qp(enc_rc_t *p,  com_pic_t *pic, int qp_l0, int qp_l1)
 
     if (layer_id > FRM_DEPTH_1) {
         if (p->low_delay) {
+            com_assert(qp_l0 > 0);
             qp = enc_get_hgop_qp(qp_l0, layer_id, 1);
         } else {
+            com_assert(qp_l0 > 0);
+            com_assert(qp_l1 > 0);
             qp = enc_get_hgop_qp((qp_l0 + qp_l1 * 3) / 4, layer_id, 0);
         }
         return (int)(COM_CLIP3(min_qp, max_qp, (qp + 0.5)));
@@ -139,7 +143,7 @@ int rc_get_qp(enc_rc_t *p,  com_pic_t *pic, int qp_l0, int qp_l1)
     p->shortTermCplxSum += pic->picture_satd;
     p->shortTermCplxCount++;
 
-    double blurredComplexity = pic->picture_satd_blur = pow(p->shortTermCplxSum / p->shortTermCplxCount, 1 - QCompress);
+    double blurredComplexity = pow(p->shortTermCplxSum / p->shortTermCplxCount, 1 - QCompress);
 
     if (p->max_bitrate != 0) {
         int sub_win = 16;
@@ -174,6 +178,7 @@ int rc_get_qp(enc_rc_t *p,  com_pic_t *pic, int qp_l0, int qp_l1)
                 double lambda = 6.7542 / 256 * pow(bpp * ratio / cpp, -1.7860);
                 qp = (int)(5.661 * log(lambda) + 13.131 + 0.5);
             } else {
+                com_assert(qp_l0 > 0);
                 qp = enc_get_hgop_qp(qp_l0, layer_id, p->low_delay);
             }
         } else {
