@@ -28,12 +28,12 @@
 
 static __inline double uavs3e_qScale2qp(double qScale)
 {
-    return 16.0 + 8.0 * COM_LOG2(qScale / 1.43631);
+    return 13.131 + 5.661 * COM_LOG2(qScale);
 }
 
 static __inline double uavs3e_qp2qScale(double qp)
 {
-    return 1.43631 * pow(2.0, (qp - 16.0) / 8.0);
+    return pow(2.0, (qp - 13.131) / 5.661);
 }
 
 void rc_init(enc_rc_t* p, enc_cfg_t *param)
@@ -50,7 +50,7 @@ void rc_init(enc_rc_t* p, enc_cfg_t *param)
     p->min_qp         = param->rc_min_qp;
     p->max_qp         = param->rc_max_qp;
     p->low_delay      = !param->max_b_frames;
-    p->win_size       = (int)(p->frame_rate * 1.0 + 0.5);
+    p->win_size       = ((int)(p->frame_rate + 0.5) + param->max_b_frames) / (param->max_b_frames + 1) * (param->max_b_frames + 1);
 
     p->total_subgops  = p->low_delay ? -1 : -2;
     p->win_idx        = 0;
@@ -166,7 +166,6 @@ int rc_get_qp(enc_rc_t *p,  com_pic_t *pic, int qp_l0, int qp_l1)
             double qScale = blurredComplexity * (p->total_factor / p->total_subgops) / frame_bits;
 
             min_qp = uavs3e_qScale2qp(qScale) - (layer_id == 0 ? 3 : 0);
-            //printf("%d  %f  %f  %f\n", sub_gop_frms, frame_bits, qScale, min_qp);
             min_qp = COM_MIN(min_qp, max_qp);
         }
     }
