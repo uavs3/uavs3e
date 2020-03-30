@@ -340,11 +340,15 @@ void loka_slicetype_decision(enc_ctrl_t *h)
             }
         }
     } else {
-        add_input_node(h, h->img_rlist[cur_ip_idx].img, 1, FRM_DEPTH_1, SLICE_B);
-        update_last_ip(h, h->img_rlist[cur_ip_idx].img, SLICE_B);
+        if (cur_ip_idx == h->img_rsize - 1 && h->img_rsize <= h->cfg.max_b_frames) { // flush
+            push_sub_gop(h, 0, h->cfg.max_b_frames, FRM_DEPTH_2);
+        } else {
+            add_input_node(h, h->img_rlist[cur_ip_idx].img, 1, FRM_DEPTH_1, SLICE_B);
+            update_last_ip(h, h->img_rlist[cur_ip_idx].img, SLICE_B);
 
-        if (cur_ip_idx > 0) {
-            push_sub_gop(h, 0, cur_ip_idx, FRM_DEPTH_2);
+            if (cur_ip_idx > 0) {
+                push_sub_gop(h, 0, cur_ip_idx, FRM_DEPTH_2);
+            }
         }
     }
 
