@@ -248,16 +248,15 @@ void loka_slicetype_decision(enc_ctrl_t *h)
     int bit_depth     = h->cfg.bit_depth_internal;
     int next_ifrm_idx = h->cfg.i_period - (int)(h->img_rlist[0].img->ptr - h->lastI_ptr);
     int cur_ip_idx    = COM_MIN(h->cfg.max_b_frames, h->img_rsize - 1);
-    const double base_threshold = 0.95;
+    double sc_threshold = 1.0 - h->cfg.scenecut / 100.0;
 
     cur_ip_idx = COM_MIN(cur_ip_idx, next_ifrm_idx);
 
     if (h->cfg.scenecut) {
-        double sc_threshold = 1.0 - h->cfg.scenecut / 100.0;
         if (h->img_rlist[0].sc_ratio > sc_threshold) {
             while (cur_ip_idx) {
                 double sc_ratio = loka_get_sc_ratio(&h->pinter, h->img_rlist[cur_ip_idx].img, h->img_lastIP, bit_depth);
-                if (sc_ratio < sc_threshold) {
+                if (sc_ratio <= sc_threshold) {
                     for (int i = 0; i <= cur_ip_idx; i++) {
                         h->img_rlist[i].sc_ratio = 0;
                     }
@@ -292,8 +291,6 @@ void loka_slicetype_decision(enc_ctrl_t *h)
     }
 
     if (h->cfg.scenecut) {
-        double sc_threshold = 1.0 - h->cfg.scenecut / 100.0;
-
         if (is_ifrm) {
             for (int i = 0; i < cur_ip_idx; i++) {
                 if (h->img_rlist[i].sc_ratio > sc_threshold) {
@@ -307,16 +304,22 @@ void loka_slicetype_decision(enc_ctrl_t *h)
                 }
             }
         } else {
-            com_img_t *img_last = h->img_rlist[h->img_rsize - 1].img;
-
             for (int i = 0; i <= cur_ip_idx; i++) {
                 if (h->img_rlist[i].sc_ratio > sc_threshold) {
-                    cur_ip_idx = i - 1;
+                    com_img_t *img_last = i ? h->img_rlist[i - 1].img : h->img_lastIP;
+                    while (i <= cur_ip_idx) {
+                        double sc_ratio = loka_get_sc_ratio(&h->pinter, h->img_rlist[cur_ip_idx].img, img_last, bit_depth);
+                        if (sc_ratio <= sc_threshold) {
+                            break;
+                        }
+                        cur_ip_idx--;
+                    }
                     break;
                 }
             }
         }
     }
+    com_assert(cur_ip_idx >= 0);
 
     if (is_ifrm) { // insert I frame
         if (h->cfg.close_gop) {

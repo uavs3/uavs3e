@@ -534,7 +534,7 @@ static void print_usage(void)
     }
 }
 
-static int skip_frames(FILE *fp, com_img_t *img, int num_skipped_frames, int bit_depth)
+static int skip_frames(int fd, com_img_t *img, int num_skipped_frames, int bit_depth)
 {
     int y_size, u_size, v_size, skipped_size;
     int f_w = img->width[0];
@@ -548,7 +548,7 @@ static int skip_frames(FILE *fp, com_img_t *img, int num_skipped_frames, int bit
     y_size = f_w * f_h * scale;
     u_size = v_size = (f_w >> 1) * (f_h >> 1) * scale;
     skipped_size = (y_size + u_size + v_size) * num_skipped_frames;
-    fseek(fp, skipped_size, SEEK_CUR);
+    _lseeki64(fd, skipped_size, SEEK_CUR);
 
     return 0;
 }
@@ -658,14 +658,21 @@ com_img_t *image_create(int width, int height, int bitDepth)
     return img;
 }
 
-static int read_image(FILE *fp, com_img_t *img, int hor_size, int ver_size, int bit_depth_input, int bit_depth_internal)
+static int read_image(int fd, com_img_t *img, int hor_size, int ver_size, int bit_depth_input, int bit_depth_internal, long long frm_idx)
 {
     int scale = (bit_depth_input == 10) ? 2 : 1;
     int bit_shift = bit_depth_internal - bit_depth_input;
     const short minval = 0;
     const short maxval = (1 << bit_depth_internal) - 1;
-
     const int num_comp = 3;
+    int total_size = ((hor_size * ver_size) * 3 / 2) * scale;
+    int seek_offset = 0;
+
+    //if (frm_idx > 13 && frm_idx < 16) { // scenecut test
+    //    seek_offset = 200;
+    //}
+
+    _lseeki64(fd, total_size * (frm_idx + seek_offset), SEEK_SET);
 
     for (int comp = 0; comp < num_comp; comp++) {
         int padding_w = (img->width[0] - hor_size) >> (comp > 0 ? 1 : 0);
@@ -675,7 +682,7 @@ static int read_image(FILE *fp, com_img_t *img, int hor_size, int ver_size, int 
 
         unsigned char *buf = malloc(size_byte);
 
-        if (fread(buf, 1, size_byte, fp) != (unsigned)size_byte) {
+        if (_read(fd, buf, size_byte) != (unsigned)size_byte) {
             return -1;
         }
 
@@ -981,8 +988,8 @@ void enc_cfg_init(enc_cfg_t *cfg)
 int main(int argc, const char **argv)
 {
     int                finished = 0;
-    FILE               *fpi = NULL;
-    FILE               *fpo = NULL;
+    int                fdi = 0;
+    int                fdo = 0;
     void               *h;
     com_img_t          *img_enc = NULL; 
     com_img_t          *img_rec = NULL; 
@@ -996,7 +1003,7 @@ int main(int argc, const char **argv)
     double             psnr[3] = {0,};
     double             psnr_avg[3] = {0,};
     com_img_t          *tmp_img = NULL;
-    int rec_fd = 0;
+    int fd_rec = 0;
 
     enc_cfg_init(&cfg);
 
@@ -1009,23 +1016,25 @@ int main(int argc, const char **argv)
         return -1;
     }
 
-    fpi = fopen(fn_input,  "rb");
-    if (fpi == NULL) {
+    fdi = _open(fn_input, O_BINARY | O_RDONLY);
+
+    if (fdi <= 0) {
         print_log(0, "cannot open original file (%s)\n", fn_input);
         print_usage();
         return -1;
     }
     if (strlen(fn_output) != 0) {
-        fpo = fopen(fn_output, "wb");
-        if (fpo == NULL) {
+        fdo = _open(fn_output, O_WRONLY | O_CREAT | O_BINARY | O_TRUNC, S_IREAD | S_IWRITE);
+
+        if (fdo <= 0) {
             print_log(0, "cannot open stream file (%s)\n", fn_output);
             print_usage();
             return -1;
         }
     }
     if (strlen(fn_rec) != 0) {
-        rec_fd = _open(fn_rec, O_WRONLY | O_CREAT | O_BINARY | O_TRUNC, S_IREAD | S_IWRITE);
-        if (rec_fd == 0) {
+        fd_rec = _open(fn_rec, O_WRONLY | O_CREAT | O_BINARY | O_TRUNC, S_IREAD | S_IWRITE);
+        if (fd_rec <= 0) {
             print_log(0, "cannot open original file (%s)\n", fn_input);
             print_usage();
             return -1;
@@ -1071,13 +1080,13 @@ int main(int argc, const char **argv)
                 return -1;
             }
             /* read original image */
-            if (frame_cnt == frame_to_be_encoded || read_image(fpi, img_enc, cfg.horizontal_size, cfg.vertical_size, cfg.bit_depth_input, cfg.bit_depth_internal)) {
+            if (frame_cnt == frame_to_be_encoded || read_image(fdi, img_enc, cfg.horizontal_size, cfg.vertical_size, cfg.bit_depth_input, cfg.bit_depth_internal, frame_cnt)) {
                 print_log(2, "Entering bumping process...\n");
                 finished = 1;
                 img_enc = NULL;
             } else {
                 img_enc->pts = frame_cnt++;
-                skip_frames(fpi, img_enc, t_ds_ratio - 1, cfg.bit_depth_input);
+                skip_frames(fdi, img_enc, t_ds_ratio - 1, cfg.bit_depth_input);
             }
         }
         /* encoding */
@@ -1093,8 +1102,8 @@ int main(int argc, const char **argv)
         if (ret == COM_OK_OUT_NOT_AVAILABLE) {
             continue;
         } else if (ret == COM_OK) {
-            if (fpo && stat.bytes > 0) {
-                fwrite(stat.buf, 1, stat.bytes, fpo);
+            if (fdo > 0 && stat.bytes > 0) {
+                _write(fdo, stat.buf, stat.bytes);
             }
             /* get reconstructed image */
             size = sizeof(com_img_t **);
@@ -1111,10 +1120,10 @@ int main(int argc, const char **argv)
             find_psnr(stat.org_img, img_rec, psnr, cfg.bit_depth_internal);
 
             /* store reconstructed image to list only for writing out */
-            if (rec_fd) {
+            if (fd_rec > 0) {
                 cvt_rec_2_output(tmp_img, img_rec, cfg.bit_depth_internal);
 
-                if (write_image(rec_fd, tmp_img, cfg.bit_depth_internal, img_rec->pts)) {
+                if (write_image(fd_rec, tmp_img, cfg.bit_depth_internal, img_rec->pts)) {
                     print_log(0, "cannot write reconstruction image\n");
                 }
             }
@@ -1135,8 +1144,8 @@ int main(int argc, const char **argv)
 
     char end_code[4] = { 0, 0, 1, 0xB1 };
 
-    if (fpo) {
-        fwrite(end_code, 1, 4, fpo);
+    if (fdo > 0) {
+        _write(fdo, end_code, 4);
     }
 
     print_log(1, "===============================================================================\n");
@@ -1175,14 +1184,14 @@ int main(int argc, const char **argv)
 
     uavs3e_free(h);
 
-    if (fpi) {
-        fclose(fpi);
+    if (fdi > 0) {
+        _close(fdi);
     }
-    if (fpo) {
-        fclose(fpo);
+    if (fdo > 0) {
+        _close(fdo);
     }
-    if (rec_fd) {
-        _close(rec_fd);
+    if (fd_rec > 0) {
+        _close(fd_rec);
     }
 
     image_free(tmp_img);
