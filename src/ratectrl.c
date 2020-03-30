@@ -24,6 +24,7 @@
 
 #define SHIFT_QP 11
 #define QCompress 0.6
+#define CRF_DEFAULT_C 15.0
 
 static __inline double uavs3e_qScale2qp(double qScale)
 {
@@ -41,7 +42,7 @@ void rc_init(enc_rc_t* p, enc_cfg_t *param)
 
     /* const data */
     p->type           = param->rc_type;
-    p->rfConstant     = pow(15, 1 - QCompress) / uavs3e_qp2qScale(param->rc_crf);
+    p->rfConstant     = pow(CRF_DEFAULT_C, 1 - QCompress) / uavs3e_qp2qScale(param->rc_crf);
     p->target_bitrate = param->rc_bitrate * 1000.0;
     p->max_bitrate    = param->rc_max_bitrate * 1000.0;
     p->frame_rate     = param->fps_num * 1.0 / param->fps_den;
@@ -56,6 +57,9 @@ void rc_init(enc_rc_t* p, enc_cfg_t *param)
     p->win_bits       = 0;
     p->win_frames     = 0;
     p->win_bits_list  = com_malloc(sizeof(int) * p->win_size);
+
+    p->shortTermCplxSum = CRF_DEFAULT_C;
+    p->shortTermCplxCount = 1;
 
     uavs3e_pthread_mutex_init(&p->mutex, NULL);
 }
@@ -82,7 +86,6 @@ void rc_update(enc_rc_t *p, com_pic_t *pic, char *ext_info, int info_buf_size)
         p->subgop_cplx = pow(pic->picture_satd, 1 - QCompress);
         p->subgop_qscale = uavs3e_qp2qScale(pic->picture_qp_real);
     }
-    printf("===> factor: %f\n", pic->picture_bits * uavs3e_qp2qScale(pic->picture_qp_real) / pow(pic->picture_satd, 1 - QCompress));
     p->subgop_frms++;
     p->subgop_bits += pic->picture_bits;
 
@@ -138,10 +141,12 @@ int rc_get_qp(enc_rc_t *p,  com_pic_t *pic, int qp_l0, int qp_l1)
 
     /*** frames in top layer ***/
 
-    p->shortTermCplxSum *= 0.5;
-    p->shortTermCplxCount *= 0.5;
-    p->shortTermCplxSum += pic->picture_satd;
-    p->shortTermCplxCount++;
+    if (layer_id == FRM_DEPTH_1) {
+        p->shortTermCplxSum *= 0.5;
+        p->shortTermCplxCount *= 0.5;
+        p->shortTermCplxSum += pic->picture_satd;
+        p->shortTermCplxCount++;
+    }
 
     double blurredComplexity = pow(p->shortTermCplxSum / p->shortTermCplxCount, 1 - QCompress);
 
