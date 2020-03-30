@@ -509,12 +509,13 @@ static void set_pic_header(enc_ctrl_t *h, com_pic_t *pic_rec)
     if (pichdr->poc == 0) {
         pichdr->ref_pic_list_sps_flag[0] = 1;
         pichdr->ref_pic_list_sps_flag[1] = 1;
-        pichdr->rpl_l0_idx = 0;
-        pichdr->rpl_l0_idx = 0;
+        pichdr->rpl_l0_idx    = 0;
+        pichdr->rpl_l0_idx    = 0;
         pichdr->rpl_l0.active = 0;
         pichdr->rpl_l1.active = 0;
-        h->rpm.ptr_l_ip = 0;
-        h->rpm.ptr_l_l_ip = 0;
+        h->rpm.ptr_l_ip       = 0;
+        h->rpm.ptr_l_l_ip     = 0;
+        h->rpm.ptr_l_i        = 0;
     } else {
         int is_ld = h->info.sqh.low_delay;
         int is_top = pic_rec->layer_id < FRM_DEPTH_2 && !is_ld;

@@ -316,16 +316,27 @@ static void remove_ref_pic(com_pic_manager_t *pm, int idx)
 
 void com_refm_remove_ref_pic(com_pic_manager_t *pm, com_pic_header_t *pichdr, com_pic_t *pic, int close_gop, int is_ld)
 {
-    if (close_gop && pichdr->slice_type == SLICE_I) {
+    if (pichdr->slice_type == SLICE_I) {
+        pm->ptr_l_i = pic->ptr;
+
+        if (close_gop) {
+            for (int i = 0; i < pm->cur_num_ref_pics; i++) {
+                com_pic_t *ref = pm->pic[i];
+                if (ref && ref->b_ref) {
+                    remove_ref_pic(pm, i--);
+                }
+            }
+            pm->ptr_l_l_ip = pm->ptr_l_ip = pic->ptr;
+            com_assert(pm->cur_num_ref_pics == 0);
+        }
+        return;
+    } else if (pic->ptr > pm->ptr_l_i) {
         for (int i = 0; i < pm->cur_num_ref_pics; i++) {
             com_pic_t *ref = pm->pic[i];
-            if (ref && ref->b_ref) {
+            if (ref && ref->b_ref && ref->ptr < pm->ptr_l_i) {
                 remove_ref_pic(pm, i--);
             }
         }
-        pm->ptr_l_l_ip = pm->ptr_l_ip = pic->ptr;
-        com_assert(pm->cur_num_ref_pics == 0);
-        return;
     }
     if (is_ld) {
         if (pm->cur_num_ref_pics <= MAX_LD_ACTIVE) {

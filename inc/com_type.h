@@ -87,6 +87,7 @@ typedef struct uavs3e_com_pic_manager_t {
     int                max_pb_size;               /* max number of picture buffer */
     long long          ptr_l_ip;                  /* ptr of last I/P/top-B frame */
     long long          ptr_l_l_ip;                /* ptr of last last I/P/top-B frame */
+    long long          ptr_l_i;                   /* ptr of last I frame */
 
     int                pic_width;
     int                pic_height;
