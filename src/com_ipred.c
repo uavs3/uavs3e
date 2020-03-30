@@ -710,7 +710,7 @@ static void ipf_core_s16(pel *src, pel *dst, int i_dst, s16 *pred, int ipm, int 
         pred += w;
     }
 }
-
+static void ipred_ang_xy_19(pel *pSrc, pel *dst, int i_dst, int uiDirMode, int iWidth, int iHeight);
 void com_intra_pred(pel *src, pel *dst, int ipm, int w, int h, int bit_depth, u16 avail_cu, u8 ipf_flag)
 {
     assert(w <= 64 && h <= 64);
@@ -728,6 +728,18 @@ void com_intra_pred(pel *src, pel *dst, int ipm, int w, int h, int bit_depth, u1
             break;
         default:
             uavs3e_funs_handle.intra_pred_ang[ipm](src, dst, w, ipm, w, h);
+            //if (ipm == 19) {
+            //    pel tmp[128 * 128];
+            //    int i;
+            //    ipred_ang_xy_19(src, tmp, w, ipm, w, h);
+            //    for (i = 0; i < w*h; i++) {
+            //        if (tmp[i] != dst[i]) {
+            //            int a = 0;
+            //        }
+            //    }
+            //    ipred_ang_xy_19(src, tmp, w, ipm, w, h);
+            //    uavs3e_funs_handle.intra_pred_ang[ipm](src, dst, w, ipm, w, h);
+            //}
             break;
         }
         if (ipf_flag) {

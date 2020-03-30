@@ -400,7 +400,7 @@ void uavs3e_ipred_dc_avx2(pel *src, pel *dst, int i_dst, int width, int height, 
     }
 }
 
-void uavs3e_ipred_ang_x_avx2(pel *pSrc, pel *dst, int i_dst, int mode, int width, int height)
+void uavs3e_ipred_ang_x_avx2(pel *src, pel *dst, int i_dst, int mode, int width, int height)
 {
     int offset;
     __m128i mAddOffset = _mm_set1_epi16(64);
@@ -411,8 +411,8 @@ void uavs3e_ipred_ang_x_avx2(pel *pSrc, pel *dst, int i_dst, int mode, int width
 
         for (j = 0; j < height; j += 2) {
             int offset2;
-            pel *p0 = pSrc + getContextPixel(mode, 0, j + 1, &offset);
-            pel *p1 = pSrc + getContextPixel(mode, 0, j + 2, &offset2);
+            pel *p0 = src + getContextPixel(mode, 0, j + 1, &offset);
+            pel *p1 = src + getContextPixel(mode, 0, j + 2, &offset2);
             int c0 = 32 - offset;
             int c1 = 64 - offset;
             int c2 = 32 + offset;
@@ -446,8 +446,8 @@ void uavs3e_ipred_ang_x_avx2(pel *pSrc, pel *dst, int i_dst, int mode, int width
         int j;
         for (j = 0; j < height; j += 2) {
             int offset2;
-            pel *p0 = pSrc + getContextPixel(mode, 0, j + 1, &offset);
-            pel *p1 = pSrc + getContextPixel(mode, 0, j + 2, &offset2);
+            pel *p0 = src + getContextPixel(mode, 0, j + 1, &offset);
+            pel *p1 = src + getContextPixel(mode, 0, j + 2, &offset2);
             int coef0 = ((64 - offset) << 8) | (32 - offset);
             int coef1 = (offset << 8) | (32 + offset);
             int coef2 = ((64 - offset2) << 8) | (32 - offset2);
@@ -487,8 +487,8 @@ void uavs3e_ipred_ang_x_avx2(pel *pSrc, pel *dst, int i_dst, int mode, int width
         int j;
         for (j = 0; j < height; j += 2) {
             int offset2;
-            pel *p0 = pSrc + getContextPixel(mode, 0, j + 1, &offset);
-            pel *p1 = pSrc + getContextPixel(mode, 0, j + 2, &offset2);
+            pel *p0 = src + getContextPixel(mode, 0, j + 1, &offset);
+            pel *p1 = src + getContextPixel(mode, 0, j + 2, &offset2);
             int coef0 = ((64 - offset) << 8) | (32 - offset);
             int coef1 = (offset << 8) | (32 + offset);
             int coef2 = ((64 - offset2) << 8) | (32 - offset2);
@@ -540,7 +540,7 @@ void uavs3e_ipred_ang_x_avx2(pel *pSrc, pel *dst, int i_dst, int mode, int width
         __m256i mSwitch1 = _mm256_setr_epi8(2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10);
         int j;
         for (j = 0; j < height; j++) {
-            pel *p0 = pSrc + getContextPixel(mode, 0, j + 1, &offset);
+            pel *p0 = src + getContextPixel(mode, 0, j + 1, &offset);
             int coef0 = ((64 - offset) << 8) | (32 - offset);
             int coef1 = (offset << 8) | (32 + offset);
             __m256i C0 = _mm256_set1_epi16(coef0);
@@ -580,7 +580,7 @@ void uavs3e_ipred_ang_x_avx2(pel *pSrc, pel *dst, int i_dst, int mode, int width
         __m256i mSwitch1 = _mm256_setr_epi8(2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10);
         int j, col;
         for (j = 0; j < height; j++) {
-            pel *p = pSrc + getContextPixel(mode, 0, j + 1, &offset);
+            pel *p = src + getContextPixel(mode, 0, j + 1, &offset);
             int coef0 = ((64 - offset) << 8) | (32 - offset);
             int coef1 = (offset << 8) | (32 + offset);
             __m256i C0 = _mm256_set1_epi16(coef0);
@@ -1493,7 +1493,7 @@ void uavs3e_ipred_ang_x_10_avx2(pel *src, pel *dst, int i_dst, int mode, int wid
     t1357 = _mm256_unpackhi_epi32(t0, t1);     \
 }
 
-void uavs3e_ipred_ang_y_avx2(pel *pSrc, pel *dst, int i_dst, int mode, int width, int height)
+void uavs3e_ipred_ang_y_avx2(pel *src, pel *dst, int i_dst, int mode, int width, int height)
 {
 
     if (height == 4) {
@@ -1502,10 +1502,10 @@ void uavs3e_ipred_ang_y_avx2(pel *pSrc, pel *dst, int i_dst, int mode, int width
 
         for (int i = 0; i < width; i += 4) {
             int offset1, offset2, offset3, offset4;
-            pel *p1 = pSrc - getContextPixel(mode, 1, i + 1, &offset1) - 6;
-            pel *p2 = pSrc - getContextPixel(mode, 1, i + 2, &offset2) - 6;
-            pel *p3 = pSrc - getContextPixel(mode, 1, i + 3, &offset3) - 6;
-            pel *p4 = pSrc - getContextPixel(mode, 1, i + 4, &offset4) - 6;
+            pel *p1 = src - getContextPixel(mode, 1, i + 1, &offset1) - 6;
+            pel *p2 = src - getContextPixel(mode, 1, i + 2, &offset2) - 6;
+            pel *p3 = src - getContextPixel(mode, 1, i + 3, &offset3) - 6;
+            pel *p4 = src - getContextPixel(mode, 1, i + 4, &offset4) - 6;
 
             __m128i C1 = _mm_set1_epi32(((32 - offset1) << 24) | ((64 - offset1) << 16) | ((32 + offset1) << 8) | offset1);
             __m128i C2 = _mm_set1_epi32(((32 - offset2) << 24) | ((64 - offset2) << 16) | ((32 + offset2) << 8) | offset2);
@@ -1534,7 +1534,7 @@ void uavs3e_ipred_ang_y_avx2(pel *pSrc, pel *dst, int i_dst, int mode, int width
     else if (height == 12) {
         for (int i = 0; i < width; i++) {
             int offset;
-            pel *p = pSrc - getContextPixel(mode, 1, i + 1, &offset);
+            pel *p = src - getContextPixel(mode, 1, i + 1, &offset);
 
             for (int j = 0; j < height; j++, p--) {
                 dst[j*i_dst] = (p[0] * (32 - offset) + p[-1] * (64 - offset) + p[-2] * (32 + offset) + p[-3] * offset + 64) >> 7;
@@ -1550,10 +1550,10 @@ void uavs3e_ipred_ang_y_avx2(pel *pSrc, pel *dst, int i_dst, int mode, int width
             __m128i m0, m1;
 
             int offset1, offset2, offset3, offset4;
-            pel *p1 = pSrc - getContextPixel(mode, 1, 1, &offset1) - 10;
-            pel *p2 = pSrc - getContextPixel(mode, 1, 2, &offset2) - 10;
-            pel *p3 = pSrc - getContextPixel(mode, 1, 3, &offset3) - 10;
-            pel *p4 = pSrc - getContextPixel(mode, 1, 4, &offset4) - 10;
+            pel *p1 = src - getContextPixel(mode, 1, 1, &offset1) - 10;
+            pel *p2 = src - getContextPixel(mode, 1, 2, &offset2) - 10;
+            pel *p3 = src - getContextPixel(mode, 1, 3, &offset3) - 10;
+            pel *p4 = src - getContextPixel(mode, 1, 4, &offset4) - 10;
 
             __m128i C1_1 = _mm_set1_epi16(((32 + offset1) << 8) | offset1);
             __m128i C2_1 = _mm_set1_epi16(((32 + offset2) << 8) | offset2);
@@ -1610,7 +1610,7 @@ void uavs3e_ipred_ang_y_avx2(pel *pSrc, pel *dst, int i_dst, int mode, int width
         else if (width == 12) {
             for (int i = 0; i < width; i++) {
                 int offset;
-                pel *p = pSrc - getContextPixel(mode, 1, i + 1, &offset);
+                pel *p = src - getContextPixel(mode, 1, i + 1, &offset);
 
                 for (int j = 0; j < height; j++, p--) {
                     dst[j*i_dst] = (p[0] * (32 - offset) + p[-1] * (64 - offset) + p[-2] * (32 + offset) + p[-3] * offset + 64) >> 7;
@@ -1624,14 +1624,14 @@ void uavs3e_ipred_ang_y_avx2(pel *pSrc, pel *dst, int i_dst, int mode, int width
 
             for (int i = 0; i < width; i += 8) {
                 int offset1, offset2, offset3, offset4, offset5, offset6, offset7, offset8;
-                pel *p1 = pSrc - getContextPixel(mode, 1, i + 1, &offset1) - 10;
-                pel *p2 = pSrc - getContextPixel(mode, 1, i + 2, &offset2) - 10;
-                pel *p3 = pSrc - getContextPixel(mode, 1, i + 3, &offset3) - 10;
-                pel *p4 = pSrc - getContextPixel(mode, 1, i + 4, &offset4) - 10;
-                pel *p5 = pSrc - getContextPixel(mode, 1, i + 5, &offset5) - 10;
-                pel *p6 = pSrc - getContextPixel(mode, 1, i + 6, &offset6) - 10;
-                pel *p7 = pSrc - getContextPixel(mode, 1, i + 7, &offset7) - 10;
-                pel *p8 = pSrc - getContextPixel(mode, 1, i + 8, &offset8) - 10;
+                pel *p1 = src - getContextPixel(mode, 1, i + 1, &offset1) - 10;
+                pel *p2 = src - getContextPixel(mode, 1, i + 2, &offset2) - 10;
+                pel *p3 = src - getContextPixel(mode, 1, i + 3, &offset3) - 10;
+                pel *p4 = src - getContextPixel(mode, 1, i + 4, &offset4) - 10;
+                pel *p5 = src - getContextPixel(mode, 1, i + 5, &offset5) - 10;
+                pel *p6 = src - getContextPixel(mode, 1, i + 6, &offset6) - 10;
+                pel *p7 = src - getContextPixel(mode, 1, i + 7, &offset7) - 10;
+                pel *p8 = src - getContextPixel(mode, 1, i + 8, &offset8) - 10;
 
                 __m128i C1_1 = _mm_set1_epi16(((32 + offset1) << 8) | offset1);
                 __m128i C2_1 = _mm_set1_epi16(((32 + offset2) << 8) | offset2);
@@ -2279,6 +2279,146 @@ void uavs3e_ipred_ang_y_32_avx2(pel *src, pel *dst, int i_dst, int mode, int wid
     }
 }
 
+#define IPRED_ANG_XY_X8(px, shuffle_x, coeff_x, off, shift, dst) \
+{\
+        __m256i s;                  \
+        __m128i d;                  \
+        s = _mm256_set_epi64x(0, *(s64*)(px + 3), 0, *(s64*)(px - 1));                  \
+        s = _mm256_shuffle_epi8(s, shuffle_x);                                          \
+        s = _mm256_maddubs_epi16(s, coeff_x);                                           \
+        d = _mm_hadd_epi16(_mm256_castsi256_si128(s), _mm256_extracti128_si256(s, 1));  \
+        d = _mm_add_epi16(d, off);                                                      \
+        d = _mm_srli_epi16(d, shift);                                                   \
+        d = _mm_packus_epi16(d, d);                                                     \
+        _mm_storel_epi64((__m128i*)(dst), d);                                           \
+}
+
+#define IPRED_ANG_XY_X4(px, shuffle_x, coeff_x, off, shift, dst) \
+{\
+        __m128i s, d;                               \
+        s = _mm_set_epi64x(0, *(s64*)(px - 1));     \
+        s = _mm_shuffle_epi8(s, shuffle_x);         \
+        s = _mm_maddubs_epi16(s, coeff_x);          \
+        d = _mm_hadd_epi16(s, s);                   \
+        d = _mm_add_epi16(d, off);                  \
+        d = _mm_srli_epi16(d, shift);               \
+        d = _mm_packus_epi16(d, d);                 \
+        *(int*)(dst) = _mm_extract_epi32(d, 0);     \
+}
+
+#define IPRED_ANG_XY_Y4(py, xsteps, xoffsets, shuffle, sign, c, off, shift, dst) \
+{ \
+        __m128i s, d;                               \
+        __m128i coeff = _mm_loadu_si128((const __m128i*)(xoffsets));                                                            \
+        s = _mm_set_epi32(*(s32*)(py + xsteps[3]), *(s32*)(py + xsteps[2]), *(s32*)(py + xsteps[1]), *(s32*)(py + xsteps[0]));  \
+        coeff = _mm_packus_epi32(coeff, coeff);                                                                                 \
+        coeff = _mm_packus_epi16(coeff, coeff);                                                                                 \
+        coeff = _mm_sign_epi8(coeff, sign);                                                                                     \
+        coeff = _mm_add_epi8(coeff, c);                                                                                        \
+        coeff = _mm_shuffle_epi8(coeff, shuffle);                                                                               \
+        d = _mm_maddubs_epi16(s, coeff);                                                                                        \
+        d = _mm_hadd_epi16(d, d);                                                                                               \
+        d = _mm_add_epi16(d, off);                                                                                              \
+        d = _mm_srli_epi16(d, shift);                                                                                           \
+        d = _mm_packus_epi16(d, d);                                                                                             \
+        *(s32*)(dst) = _mm_extract_epi32(d, 0);                                                                                 \
+}
+#define IPRED_ANG_XY_Y8(py, xsteps, xoffsets, shuffle, sign, c, off, shift, dst) \
+{ \
+        __m128i d;                               \
+        __m256i coeff = _mm256_loadu_si256((const __m256i*)(xoffsets));                                                         \
+        __m256i s = _mm256_set_epi32(*(s32*)(py + xsteps[7]), *(s32*)(py + xsteps[6]), *(s32*)(py + xsteps[5]), *(s32*)(py + xsteps[4]), \
+                *(s32*)(py + xsteps[3]), *(s32*)(py + xsteps[2]), *(s32*)(py + xsteps[1]), *(s32*)(py + xsteps[0]));            \
+        coeff = _mm256_packus_epi32(coeff, coeff);                                                                              \
+        coeff = _mm256_packus_epi16(coeff, coeff);                                                                              \
+        coeff = _mm256_sign_epi8(coeff, sign);                                                                                  \
+        coeff = _mm256_add_epi8(coeff, c);                                                                                      \
+        coeff = _mm256_shuffle_epi8(coeff, shuffle);                                                                            \
+        s = _mm256_maddubs_epi16(s, coeff);                                                                                     \
+        d = _mm_hadd_epi16(_mm256_castsi256_si128(s), _mm256_extracti128_si256(s, 1));                                          \
+        d = _mm_add_epi16(d, off);                                                                                              \
+        d = _mm_srli_epi16(d, shift);                                                                                           \
+        d = _mm_packus_epi16(d, d);                                                                                             \
+        _mm_storel_epi64((__m128i*)(dst), d);                                                                                   \
+}
+
+void uavs3e_ipred_ang_xy_13_avx2(pel *src, pel *dst, int i_dst, int uiDirMode, int width, int height)
+{
+    int i, j;
+    pel *psrc = src;
+    int step1_height = COM_MIN(height, 7);
+
+    __m256i shuffle_x = _mm256_setr_epi8(0, 1, 2, 3, 1, 2, 3, 4, 2, 3, 4, 5, 3, 4, 5, 6, 0, 1, 2, 3, 1, 2, 3, 4, 2, 3, 4, 5, 3, 4, 5, 6);
+    __m128i c_64 = _mm_set1_epi16(64);
+
+    for (j = 0; j < step1_height; j++) {
+        int d = j + 1;
+        pel *px = src - (d >> 3);
+        int offsetx = (d << 2) & 0x1f;
+        int a = 32 - offsetx, b = 64 - offsetx, c = 32 + offsetx;
+        __m256i coeff_x = _mm256_set1_epi32(offsetx + (c << 8) + (b << 16) + (a << 24));
+
+        for (i = 0; i + 4 < width; i += 8, px += 8) {
+            IPRED_ANG_XY_X8(px, shuffle_x, coeff_x, c_64, 7, dst + i)
+        }
+        if (i < width) {
+            IPRED_ANG_XY_X4(px, _mm256_castsi256_si128(shuffle_x), _mm256_castsi256_si128(coeff_x), c_64, 7, dst + i)
+        }
+        dst += i_dst;
+    }
+
+    if (width == 4) {
+        for (; j < height; j++) {
+            int d = j + 1;
+            int step1_width = (int)(((j + 1) / 8.0 + 0.9999)) - 1;
+            int offsetx = (d << 2) & 0x1f;
+            int a = 32 - offsetx, b = 64 - offsetx, c = 32 + offsetx;
+            pel *px = src + step1_width - (d >> 3);
+            pel *py = psrc - j + 8;
+
+            step1_width = COM_MIN(step1_width, width);
+
+            for (i = 0; i < step1_width; i++, py += 8) {
+                dst[i] = (py[-2] + (py[-1] << 1) + py[0] + 2) >> 2;
+            }
+            for (; i < width; i++, px++) {
+                dst[i] = (px[2] * a + px[1] * b + px[0] * c + px[-1] * offsetx + 64) >> 7;
+            }
+            dst += i_dst;
+        }
+    }
+    else {
+        for (; j < height; j++) {
+            int d = j + 1;
+            int step1_width = (int)(((j + 1) / 8.0 + 0.9999)) - 1;
+            int offsetx = (d << 2) & 0x1f;
+            int a = 32 - offsetx, b = 64 - offsetx, c = 32 + offsetx;
+            pel *px = src + step1_width - (d >> 3);
+            pel *py = psrc - j + 8;
+            __m256i coeff_x = _mm256_set1_epi32(offsetx + (c << 8) + (b << 16) + (a << 24));
+
+            step1_width = COM_MIN(step1_width, width);
+
+            for (i = 0; i < step1_width; i++, py += 8) {
+                dst[i] = (py[-2] + (py[-1] << 1) + py[0] + 2) >> 2;
+            }
+
+            for (i = step1_width; i + 7 < width; i += 8, px += 8) {
+                IPRED_ANG_XY_X8(px, shuffle_x, coeff_x, c_64, 7, dst + i)
+            }
+            if (i + 3 < width) {
+                IPRED_ANG_XY_X4(px, _mm256_castsi256_si128(shuffle_x), _mm256_castsi256_si128(coeff_x), c_64, 7, dst + i)
+                i += 4;
+                px += 4;
+            }
+            for (; i < width; i++, px++) {
+                dst[i] = (px[2] * a + px[1] * b + px[0] * c + px[-1] * offsetx + 64) >> 7;
+            }
+            dst += i_dst;
+        }
+    }
+}
+
 void uavs3e_ipred_ang_xy_14_avx2(pel *src, pel *dst, int i_dst, int mode, int width, int height)
 {
     int i;
@@ -2507,6 +2647,134 @@ void uavs3e_ipred_ang_xy_14_avx2(pel *src, pel *dst, int i_dst, int mode, int wi
     }
 }
 
+static int uavs3e_ipred_xoffsets[5][64];
+static int uavs3e_ipred_xsteps[5][64];
+void uavs3e_ipred_offsets_seteps_init() {
+    int i, d;
+
+    // XY_15
+    d = 11;
+    for (i = 0; i < 64; i++, d += 11) {
+        uavs3e_ipred_xoffsets[0][i] = (d << 3) & 0x1f;
+        uavs3e_ipred_xsteps[0][i] = (d >> 2);
+    }
+
+    // XY_17
+    d = 11;
+    for (i = 0; i < 64; i++, d += 11) {
+        uavs3e_ipred_xoffsets[1][i] = (d << 2) & 0x1f;
+        uavs3e_ipred_xsteps[1][i] = d >> 3;
+    }
+
+    // XY_19
+    d = 93;
+    for (i = 0; i < 64; i++, d += 93) {
+        uavs3e_ipred_xoffsets[2][i] = (d >> 2) & 0x1f;
+        uavs3e_ipred_xsteps[2][i] = d >> 7;
+    }
+
+    // XY_21
+    d = 93;
+    for (i = 0; i < 64; i++, d += 93) {
+        uavs3e_ipred_xoffsets[3][i] = (d >> 3) & 0x1f;
+        uavs3e_ipred_xsteps[3][i] = d >> 8;
+    }
+
+    // XY_23
+    d = 1;
+    for (i = 0; i < 64; i++, d++) {
+        uavs3e_ipred_xoffsets[4][i] = (d << 2) & 0x1f;
+        uavs3e_ipred_xsteps[4][i] = d >> 3;
+    }
+
+}
+
+void uavs3e_ipred_ang_xy_15_avx2(pel *src, pel *dst, int i_dst, int uiDirMode, int width, int height)
+{
+    int i, j;
+    pel *psrc = src;
+    int *xoffsets = uavs3e_ipred_xoffsets[0];
+    int *xsteps = uavs3e_ipred_xsteps[0];
+    int d = 93;
+
+    __m256i shuffle_x = _mm256_setr_epi8(0, 1, 2, 3, 1, 2, 3, 4, 2, 3, 4, 5, 3, 4, 5, 6, 0, 1, 2, 3, 1, 2, 3, 4, 2, 3, 4, 5, 3, 4, 5, 6);
+    __m128i c_64 = _mm_set1_epi16(64);
+
+    for (j = 0; j < 2; j++, d += 93) {
+        int offsetx = (d >> 3) & 0x1f;
+        pel *px = src - (d >> 8);
+        int a = 32 - offsetx, b = 64 - offsetx, c = 32 + offsetx;
+        __m256i coeff_x = _mm256_set1_epi32(offsetx + (c << 8) + (b << 16) + (a << 24));
+
+        for (i = 0; i + 4 < width; i += 8, px += 8) {
+            IPRED_ANG_XY_X8(px, shuffle_x, coeff_x, c_64, 7, dst + i)
+        }
+        if(i < width) {
+            IPRED_ANG_XY_X4(px, _mm256_castsi256_si128(shuffle_x), _mm256_castsi256_si128(coeff_x), c_64, 7, dst + i)
+        }
+        dst += i_dst;
+    }
+
+    if (width < 12) {
+        for (; j < height; j++, d += 93) {
+            int step1_width = (int)(((j + 1) << 2) / 11.0 + 0.9999) - 1;
+            int offsetx = (d >> 3) & 0x1f;
+            int a = 32 - offsetx, b = 64 - offsetx, c = 32 + offsetx;
+            pel *px = src - (d >> 8);
+
+            step1_width = COM_MIN(step1_width, width);
+
+            for (i = 0; i < step1_width; i++) {
+                pel *py = psrc - j + xsteps[i];
+                int offsety = xoffsets[i];
+                dst[i] = (py[-2] * (32 - offsety) + py[-1] * (64 - offsety) + py[0] * (32 + offsety) + py[1] * offsety + 64) >> 7;
+            }
+
+            px += i;
+
+            for (; i < width; i++, px++) {
+                dst[i] = (px[2] * a + px[1] * b + px[0] * c + px[-1] * offsetx + 64) >> 7;
+            }
+            dst += i_dst;
+        }
+    }
+    else {
+        __m128i shuffle_c = _mm_setr_epi8(0, 4, 8, 12, 1, 5, 9, 13, 2, 6, 10, 14, 3, 7, 11, 15);
+        __m128i sign = _mm_set_epi32(0x01010101, 0x01010101, -1, -1);
+        __m128i c0 = _mm_set_epi8(0, 0, 0, 0, 32, 32, 32, 32, 64, 64, 64, 64, 32, 32, 32, 32);
+        for (; j < height; j++, d += 93) {
+            int step1_width = (int)(((j + 1) << 2) / 11.0 + 0.9999) - 1;
+            int offsetx = (d >> 3) & 0x1f;
+            int a = 32 - offsetx, b = 64 - offsetx, c = 32 + offsetx;
+            pel *px = src - (d >> 8);
+            pel *py = psrc - j - 2;
+            __m256i coeff_x = _mm256_set1_epi32(offsetx + (c << 8) + (b << 16) + (a << 24));
+            int *psteps = xsteps;
+
+            step1_width = COM_MIN(step1_width, width);
+
+            for (i = 0; i < step1_width; i += 4, psteps += 4) {
+                IPRED_ANG_XY_Y4(py, psteps, xoffsets + i, shuffle_c, sign, c0, c_64, 7, dst + i)
+            }
+
+            px += step1_width;
+
+            for (i = step1_width; i + 7 < width; i += 8, px += 8) {
+                IPRED_ANG_XY_X8(px, shuffle_x, coeff_x, c_64, 7, dst + i)
+            }
+            if (i + 3 < width) {
+                IPRED_ANG_XY_X4(px, _mm256_castsi256_si128(shuffle_x), _mm256_castsi256_si128(coeff_x), c_64, 7, dst + i)
+                i += 4;
+                px += 4;
+            }
+            for (; i < width; i++, px++) {
+                dst[i] = (px[2] * a + px[1] * b + px[0] * c + px[-1] * offsetx + 64) >> 7;
+            }
+            dst += i_dst;
+        }
+    }
+}
+
 void uavs3e_ipred_ang_xy_16_avx2(pel *src, pel *dst, int i_dst, int mode, int width, int height)
 {
     ALIGNED_16(pel first_line[2 * (64 + 48)]);
@@ -2656,6 +2924,87 @@ void uavs3e_ipred_ang_xy_16_avx2(pel *src, pel *dst, int i_dst, int mode, int wi
 
 }
 
+void uavs3e_ipred_ang_xy_17_avx2(pel *src, pel *dst, int i_dst, int mode, int width, int height)
+{
+    int i, j;
+    pel *psrc = src;
+    int *xoffsets = uavs3e_ipred_xoffsets[1];
+    int *xsteps = uavs3e_ipred_xsteps[1];
+    int d = 93;
+    __m256i shuffle_x = _mm256_setr_epi8(0, 1, 2, 3, 1, 2, 3, 4, 2, 3, 4, 5, 3, 4, 5, 6, 0, 1, 2, 3, 1, 2, 3, 4, 2, 3, 4, 5, 3, 4, 5, 6);
+    __m128i c_64 = _mm_set1_epi16(64);
+
+   {
+        int offsetx = (d >> 2) & 0x1f;
+        pel *px = src - (d >> 7);
+        int a = 32 - offsetx, b = 64 - offsetx, c = 32 + offsetx;
+        __m256i coef = _mm256_set1_epi32(offsetx + (c << 8) + (b << 16) + (a << 24));
+        for (i = 0; i < width; i += 8, px += 8) {
+            IPRED_ANG_XY_X8(px, shuffle_x, coef, c_64, 7, dst + i)
+        }
+        if (i < width) {
+            IPRED_ANG_XY_X4(px, _mm256_castsi256_si128(shuffle_x), _mm256_castsi256_si128(coef), c_64, 7, dst + i)
+        }
+        dst += i_dst;
+        d += 93;
+    }
+    if (width < 12) {
+        for (j = 1; j < height; j++, d += 93) {
+            int step1_width = (int)(((j + 1) << 3) / 11.0 + 0.9999) - 1;
+            int offsetx = (d >> 2) & 0x1f;
+            pel *px = src - (d >> 7);
+            int a = 32 - offsetx, b = 64 - offsetx, c = 32 + offsetx;
+
+            step1_width = COM_MIN(step1_width, width);
+
+            for (i = 0; i < step1_width; i++) {
+                pel *py = psrc - j + xsteps[i];
+                int offsety = xoffsets[i];
+                dst[i] = (py[-2] * (32 - offsety) + py[-1] * (64 - offsety) + py[0] * (32 + offsety) + py[1] * offsety + 64) >> 7;
+            }
+            px += i;
+            for (; i < width; i++, px++) {
+                dst[i] = (px[2] * a + px[1] * b + px[0] * c + px[-1] * offsetx + 64) >> 7;
+            }
+            dst += i_dst;
+        }
+    }
+    else {
+        for (j = 1; j < height; j++, d += 93) {
+            int step1_width = (int)(((j + 1) << 3) / 11.0 + 0.9999) - 1;
+            int offsetx = (d >> 2) & 0x1f;
+            pel *px = src - (d >> 7);
+            pel *py = psrc - j - 2;
+            int a = 32 - offsetx, b = 64 - offsetx, c = 32 + offsetx;
+            int *psteps = xsteps;
+            __m128i shuffle_c;
+            __m128i sign = _mm_set_epi32(0x01010101, 0x01010101, -1, -1);
+            __m128i c0;
+            __m256i coeff_x = _mm256_set1_epi32(offsetx + (c << 8) + (b << 16) + (a << 24));
+            c0 = _mm_set_epi8(0, 0, 0, 0, 32, 32, 32, 32, 64, 64, 64, 64, 32, 32, 32, 32);
+            shuffle_c = _mm_setr_epi8(0, 4, 8, 12, 1, 5, 9, 13, 2, 6, 10, 14, 3, 7, 11, 15);
+            step1_width = COM_MIN(step1_width, width);
+
+            for (i = 0; i < step1_width; i += 4, psteps += 4) {
+                IPRED_ANG_XY_Y4(py, psteps, xoffsets + i, shuffle_c, sign, c0, c_64, 7, dst + i)
+            }
+            px += step1_width;
+            for (i = step1_width; i + 7 < width; i += 8, px += 8) {
+                IPRED_ANG_XY_X8(px, shuffle_x, coeff_x, c_64, 7, dst + i)
+            }
+            if (i + 3 < width) {
+                IPRED_ANG_XY_X4(px, _mm256_castsi256_si128(shuffle_x), _mm256_castsi256_si128(coeff_x), c_64, 7, dst + i)
+                i += 4;
+                px += 4;
+            }
+            for (; i < width; i++, px++) {
+                dst[i] = (px[2] * a + px[1] * b + px[0] * c + px[-1] * offsetx + 64) >> 7;
+            }
+            dst += i_dst;
+        }
+    }
+}
+
 void uavs3e_ipred_ang_xy_18_avx2(pel *src, pel *dst, int i_dst, int mode, int width, int height)
 {
     ALIGNED_16(pel first_line[64 + 64]);
@@ -2739,6 +3088,96 @@ void uavs3e_ipred_ang_xy_18_avx2(pel *src, pel *dst, int i_dst, int mode, int wi
         break;
     }
 
+}
+
+void uavs3e_ipred_ang_xy_19_avx2(pel *src, pel *dst, int i_dst, int uiDirMode, int width, int height)
+{
+    int i, j;
+    pel *psrc = src;
+    int *xoffsets = uavs3e_ipred_xoffsets[2];
+    int *xsteps = uavs3e_ipred_xsteps[2];
+    int d = 11;
+    int step2_height = ((93 * width) >> 7);
+
+    __m128i shuffle_c;
+    __m128i sign = _mm_set_epi32(0x01010101, 0x01010101, -1, -1);
+    __m128i c0, c_64;
+    c0 = _mm_set_epi8(0, 0, 0, 0, 32, 32, 32, 32, 64, 64, 64, 64, 32, 32, 32, 32);
+    c_64 = _mm_set1_epi16(64);
+    shuffle_c = _mm_setr_epi8(0, 4, 8, 12, 1, 5, 9, 13, 2, 6, 10, 14, 3, 7, 11, 15);
+
+    step2_height = COM_MIN(step2_height, height);
+
+    if (width < 12) {
+        for (j = 0; j < step2_height; j++, d += 11) {
+            int step1_width = (int)(((j + 1) << 7) / 93.0 + 0.9999) - 1;
+            int offsetx = (d << 2) & 0x1f;
+            pel *px = src - (d >> 3);
+            int a = 32 - offsetx, b = 64 - offsetx, c = 32 + offsetx;
+
+            step1_width = COM_MIN(step1_width, width);
+
+            for (i = 0; i < step1_width; i++) {
+                pel *py = psrc - j + xsteps[i];
+                int offsety = xoffsets[i];
+                dst[i] = (py[-2] * (32 - offsety) + py[-1] * (64 - offsety) + py[0] * (32 + offsety) + py[1] * offsety + 64) >> 7;
+            }
+            px += i;
+
+            for (; i < width; i++, px++) {
+                dst[i] = (px[2] * a + px[1] * b + px[0] * c + px[-1] * offsetx + 64) >> 7;
+            }
+            dst += i_dst;
+        }
+    }
+    else {
+        for (j = 0; j < step2_height; j++, d += 11) {
+            int step1_width = (int)(((j + 1) << 7) / 93.0 + 0.9999) - 1;
+            int offsetx = (d << 2) & 0x1f;
+            pel *px = src - (d >> 3);
+            int a = 32 - offsetx, b = 64 - offsetx, c = 32 + offsetx;
+            pel *py = psrc - j - 2;
+            int *psteps = xsteps;
+            __m256i shuffle_x = _mm256_setr_epi8(0, 1, 2, 3, 1, 2, 3, 4, 2, 3, 4, 5, 3, 4, 5, 6, 0, 1, 2, 3, 1, 2, 3, 4, 2, 3, 4, 5, 3, 4, 5, 6);
+            __m256i coeff_x = _mm256_set1_epi32(offsetx + (c << 8) + (b << 16) + (a << 24));
+
+            step1_width = COM_MIN(step1_width, width);
+            for (i = 0; i < step1_width; i += 4, psteps += 4) {
+                IPRED_ANG_XY_Y4(py, psteps, xoffsets + i, shuffle_c, sign, c0, c_64, 7, dst + i)
+            }
+
+            px += step1_width;
+
+            for (i = step1_width; i + 7 < width; i += 8, px += 8) {
+                IPRED_ANG_XY_X8(px, shuffle_x, coeff_x, c_64, 7, dst + i)
+            }
+            for (; i + 3 < width; i += 4, px += 4) {
+                IPRED_ANG_XY_X4(px, _mm256_castsi256_si128(shuffle_x), _mm256_castsi256_si128(coeff_x), c_64, 7, dst + i)
+            }
+            for (; i < width; i++, px++) {
+                dst[i] = (px[2] * a + px[1] * b + px[0] * c + px[-1] * offsetx + 64) >> 7;
+            }
+            dst += i_dst;
+        }
+
+    }
+
+    {
+        __m256i shuffle_c_256 = _mm256_set_m128i(shuffle_c, shuffle_c);
+        __m256i sign_256 = _mm256_set_m128i(sign, sign);
+        __m256i c0_256 = _mm256_set_m128i(c0, c0);
+        for (; j < height; j++) {
+            pel *py = psrc - j - 2;
+            int *psteps = xsteps;
+            for (i = 0; i + 4 < width; i += 8, psteps += 8) {
+                IPRED_ANG_XY_Y8(py, psteps, xoffsets + i, shuffle_c_256, sign_256, c0_256, c_64, 7, dst + i)
+            }
+            if (i < width) {
+                IPRED_ANG_XY_Y4(py, psteps, xoffsets + i, shuffle_c, sign, c0, c_64, 7, dst + i)
+            }
+            dst += i_dst;
+        }
+    }
 }
 
 void uavs3e_ipred_ang_xy_20_avx2(pel *src, pel *dst, int i_dst, int mode, int width, int height)
@@ -2910,6 +3349,94 @@ void uavs3e_ipred_ang_xy_20_avx2(pel *src, pel *dst, int i_dst, int mode, int wi
     case 64:
         COPY_XY20(64)
             break;
+    }
+}
+
+void uavs3e_ipred_ang_xy_21_avx2(pel *src, pel *dst, int i_dst, int uiDirMode, int width, int height)
+{
+    int i, j;
+    pel *psrc = src;
+    int *xoffsets = uavs3e_ipred_xoffsets[3];
+    int *xsteps = uavs3e_ipred_xsteps[3];
+    int d = 11;
+    int step2_height = (93 * width) >> 8;
+
+    __m128i shuffle_c;
+    __m128i sign = _mm_set_epi32(0x01010101, 0x01010101, -1, -1);
+    __m128i c0, c_64;
+    c0 = _mm_set_epi8(0, 0, 0, 0, 32, 32, 32, 32, 64, 64, 64, 64, 32, 32, 32, 32);
+    c_64 = _mm_set1_epi16(64);
+    shuffle_c = _mm_setr_epi8(0, 4, 8, 12, 1, 5, 9, 13, 2, 6, 10, 14, 3, 7, 11, 15);
+
+    step2_height = COM_MIN(step2_height, height);
+    if (width == 4) {
+        for (j = 0; j < step2_height; j++, d += 11) {
+            int step1_width = (int)(((j + 1) << 8) / 93.0 + 0.9999) - 1;
+            int offsetx = (d << 3) & 0x1f;
+            pel *px = src - (d >> 2);
+            int a = 32 - offsetx, b = 64 - offsetx, c = 32 + offsetx;
+
+            step1_width = COM_MIN(step1_width, width);
+
+            for (i = 0; i < step1_width; i++) {
+                pel *py = psrc - j + xsteps[i];
+                int offsety = xoffsets[i];
+                dst[i] = (py[-2] * (32 - offsety) + py[-1] * (64 - offsety) + py[0] * (32 + offsety) + py[1] * offsety + 64) >> 7;
+            }
+
+            px += i;
+
+            for (; i < width; i++, px++) {
+                dst[i] = (px[2] * a + px[1] * b + px[0] * c + px[-1] * offsetx + 64) >> 7;
+            }
+            dst += i_dst;
+        }
+    }
+    else {
+        for (j = 0; j < step2_height; j++, d += 11) {
+            int step1_width = (int)(((j + 1) << 8) / 93.0 + 0.9999) - 1;
+            int offsetx = (d << 3) & 0x1f;
+            pel *px = src - (d >> 2);
+            int a = 32 - offsetx, b = 64 - offsetx, c = 32 + offsetx;
+            pel *py = psrc - j - 2;
+            int *psteps = xsteps;
+            __m256i shuffle_x = _mm256_setr_epi8(0, 1, 2, 3, 1, 2, 3, 4, 2, 3, 4, 5, 3, 4, 5, 6, 0, 1, 2, 3, 1, 2, 3, 4, 2, 3, 4, 5, 3, 4, 5, 6);
+            __m256i coeff_x = _mm256_set1_epi32(offsetx + (c << 8) + (b << 16) + (a << 24));
+
+            step1_width = COM_MIN(step1_width, width);
+            for (i = 0; i < step1_width; i += 4, psteps += 4) {
+                IPRED_ANG_XY_Y4(py, psteps, xoffsets + i, shuffle_c, sign, c0, c_64, 7, dst + i)
+            }
+
+            px += step1_width;
+
+            for (i = step1_width; i + 7 < width; i += 8, px += 8) {
+                IPRED_ANG_XY_X8(px, shuffle_x, coeff_x, c_64, 7, dst + i)
+            }
+            for (; i + 3 < width; i += 4, px += 4) {
+                IPRED_ANG_XY_X4(px, _mm256_castsi256_si128(shuffle_x), _mm256_castsi256_si128(coeff_x), c_64, 7, dst + i)
+            }
+            for (; i < width; i++, px++) {
+                dst[i] = (px[2] * a + px[1] * b + px[0] * c + px[-1] * offsetx + 64) >> 7;
+            }
+            dst += i_dst;
+        }
+    }
+    {
+        __m256i shuffle_c_256 = _mm256_set_m128i(shuffle_c, shuffle_c);
+        __m256i sign_256 = _mm256_set_m128i(sign, sign);
+        __m256i c0_256 = _mm256_set_m128i(c0, c0);
+        for (; j < height; j++) {
+            pel *py = psrc - j - 2;
+            int *psteps = xsteps;
+            for (i = 0; i + 4 < width; i += 8, psteps += 8) {
+                IPRED_ANG_XY_Y8(py, psteps, xoffsets + i, shuffle_c_256, sign_256, c0_256, c_64, 7, dst + i)
+            }
+            if (i < width){
+                IPRED_ANG_XY_Y4(py, psteps, xoffsets + i, shuffle_c, sign, c0, c_64, 7, dst + i)
+            }
+            dst += i_dst;
+        }
     }
 }
 
@@ -3153,6 +3680,85 @@ void uavs3e_ipred_ang_xy_22_avx2(pel *src, pel *dst, int i_dst, int mode, int wi
             dst[2] = (src[-1] + src[0] * 5 + src[1] * 7 + src[2] * 3 + 8) >> 4;
             dst[3] = (src[0] + src[1] * 2 + src[2] + 2) >> 2;
             dst -= i_dst;
+        }
+    }
+}
+
+void uavs3e_ipred_ang_xy_23_avx2(pel *src, pel *dst, int i_dst, int uiDirMode, int width, int height)
+{
+    int i, j;
+    pel *psrc = src;
+    int *xoffsets = uavs3e_ipred_xoffsets[4];
+    int *xsteps = uavs3e_ipred_xsteps[4];
+    int d = 8;
+    int step2_height = (width >> 3);
+
+    __m128i shuffle_c;
+    __m128i sign = _mm_set_epi32(0x01010101, 0x01010101, -1, -1);
+    __m128i c0, c_64;
+    c0 = _mm_set_epi8(0, 0, 0, 0, 32, 32, 32, 32, 64, 64, 64, 64, 32, 32, 32, 32);
+    c_64 = _mm_set1_epi16(64);
+    shuffle_c = _mm_setr_epi8(0, 4, 8, 12, 1, 5, 9, 13, 2, 6, 10, 14, 3, 7, 11, 15);
+
+    if (width == 4) {
+        for (j = 0; j < step2_height; j++, d += 8) {
+            int step1_width = ((j + 1) << 3) - 1;
+            pel *px = src - d;
+
+            step1_width = COM_MIN(step1_width, width);
+
+            for (i = 0; i < step1_width; i++) {
+                pel *py = psrc - j + xsteps[i];
+                int offsety = xoffsets[i];
+                dst[i] = (py[-2] * (32 - offsety) + py[-1] * (64 - offsety) + py[0] * (32 + offsety) + py[1] * offsety + 64) >> 7;
+            }
+            px += i;
+            for (; i < width; i++, px++) {
+                dst[i] = (px[2] + (px[1] << 1) + px[0] + 2) >> 2;
+            }
+            dst += i_dst;
+        }
+    }
+    else {
+        for (j = 0; j < step2_height; j++, d += 8) {
+            int step1_width = ((j + 1) << 3) - 1;
+            pel *px = src - d;
+            pel *py = psrc - j - 2;
+            int *psteps = xsteps;
+            __m256i shuffle_x = _mm256_setr_epi8(0, 1, 2, 3, 1, 2, 3, 4, 2, 3, 4, 5, 3, 4, 5, 6, 0, 1, 2, 3, 1, 2, 3, 4, 2, 3, 4, 5, 3, 4, 5, 6);
+            __m256i coeff_x = _mm256_set1_epi32(1 + (2 << 8) + (1 << 16));
+            __m128i c_2 = _mm_set1_epi16(2);
+
+            step1_width = COM_MIN(step1_width, width);
+            for (i = 0; i < step1_width; i += 4, psteps += 4) {
+                IPRED_ANG_XY_Y4(py, psteps, xoffsets + i, shuffle_c, sign, c0, c_64, 7, dst + i)
+            }
+
+            px += step1_width + 1;
+
+            for (i = step1_width; i + 7 < width; i += 8, px += 8) {
+                IPRED_ANG_XY_X8(px, shuffle_x, coeff_x, c_2, 2, dst + i)
+            }
+            for (; i < width; i++, px++) {
+                dst[i] = (px[1] + (px[0] << 1) + px[-1] + 2) >> 2;
+            }
+            dst += i_dst;
+        }
+    }
+    {
+        __m256i shuffle_c_256 = _mm256_set_m128i(shuffle_c, shuffle_c);
+        __m256i sign_256 = _mm256_set_m128i(sign, sign);
+        __m256i c0_256 = _mm256_set_m128i(c0, c0);
+        for (; j < height; j++) {
+            pel *py = psrc - j - 2;
+            int *psteps = xsteps;
+            for (i = 0; i + 4 < width; i += 8, psteps += 8) {
+                IPRED_ANG_XY_Y8(py, psteps, xoffsets + i, shuffle_c_256, sign_256, c0_256, c_64, 7, dst + i)
+            }
+            if (i < width) {
+                IPRED_ANG_XY_Y4(py, psteps, xoffsets + i, shuffle_c, sign, c0, c_64, 7, dst + i)
+            }
+            dst += i_dst;
         }
     }
 }
