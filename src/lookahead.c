@@ -46,16 +46,18 @@ static void get_ipred_neighbor(pel *dst, int x, int y, int w, int h, int pic_wid
     }
 }
 
-double loka_estimate_coding_cost(inter_search_t *pi, com_img_t *img_org, com_img_t **ref_l0, com_img_t **ref_l1, int num_ref[2], int bit_depth)
+double loka_estimate_coding_cost(inter_search_t *pi, com_img_t *img_org, com_img_t **ref_l0, com_img_t **ref_l1, int num_ref[2], int bit_depth, double *icost)
 {
     const int    base_qp = 32;
     const double base_lambda = 1.43631 * pow(2.0, (base_qp - 16.0) / 4.0);
+    const int is_bi = (num_ref[0] && num_ref[1]);
 
     int pic_width  = img_org->width [0];
     int pic_height = img_org->height[0];
 
     double total_cost = 0;
-    int i_org = img_org->stride[0];
+    double total_icost = 0;
+    int i_org = STRIDE_IMGB2PIC(img_org->stride[0]);
     com_pic_t pic = { 0 };
     com_subpel_t subpel;
 
@@ -81,8 +83,11 @@ double loka_estimate_coding_cost(inter_search_t *pi, com_img_t *img_org, com_img
     for (int y = 0; y < pic_height - UNIT_SIZE + 1; y += UNIT_SIZE) {
         for (int x = 0; x < pic_width - UNIT_SIZE + 1; x += UNIT_SIZE) {
             ALIGNED_32(pel pred_buf[MAX_CU_DIM]);
+            ALIGNED_32(pel pred_buf_fwd[MAX_CU_DIM]);
+            ALIGNED_32(pel pred_buf_bwd[MAX_CU_DIM]);
+
             u64 min_cost = COM_UINT64_MAX;
-            pel *org = (pel*)img_org->planes[0] + y * img_org->stride[0] + x;
+            pel *org = (pel*)img_org->planes[0] + y * i_org + x;
 
             pi->org = org;
 
@@ -93,7 +98,7 @@ double loka_estimate_coding_cost(inter_search_t *pi, com_img_t *img_org, com_img
                     com_img_t *ref_img = (lidx ? ref_l1 : ref_l0)[refi];
                     pic.ptr = ref_img->ptr;
                     pic.img = ref_img;
-                    pic.stride_luma = ref_img->stride[0];
+                    pic.stride_luma = STRIDE_IMGB2PIC(ref_img->stride[0]);
                     pic.y = ref_img->planes[0];
                     pic.subpel->imgs[0][0] = ref_img;
 
@@ -110,8 +115,50 @@ double loka_estimate_coding_cost(inter_search_t *pi, com_img_t *img_org, com_img
 #endif
                         min_cost = cost;
 
+                        if (is_bi) {
+                            pel *d = lidx ? pred_buf_bwd : pred_buf_fwd;
+                            uavs3e_funs_handle.ipcpy[UNIT_WIDX](pred_buf, UNIT_SIZE, d, UNIT_SIZE, UNIT_SIZE, UNIT_SIZE);
+                        }
                     }
                 }
+            }
+
+            if (is_bi) {
+                uavs3e_funs_handle.pel_avrg[UNIT_WIDX](pred_buf, UNIT_SIZE, pred_buf_fwd, pred_buf_bwd, UNIT_SIZE);
+                u32 cost = com_had(UNIT_SIZE, UNIT_SIZE, org, pred_buf, i_org, UNIT_SIZE, bit_depth);
+                if (cost < min_cost) {
+#if WRITE_REC_PIC 
+                    uavs3e_funs_handle.ipcpy[UNIT_WIDX](pred_buf, UNIT_SIZE, buf + y * pic_width + x, pic_width, UNIT_SIZE, UNIT_SIZE);
+#endif
+                    min_cost = cost;
+                }
+
+                pic.ptr = ref_l0[0]->ptr;
+                pic.img = ref_l0[0];
+                pic.stride_luma = STRIDE_IMGB2PIC(ref_l0[0]->stride[0]);
+                pic.y = ref_l0[0]->planes[0];
+                pic.subpel->imgs[0][0] = ref_l0[0];
+
+                com_mc_blk_luma(&pic, pred_buf_fwd, UNIT_SIZE, (x << 2), (y << 2), UNIT_SIZE, UNIT_SIZE, UNIT_WIDX, pi->max_coord[MV_X], pi->max_coord[MV_Y], (1 << bit_depth) - 1, 0);
+               
+                pic.ptr = ref_l1[0]->ptr;
+                pic.img = ref_l1[0];
+                pic.stride_luma = STRIDE_IMGB2PIC(ref_l1[0]->stride[0]);
+                pic.y = ref_l1[0]->planes[0];
+                pic.subpel->imgs[0][0] = ref_l1[0];
+                
+                com_mc_blk_luma(&pic, pred_buf_bwd, UNIT_SIZE, (x << 2), (y << 2), UNIT_SIZE, UNIT_SIZE, UNIT_WIDX, pi->max_coord[MV_X], pi->max_coord[MV_Y], (1 << bit_depth) - 1, 0);
+
+                uavs3e_funs_handle.pel_avrg[UNIT_WIDX](pred_buf, UNIT_SIZE, pred_buf_fwd, pred_buf_bwd, UNIT_SIZE);
+                
+                cost = com_had(UNIT_SIZE, UNIT_SIZE, org, pred_buf, i_org, UNIT_SIZE, bit_depth);
+                if (cost < min_cost) {
+#if WRITE_REC_PIC 
+                    uavs3e_funs_handle.ipcpy[UNIT_WIDX](pred_buf, UNIT_SIZE, buf + y * pic_width + x, pic_width, UNIT_SIZE, UNIT_SIZE);
+#endif
+                    min_cost = cost;
+                }
+
             }
 
             pel nb_buf[INTRA_NEIB_SIZE];
@@ -119,6 +166,7 @@ double loka_estimate_coding_cost(inter_search_t *pi, com_img_t *img_org, com_img
 
             int avaliable_nb = (x ? AVAIL_LE : 0) | (y ? AVAIL_UP : 0) | ((x && y) ? AVAIL_UP_LE : 0);
             static tab_s8 ipm_tab[] = { 0, 1, 2, 4, 8, 12, 16, 20, 24, 28, 32 };
+            u32 min_icost = COM_UINT64_MAX;
 
             for (int i = 0; i < sizeof(ipm_tab); i++) {
                 com_intra_pred(nb_buf + INTRA_NEIB_MID, pred_buf, ipm_tab[i], UNIT_SIZE, UNIT_SIZE, bit_depth, avaliable_nb, 0);
@@ -130,8 +178,12 @@ double loka_estimate_coding_cost(inter_search_t *pi, com_img_t *img_org, com_img
 #endif
                     min_cost = cost;
                 }
+                if (cost < min_icost) {
+                    min_icost = cost;
+                }
             }
             total_cost += min_cost;
+            total_icost += min_icost;
         }        
     }
 
@@ -142,5 +194,190 @@ double loka_estimate_coding_cost(inter_search_t *pi, com_img_t *img_org, com_img
 
 #undef WRITE_REC_PIC
 
+    if (icost) {
+        *icost = total_icost / (pic_width / UNIT_SIZE) / (pic_height / UNIT_SIZE) / UNIT_SIZE / UNIT_SIZE;
+    }
+
     return total_cost / (pic_width / UNIT_SIZE) / (pic_height / UNIT_SIZE) / UNIT_SIZE / UNIT_SIZE;
+}
+
+double loka_get_sc_ratio(inter_search_t *pi, com_img_t *img_org, com_img_t *img_last, int bit_depth)
+{
+    int num_refp[2] = { 1, 0 };
+    com_img_t *ref_l0[1] = { img_last };
+
+    double icost;
+    double pcost = loka_estimate_coding_cost(pi, img_org, ref_l0, NULL, num_refp, bit_depth, &icost);
+    return pcost / icost;
+}
+
+static double loka_get_ref_cost(inter_search_t *pi, com_img_t *img_org, com_img_t *ref0, com_img_t *ref1, int bit_depth)
+{
+    int num_refp[2];
+    com_img_t *ref_l0[1] = { ref0 };
+    com_img_t *ref_l1[1] = { ref1 };
+    num_refp[0] = (ref0 == NULL ? 0 : 1);
+    num_refp[1] = (ref1 == NULL ? 0 : 1);
+
+    double pcost = loka_estimate_coding_cost(pi, img_org, ref_l0, ref_l1, num_refp, bit_depth, NULL);
+    return pcost;
+}
+
+static void update_last_ip(enc_ctrl_t *h, com_img_t *img, int type)
+{
+    com_img_release(h->img_lastIP);  
+    h->img_lastIP = img; 
+    com_img_addref(img);
+
+    if (type == SLICE_I) {
+        h->lastI_ptr = img->ptr;
+    }
+}
+
+static void push_sub_gop(enc_ctrl_t *h, int start, int num, int level)
+{
+    if (num <= 2) {
+        if (start < h->img_rsize) {
+            input_node_t *node = &h->node_list[h->node_size++];
+            node->img = h->img_rlist[start].img;
+            node->b_ref = 0;
+            node->layer_id = level;
+            node->type = SLICE_B;
+
+            if (num == 2 && start + 1 < h->img_rsize) {
+                node = &h->node_list[h->node_size++];
+                node->img = h->img_rlist[start + 1].img;
+                node->b_ref = 0;
+                node->layer_id = level;
+                node->type = SLICE_B;
+            }
+        }
+    } else {
+        int idx = start + num / 2;
+
+        if (idx < h->img_rsize) {
+            input_node_t *node = &h->node_list[h->node_size++];
+            node->img = h->img_rlist[idx].img;
+            node->b_ref = 1;
+            node->layer_id = level;
+            node->type = SLICE_B;
+        }
+        push_sub_gop(h, start, num / 2, level + 1);
+        push_sub_gop(h, idx + 1,  num - num / 2 - 1, level + 1);
+    }
+}
+
+
+void loka_slicetype_decision(enc_ctrl_t *h)
+{
+#define UPDATE_LAST_IP(h,img) { com_img_release(h->img_lastIP);  h->img_lastIP = img; com_img_addref(img); }
+
+    int bit_depth     = h->cfg.bit_depth_internal;
+    int next_ifrm_idx = h->cfg.i_period - (int)(h->img_rlist[0].img->ptr - h->lastI_ptr);
+    int cur_ip_idx    = COM_MIN(h->cfg.max_b_frames, h->img_rsize - 1);
+    double sc_threshold = 1.0 - h->cfg.scenecut / 100.0;
+
+    cur_ip_idx = COM_MIN(cur_ip_idx, next_ifrm_idx);
+
+    if (h->cfg.scenecut) {
+        if (h->img_rlist[0].sc_ratio > sc_threshold) {
+            while (cur_ip_idx) {
+                double sc_ratio = loka_get_sc_ratio(&h->pinter, h->img_rlist[cur_ip_idx].img, h->img_lastIP, bit_depth);
+                if (sc_ratio <= sc_threshold) {
+                    for (int i = 0; i <= cur_ip_idx; i++) {
+                        h->img_rlist[i].sc_ratio = 0;
+                    }
+                    break;
+                }
+                cur_ip_idx--;
+            }
+            if (cur_ip_idx == 0) {
+                add_input_node(h, h->img_rlist[cur_ip_idx].img, 1, FRM_DEPTH_0, SLICE_I);
+                shift_reorder_list(h, cur_ip_idx);
+                return;
+            }
+        }
+    }
+
+    int is_ifrm = (next_ifrm_idx == cur_ip_idx);
+
+    if (!is_ifrm && h->cfg.adaptive_gop) {
+        while (cur_ip_idx) {
+            com_img_t *img_cur = h->img_rlist[cur_ip_idx    ].img;
+            com_img_t *img_mid = h->img_rlist[cur_ip_idx / 2].img;
+            double cost_long  = loka_get_ref_cost(&h->pinter, img_cur, h->img_lastIP, NULL,     bit_depth) +
+                                loka_get_ref_cost(&h->pinter, img_mid, h->img_lastIP, img_cur,  bit_depth);
+            double cost_short = loka_get_ref_cost(&h->pinter, img_cur, img_mid,       NULL,     bit_depth) +
+                                loka_get_ref_cost(&h->pinter, img_mid, h->img_lastIP, NULL,     bit_depth);
+
+            if (cost_long < cost_short) {
+                break;
+            }
+            cur_ip_idx /= 2;
+        }
+    }
+
+    if (h->cfg.scenecut) {
+        if (is_ifrm) {
+            for (int i = 0; i < cur_ip_idx; i++) {
+                if (h->img_rlist[i].sc_ratio > sc_threshold) {
+                    while (cur_ip_idx > i) {
+                        if (h->img_rlist[cur_ip_idx].sc_ratio > sc_threshold) {
+                            break;
+                        }
+                        cur_ip_idx--;
+                    }
+                    break;
+                }
+            }
+        } else {
+            for (int i = 0; i <= cur_ip_idx; i++) {
+                if (h->img_rlist[i].sc_ratio > sc_threshold) {
+                    com_img_t *img_last = i ? h->img_rlist[i - 1].img : h->img_lastIP;
+                    while (i <= cur_ip_idx) {
+                        double sc_ratio = loka_get_sc_ratio(&h->pinter, h->img_rlist[cur_ip_idx].img, img_last, bit_depth);
+                        if (sc_ratio <= sc_threshold) {
+                            break;
+                        }
+                        cur_ip_idx--;
+                    }
+                    break;
+                }
+            }
+        }
+    }
+    com_assert(cur_ip_idx >= 0);
+
+    if (is_ifrm) { // insert I frame
+        if (h->cfg.close_gop) {
+            if (cur_ip_idx > 0) {
+                add_input_node(h, h->img_rlist[cur_ip_idx - 1].img, 1, FRM_DEPTH_1, SLICE_B);
+                if (cur_ip_idx > 1) {
+                    push_sub_gop(h, 0, cur_ip_idx - 1, FRM_DEPTH_2);
+                }
+            }
+            add_input_node(h, h->img_rlist[cur_ip_idx].img, 1, FRM_DEPTH_0, SLICE_I);
+            update_last_ip(h, h->img_rlist[cur_ip_idx].img, SLICE_I);
+        } else {
+            add_input_node(h, h->img_rlist[cur_ip_idx].img, 1, FRM_DEPTH_0, SLICE_I);
+            update_last_ip(h, h->img_rlist[cur_ip_idx].img, SLICE_I);
+
+            if (cur_ip_idx > 0) {
+                push_sub_gop(h, 0, cur_ip_idx, FRM_DEPTH_2);
+            }
+        }
+    } else {
+        if (cur_ip_idx == h->img_rsize - 1 && h->img_rsize <= h->cfg.max_b_frames) { // flush
+            push_sub_gop(h, 0, h->cfg.max_b_frames, FRM_DEPTH_2);
+        } else {
+            add_input_node(h, h->img_rlist[cur_ip_idx].img, 1, FRM_DEPTH_1, SLICE_B);
+            update_last_ip(h, h->img_rlist[cur_ip_idx].img, SLICE_B);
+
+            if (cur_ip_idx > 0) {
+                push_sub_gop(h, 0, cur_ip_idx, FRM_DEPTH_2);
+            }
+        }
+    }
+
+    shift_reorder_list(h, cur_ip_idx);
 }

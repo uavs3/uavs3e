@@ -39,13 +39,7 @@ static core_t *core_alloc(com_info_t *info)
         }
     }
 
-    inter_search_t *pi   = &core->pinter;
-    pi->bit_depth        = info->bit_depth_internal;
-    pi->gop_size         = info->gop_size;
-    pi->max_search_range = info->sqh.low_delay ? SEARCH_RANGE_IPEL_LD : SEARCH_RANGE_IPEL_RA;
-    pi->max_coord[MV_X]  = (s16)info->pic_width  + 4;
-    pi->max_coord[MV_Y]  = (s16)info->pic_height + 4;
-    inter_search_create(pi, info->pic_width, info->pic_height);
+    inter_search_init(&core->pinter, info, 1);
 
     int l_size = sizeof(pel) * ((MAX_CU_SIZE + SAO_SHIFT_PIX_NUM + 2) * (MAX_CU_SIZE + SAO_SHIFT_PIX_NUM + 2) + info->pic_width + ALIGN_MASK);
     int c_size = sizeof(pel) * ((MAX_CU_SIZE / 2 + SAO_SHIFT_PIX_NUM + 2) * (MAX_CU_SIZE / 2 + SAO_SHIFT_PIX_NUM + 2) + info->pic_width / 2 + ALIGN_MASK);
@@ -69,7 +63,6 @@ static void core_free(core_t *core)
             enc_delete_cu_data(&core->cu_data_temp[i][j]);
         }
     }
-    inter_search_free(&core->pinter);
 
     com_mfree(core->sao_src_buf[0]);
     com_mfree(core->sao_src_buf[1]);
@@ -88,9 +81,6 @@ static enc_pic_t *pic_enc_alloc(com_info_t *info)
 
     int total_mem_size =
         ALIGN_MASK * 1 + sizeof(enc_pic_t) +
-        ALIGN_MASK * 2 + MAX_BS_BUF * 2 +                                                                       // bs_buf + bs_buf_demulate
-        ALIGN_MASK * 1 + (linebuf_intra_size + sizeof(pel *) * 3) * info->pic_height_in_lcu +                   // linebuf_intra
-        ALIGN_MASK * 3 + sizeof(pel) * ((info->pic_width + MAX_CU_SIZE) * 2 + 3) +                              // linebuf_sao
         ALIGN_MASK * 1 + sizeof( enc_cu_t) * info->f_lcu +                                                      // map_cu_data
         ALIGN_MASK * 1 + sizeof(       s8) * info->f_lcu * info->cus_in_lcu * MAX_CU_DEPTH * NUM_BLOCK_SHAPE +  // map.map_split
         ALIGN_MASK * 1 + sizeof(       s8) * info->f_lcu +                                                      // map.map_qp
@@ -99,12 +89,15 @@ static enc_pic_t *pic_enc_alloc(com_info_t *info)
         ALIGN_MASK * 1 + sizeof(       s8) * info->f_scu +                                                      // map.map_ipm
         ALIGN_MASK * 1 + sizeof(       s8) * info->f_scu +                                                      // map.map_patch
         ALIGN_MASK * 1 + sizeof(      u32) * info->f_scu +                                                      // map.map_pos
-        ALIGN_MASK * 1 + sizeof(u8) * info->f_lcu +                                                             // alf_var_map
+        ALIGN_MASK * 1 + (linebuf_intra_size + sizeof(pel *) * 3) * info->pic_height_in_lcu +                   // linebuf_intra
+        ALIGN_MASK * 3 + sizeof(pel) * ((info->pic_width + MAX_CU_SIZE) * 2 + 3) +                              // linebuf_sao
+        ALIGN_MASK * 1 + sizeof(             u8) * info->f_lcu +                                                // alf_var_map
         ALIGN_MASK * 1 + sizeof( enc_alf_corr_t) * info->f_lcu * N_C +                                          // Enc_ALF.m_alfCorr
         ALIGN_MASK * 1 + sizeof(           BOOL) * info->f_lcu * N_C +                                          // Enc_ALF.m_AlfLCUEnabled
         ALIGN_MASK * 1 + sizeof(com_sao_param_t) * info->f_lcu * N_C +                                          // sao_blk_params 
         ALIGN_MASK * 1 + sizeof(enc_lcu_row_t) * info->pic_height_in_lcu +                                      // array_row
-        ALIGN_MASK * 3 + sizeof(s16) * (info->pic_height + 2 * 8) * (info->pic_width + 2 * 8) +                 // ip_tmp_buf
+        ALIGN_MASK * 2 + MAX_BS_BUF * 2 +                                                                       // bs_buf + bs_buf_demulate
+        ALIGN_MASK * 3 + sizeof(s16) * (info->pic_height + 2 * 8) * (info->pic_width + 2 * 8) * 3 +             // ip_tmp_buf
         ALIGN_MASK;
 
     buf = com_malloc(total_mem_size);
@@ -112,12 +105,11 @@ static enc_pic_t *pic_enc_alloc(com_info_t *info)
     GIVE_BUFFER(ep, buf, sizeof(enc_pic_t));
     memcpy(&ep->info, info, sizeof(com_info_t));
 
-    GIVE_BUFFER(ep->map_cu_data, buf, sizeof(enc_cu_t) * info->f_lcu);
-
+    GIVE_BUFFER(ep->map_cu_data    , buf, sizeof(enc_cu_t ) * info->f_lcu);
     GIVE_BUFFER(ep->map.map_split  , buf, sizeof(s8       ) * info->f_lcu * info->cus_in_lcu * MAX_CU_DEPTH * NUM_BLOCK_SHAPE);
     GIVE_BUFFER(ep->map.map_qp     , buf, sizeof(s8       ) * info->f_lcu);
-    GIVE_BUFFER(ep->map.map_edge   , buf, sizeof(u8       ) * info->f_scu); ep->map.map_edge  += info->i_scu + 1;
     GIVE_BUFFER(ep->map.map_scu    , buf, sizeof(com_scu_t) * info->f_scu); ep->map.map_scu   += info->i_scu + 1;
+    GIVE_BUFFER(ep->map.map_edge   , buf, sizeof(u8       ) * info->f_scu); ep->map.map_edge  += info->i_scu + 1;
     GIVE_BUFFER(ep->map.map_ipm    , buf, sizeof(s8       ) * info->f_scu); ep->map.map_ipm   += info->i_scu + 1;
     GIVE_BUFFER(ep->map.map_patch  , buf, sizeof(s8       ) * info->f_scu); ep->map.map_patch += info->i_scu + 1;
     GIVE_BUFFER(ep->map.map_pos    , buf, sizeof(u32      ) * info->f_scu); ep->map.map_pos   += info->i_scu + 1;
@@ -145,8 +137,8 @@ static enc_pic_t *pic_enc_alloc(com_info_t *info)
     GIVE_BUFFER(ep->Enc_ALF.m_alfCorr,       buf, sizeof( enc_alf_corr_t) * info->f_lcu * N_C);
     GIVE_BUFFER(ep->Enc_ALF.m_AlfLCUEnabled, buf, sizeof(           BOOL) * info->f_lcu * N_C);
     GIVE_BUFFER(ep->sao_blk_params,          buf, sizeof(com_sao_param_t) * info->f_lcu * N_C);
+    GIVE_BUFFER(ep->array_row,               buf, sizeof(enc_lcu_row_t  ) * info->pic_height_in_lcu);
     GIVE_BUFFER(ep->bs_buf_demulate,         buf, MAX_BS_BUF);
-    GIVE_BUFFER(ep->array_row,               buf, sizeof(enc_lcu_row_t) * info->pic_height_in_lcu);
 
     GIVE_BUFFER(ep->ip_tmp_buf[0],           buf, sizeof(s16) * (info->pic_width + 2 * 8) * (info->pic_height + 2 * 8));
     GIVE_BUFFER(ep->ip_tmp_buf[1],           buf, sizeof(s16) * (info->pic_width + 2 * 8) * (info->pic_height + 2 * 8));
@@ -166,13 +158,7 @@ static enc_pic_t *pic_enc_alloc(com_info_t *info)
 
     ep->main_core = core_alloc(info);
 
-    inter_search_t *pi = &ep->rc_pinter;
-    pi->bit_depth = info->bit_depth_internal;
-    pi->gop_size  = info->gop_size;
-    pi->max_search_range = info->sqh.low_delay ? SEARCH_RANGE_IPEL_LD : SEARCH_RANGE_IPEL_RA;
-    pi->max_coord[MV_X] = (s16)info->pic_width  + 4;
-    pi->max_coord[MV_Y] = (s16)info->pic_height + 4;
-    inter_search_create(pi, info->pic_width, info->pic_height);
+    inter_search_init(&ep->pinter, info, 1);
 
     return ep;
 }
@@ -189,7 +175,6 @@ static void pic_enc_free(enc_pic_t *ep)
     }
     com_pic_destroy(ep->pic_alf_Rec);
     core_free(ep->main_core);
-    inter_search_free(&ep->rc_pinter);
 
     com_mfree(ep);
 }
@@ -221,6 +206,15 @@ static int refine_input_cfg(enc_cfg_t *param, enc_cfg_t *cfg_org)
     param->wpp_threads = COM_CLIP3(1, (param->pic_height + param->ctu_size - 1) / param->ctu_size, param->wpp_threads);
     param->frm_threads = COM_MAX(param->frm_threads, 1);
 
+    if (param->i_period == 1) {
+        param->max_b_frames = 0;
+        param->close_gop = 1;
+    }
+    if (param->max_b_frames == 0) {
+        param->adaptive_gop = 0;
+    }
+    param->lookahead = COM_MAX(param->lookahead, param->max_b_frames + 1);
+
     /* check input parameters */
     com_assert_rv (param->pic_width > 0 && param->pic_height > 0, COM_ERR_INVALID_ARGUMENT);
     com_assert_rv((param->pic_width & (MIN_CU_SIZE - 1)) == 0, COM_ERR_INVALID_ARGUMENT);
@@ -246,7 +240,7 @@ static int refine_input_cfg(enc_cfg_t *param, enc_cfg_t *cfg_org)
     com_assert_rv(param->min_cu_size <= param->ctu_size, COM_ERR_INVALID_ARGUMENT);
 
     com_assert_rv(com_tbl_log2[param->max_b_frames + 1] != -1, COM_ERR_INVALID_ARGUMENT);
-    com_assert_rv(param->max_b_frames < MAX_REORDER_BUF - 1, COM_ERR_INVALID_ARGUMENT);
+    com_assert_rv(param->max_b_frames < MAX_SUBGOP_SIZE, COM_ERR_INVALID_ARGUMENT);
 
 #if (BIT_DEPTH == 8)
     if (param->bit_depth_internal == 10) {
@@ -310,7 +304,7 @@ static void set_sqh(enc_ctrl_t *h, com_seqh_t *sqh)
     sqh->low_delay                  = h->cfg.max_b_frames == 0 ? 1 : 0;
     sqh->temporal_id_enable_flag    = 1;
     sqh->bbv_buffer_size            = (1 << 18) - 1;
-    sqh->max_dpb_size               = 7; 
+    sqh->max_dpb_size               = 16;
 
     sqh->rpl1_index_exist_flag      = 1;
 
@@ -515,12 +509,13 @@ static void set_pic_header(enc_ctrl_t *h, com_pic_t *pic_rec)
     if (pichdr->poc == 0) {
         pichdr->ref_pic_list_sps_flag[0] = 1;
         pichdr->ref_pic_list_sps_flag[1] = 1;
-        pichdr->rpl_l0_idx = 0;
-        pichdr->rpl_l0_idx = 0;
+        pichdr->rpl_l0_idx    = 0;
+        pichdr->rpl_l0_idx    = 0;
         pichdr->rpl_l0.active = 0;
         pichdr->rpl_l1.active = 0;
-        h->rpm.ptr_l_ip = 0;
-        h->rpm.ptr_l_l_ip = 0;
+        h->rpm.ptr_l_ip       = 0;
+        h->rpm.ptr_l_l_ip     = 0;
+        h->rpm.ptr_l_i        = 0;
     } else {
         int is_ld = h->info.sqh.low_delay;
         int is_top = pic_rec->layer_id < FRM_DEPTH_2 && !is_ld;
@@ -854,17 +849,16 @@ void enc_get_pic_qp(enc_pic_t *ep, pic_thd_param_t *p)
         }
     }
 
-    pic_org->picture_satd = loka_estimate_coding_cost(&ep->rc_pinter, img_org, ref_l0, ref_l1, p->num_refp, info->bit_depth_internal);
+    pic_org->picture_satd = loka_estimate_coding_cost(&ep->pinter, img_org, ref_l0, ref_l1, p->num_refp, info->bit_depth_internal, NULL);
 
     if (param->rc_type == RC_TYPE_NULL) {
         base_qp = (int)(enc_get_hgop_qp(param->qp, pic_org->layer_id, info->sqh.low_delay) + 0.5);
     } else {
-        int qp_l0 = p->top_pic[0] ? (int)(p->top_pic[0]->picture_qp_real + 0.5) : -1;
-        int qp_l1 = p->top_pic[1] ? (int)(p->top_pic[1]->picture_qp_real + 0.5) : -1;
+        int qp_l0 = p->top_pic[0] ? ((int)(p->top_pic[0]->picture_qp_real + 0.5) + (p->top_pic[0]->layer_id == FRM_DEPTH_0 ? 3 : 0)) : -1;
+        int qp_l1 = p->top_pic[1] ? ((int)(p->top_pic[1]->picture_qp_real + 0.5) + (p->top_pic[1]->layer_id == FRM_DEPTH_0 ? 3 : 0)) : -1;
         base_qp = rc_get_qp(p->rc, pic_org, qp_l0, qp_l1);
     }
     pic_org->picture_qp = (u8)COM_CLIP3(0, (MAX_QUANT_BASE + info->qp_offset_bit_depth), base_qp + info->qp_offset_bit_depth);
-
 
     //find a qp_offset_cb that makes com_tbl_qp_chroma_ajudst[qp + qp_offset_cb] equal to com_tbl_qp_chroma_adjust_enc[qp + 1]
     int opt_c_dqp;
@@ -986,7 +980,6 @@ void *enc_pic_thread(enc_pic_t *ep, pic_thd_param_t *p)
     pic_rec->picture_qp_real   = (p->total_qp * 1.0 / info->f_lcu) - info->qp_offset_bit_depth;
     pic_rec->picture_qp        = pic_org->picture_qp;
     pic_rec->picture_satd      = pic_org->picture_satd;
-    pic_rec->picture_satd_blur = pic_org->picture_satd_blur;
     pic_rec->layer_id          = pic_org->layer_id;
 
     if (pic_org->b_ref) {
@@ -1116,120 +1109,50 @@ void *enc_pic_thread(enc_pic_t *ep, pic_thd_param_t *p)
     return ep;
 }
 
-void push_sub_gop(enc_ctrl_t *h, int start, int num, int level)
-{
-    if (num <= 2) {
-        if (h->img_rlist[start]) {
-            input_node_t *node = &h->node_list[h->node_size++];
-            node->img = h->img_rlist[start];
-            node->b_ref = 0;
-            node->layer_id = level;
-            node->type = SLICE_B;
-
-            if (num == 2 && h->img_rlist[start + 1]) {
-                node = &h->node_list[h->node_size++];
-                node->img = h->img_rlist[start + 1];
-                node->b_ref = 0;
-                node->layer_id = level;
-                node->type = SLICE_B;
-            }
-        }
-    } else {
-        int idx = start + num / 2;
-
-        if (h->img_rlist[idx]) {
-            input_node_t *node = &h->node_list[h->node_size++];
-            node->img = h->img_rlist[idx];
-            node->b_ref = 1;
-            node->layer_id = level;
-            node->type = SLICE_B;
-        }
-        push_sub_gop(h, start, num / 2, level + 1);
-        push_sub_gop(h, idx + 1,  num - num / 2 - 1, level + 1);
-    }
-}
-
-static int enc_push_frm(enc_ctrl_t *h, com_img_t *img)
+static void enc_push_frm(enc_ctrl_t *h, com_img_t *img)
 {
     img->ptr = h->ptr++;
 
     com_img_addref(img);
 
-    if (h->lastI_ptr == -1 || h->cfg.i_period == 1) { // AI or first frame
-        input_node_t *node = &h->node_list[h->node_size++];
-        node->img = img;
-        node->b_ref = 1;
-        node->layer_id = FRM_DEPTH_0;
-        node->type = SLICE_I;
+    if (h->cfg.i_period == 1) { // AI
+        add_input_node(h, img, 1, FRM_DEPTH_0, SLICE_I);
         h->lastI_ptr = img->ptr;
-    } else if (h->info.sqh.low_delay) { // LD
-        input_node_t *node = &h->node_list[h->node_size++];
-        node->img = img;
-        node->b_ref = 1;
-
-        if (h->cfg.i_period && img->ptr - h->lastI_ptr == h->cfg.i_period) {
-            node->type = SLICE_I;
-            node->layer_id = FRM_DEPTH_0;
+        return;
+    }
+    if (h->info.sqh.low_delay) { // LD
+        if (h->lastI_ptr == -1 || (h->cfg.i_period && img->ptr - h->lastI_ptr == h->cfg.i_period)) {
+            add_input_node(h, img, 1, FRM_DEPTH_0, SLICE_I);
             h->lastI_ptr = img->ptr;
         } else {
-            node->type = SLICE_B;
             static tab_s8 tbl_slice_depth_P[4] = { FRM_DEPTH_3,  FRM_DEPTH_2, FRM_DEPTH_3, FRM_DEPTH_1 };
-            node->layer_id = tbl_slice_depth_P[(img->ptr - h->lastI_ptr - 1) % 4];
+            int frm_depth = tbl_slice_depth_P[(img->ptr - h->lastI_ptr - 1) % 4];
+            add_input_node(h, img, 1, frm_depth, SLICE_B);
         }
-    } else { // RA
-        h->img_rlist[h->img_rsize++] = img;
-
-        if (h->cfg.i_period && img->ptr - h->lastI_ptr == h->cfg.i_period) {
-            h->lastI_ptr = img->ptr;
-
-            if (h->cfg.close_gop) {
-                if (h->img_rsize > 1) {
-                    input_node_t *node = &h->node_list[h->node_size++];
-                    node->img = h->img_rlist[h->img_rsize - 2];
-                    node->b_ref = 1;
-                    node->layer_id = FRM_DEPTH_1;
-                    node->type = SLICE_B;
-
-                    if (h->img_rsize > 2) {
-                        push_sub_gop(h, 0, h->img_rsize - 2, FRM_DEPTH_2);
-                    }
-                }
-                input_node_t *node = &h->node_list[h->node_size++];
-                node->img = h->img_rlist[h->img_rsize - 1];
-                node->b_ref = 1;
-                node->layer_id = FRM_DEPTH_0;
-                node->type = SLICE_I;
-
-                memset(h->img_rlist, 0, sizeof(com_img_t*) * MAX_REORDER_BUF);
-                h->img_rsize = 0;
-            } else {
-                input_node_t *node = &h->node_list[h->node_size++];
-                node->img = h->img_rlist[h->img_rsize - 1];
-                node->b_ref = 1;
-                node->layer_id = FRM_DEPTH_0;
-                node->type = SLICE_I;
-
-                if (h->img_rsize - 1 > 0) {
-                    push_sub_gop(h, 0, h->img_rsize - 1, FRM_DEPTH_2);
-                }
-                memset(h->img_rlist, 0, sizeof(com_img_t*) * MAX_REORDER_BUF);
-                h->img_rsize = 0;
-            }
-        } else if (h->img_rsize == h->cfg.max_b_frames + 1) {
-            input_node_t *node = &h->node_list[h->node_size++];
-            node->img = h->img_rlist[h->img_rsize - 1];
-            node->b_ref = 1;
-            node->layer_id = FRM_DEPTH_1;
-            node->type = SLICE_B;
-
-            if (h->img_rsize - 1 > 0) {
-                push_sub_gop(h, 0, h->img_rsize - 1, FRM_DEPTH_2);
-            }
-            memset(h->img_rlist, 0, sizeof(com_img_t*) * MAX_REORDER_BUF);
-            h->img_rsize = 0;
-        }
+        return;
     }
-    return COM_OK;
+
+    /*** RA ***/
+
+    if (h->lastI_ptr == -1) { // First frame
+        add_input_node(h, img, 1, FRM_DEPTH_0, SLICE_I);
+        h->lastI_ptr = img->ptr;
+        h->img_lastIP = img;
+        com_img_addref(img);
+        return;
+    } 
+
+    com_img_t *last_img = h->img_rsize ? h->img_rlist[h->img_rsize - 1].img : h->img_lastIP;
+    int bit_depth = h->info.bit_depth_internal;
+
+    h->img_rlist[h->img_rsize].img = img;
+    h->img_rlist[h->img_rsize].sc_ratio = loka_get_sc_ratio(&h->pinter, img, last_img, bit_depth);
+    h->img_rsize++;
+
+    if (h->img_rsize < h->cfg.lookahead) {
+        return;
+    }
+    loka_slicetype_decision(h);
 }
 
 void *uavs3e_create(enc_cfg_t *cfg, int *err)
@@ -1275,8 +1198,10 @@ void *uavs3e_create(enc_cfg_t *cfg, int *err)
 
     com_refm_create(&h->rpm, MAX_PB_SIZE + h->cfg.frm_threads, info->pic_width, info->pic_height);
 
-    h->ilist_size = MAX_REORDER_BUF + h->cfg.frm_threads;
+    h->ilist_size = h->cfg.lookahead + h->cfg.frm_threads + 1 /* lastIP */; 
     h->ilist_imgs = com_malloc(sizeof(com_img_t*) * h->ilist_size);
+
+    h->img_rlist = com_malloc(sizeof(analyze_node_t) * h->cfg.lookahead);
 
     h->pic_thd_params = (pic_thd_param_t*)com_malloc(sizeof(pic_thd_param_t) * h->cfg.frm_threads);
 
@@ -1287,6 +1212,10 @@ void *uavs3e_create(enc_cfg_t *cfg, int *err)
     h->pic_thd_head   = 0;
     h->pic_thd_tail   = 0;
     h->pic_thd_active = 0;
+
+    h->tab_mvbits_offset = inter_search_create(&h->tab_mvbits, info);
+    h->info.tab_mvbits = h->tab_mvbits;
+    inter_search_init(&h->pinter, info, 0);
 
     uavs3e_threadpool_init(&h->frm_threads_pool, h->cfg.frm_threads, h->cfg.frm_threads, (void * (*)(void *))pic_enc_alloc, &h->info, (void(*)(void *))pic_enc_free);
 
@@ -1355,8 +1284,10 @@ void uavs3e_free(void *id)
         }
     }
     rc_destroy(&h->rc);
+    inter_search_free(h->tab_mvbits, h->tab_mvbits_offset);
 
     com_mfree(h->ilist_imgs);
+    com_mfree(h->img_rlist);
 
     com_mfree(h);
     com_scan_tbl_delete();
@@ -1369,17 +1300,15 @@ int uavs3e_enc(void *id, enc_stat_t *stat, com_img_t *img_enc)
     int gop_size = h->info.gop_size;
 
     if (img_enc) {
-        ret = enc_push_frm(h, img_enc);
+        enc_push_frm(h, img_enc);
 
         /* store input picture and return if needed */
-        if (h->ptr < h->cfg.max_b_frames + 1) {
+        if (h->ptr < h->cfg.lookahead && h->cfg.max_b_frames) {
             return COM_OK_OUT_NOT_AVAILABLE;
         }
     } else { // flush
-        if (h->img_rsize) {
-            push_sub_gop(h, 0, h->cfg.max_b_frames, FRM_DEPTH_2);
-            memset(h->img_rlist, 0, sizeof(com_img_t*) * MAX_REORDER_BUF);
-            h->img_rsize = 0;
+        if (h->img_rsize && !h->node_size) {
+            loka_slicetype_decision(h);
         }
 
         /* check whether input pictures are remaining or not in node_input[] */
@@ -1410,6 +1339,7 @@ int uavs3e_enc(void *id, enc_stat_t *stat, com_img_t *img_enc)
     for (int i = 0; i < h->node_size - 1; i++) {
         h->node_list[i] = h->node_list[i + 1];
     }
+    memset(&h->node_list[h->node_size - 1], 0, sizeof(input_node_t));
     h->node_size--;
     
     com_img_t *img_org = node.img;

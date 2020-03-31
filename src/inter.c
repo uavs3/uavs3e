@@ -2063,36 +2063,53 @@ void analyze_inter_cu(core_t *core, lbac_t *sbac_best)
     }
 }
 
-void inter_search_free(inter_search_t *pi)
+void inter_search_init(inter_search_t *pi, com_info_t *info, int is_padding)
 {
-    u8 *addr = pi->tab_mvbits - pi->tab_mvbits_offset;
-    com_mfree(addr);
-    pi->tab_mvbits = NULL;
+    pi->tab_mvbits        = info->tab_mvbits;
+    pi->bit_depth         = info->bit_depth_internal;
+    pi->gop_size          = info->gop_size;
+    pi->max_search_range  = info->sqh.low_delay ? SEARCH_RANGE_IPEL_LD : SEARCH_RANGE_IPEL_RA;
+    pi->max_coord[MV_X]   = (s16)info->pic_width + 4;
+    pi->max_coord[MV_Y]   = (s16)info->pic_height + 4;
+    pi->is_padding        = is_padding;
+
+    pi->tab_mvbits_offset = (COM_MAX(info->pic_width, info->pic_height) << 2) + 3; // max abs(MV)
+	pi->lambda_mv = 0;
 }
 
-void inter_search_create(inter_search_t *pi, int width, int height)
+int inter_search_create(u8 **pptab, com_info_t *info)
 {
-    pi->tab_mvbits_offset = (COM_MAX(width, height) << 2) + 3; // max abs(MV)
-    pi->tab_mvbits = (u8 *)com_malloc(sizeof(u8 ) * (pi->tab_mvbits_offset * 2 + 1)) + pi->tab_mvbits_offset;
+    int tab_mvbits_offset;
+    u8 *tab_mvbits;
 
-    pi->tab_mvbits[ 0] = 1;
-    pi->tab_mvbits[-1] = pi->tab_mvbits[1] = 2;
-    pi->tab_mvbits[-2] = pi->tab_mvbits[2] = 3;
+    tab_mvbits_offset = (COM_MAX(info->pic_width, info->pic_height) << 2) + 3; // max abs(MV)
+    tab_mvbits = (u8 *)com_malloc(sizeof(u8) * (tab_mvbits_offset * 2 + 1)) + tab_mvbits_offset;
+
+    tab_mvbits[0] = 1;
+    tab_mvbits[-1] = tab_mvbits[1] = 2;
+    tab_mvbits[-2] = tab_mvbits[2] = 3;
 
     for (int exp_bits = 2; ; exp_bits++) {
-        int imax = (1 <<  exp_bits     ) - 1;
+        int imax = (1 << exp_bits) - 1;
         int imin = (1 << (exp_bits - 1)) - 1;
         int bits = exp_bits << 1;
 
-        imax = COM_MIN(imax, pi->tab_mvbits_offset);
+        imax = COM_MIN(imax, tab_mvbits_offset);
 
         for (int i = imin; i < imax; i++) {
-            pi->tab_mvbits[-i] = pi->tab_mvbits[i] = bits;
+            tab_mvbits[-i] = tab_mvbits[i] = bits;
         }
-        if (imax == pi->tab_mvbits_offset) {
+        if (imax == tab_mvbits_offset) {
             break;
         }
     }
-	
-	pi->lambda_mv = 0;
+
+    *pptab = tab_mvbits;
+    return tab_mvbits_offset;
+}
+
+void inter_search_free(u8 *tab_mvbits, int tab_mvbits_offset)
+{
+    u8 *addr = tab_mvbits - tab_mvbits_offset;
+    com_mfree(addr);
 }

@@ -54,5 +54,23 @@ int enc_delete_cu_data(enc_cu_t *cu_data);
 
 double enc_get_hgop_qp(double base_qp, int frm_depth, int is_ld);
 
+static void avs3_always_inline add_input_node(enc_ctrl_t *h, com_img_t *img, int bref, int layer, int type)
+{
+    input_node_t *node = &h->node_list[h->node_size++];
+    node->img = img; 
+    node->b_ref = bref;
+    node->layer_id = layer; 
+    node->type = type;
+}
+
+static void avs3_always_inline shift_reorder_list(enc_ctrl_t *h, int cur_ip_idx)
+{
+    h->img_rsize -= cur_ip_idx + 1;
+
+    for (int i = 0; i < h->img_rsize; i++) {
+        h->img_rlist[i] = h->img_rlist[cur_ip_idx + i + 1];
+    }
+    memset(h->img_rlist + h->img_rsize, 0, (cur_ip_idx + 1) * sizeof(analyze_node_t));
+}
 
 #endif /* _ENC_UTIL_H_ */

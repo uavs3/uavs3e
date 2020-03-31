@@ -132,11 +132,18 @@ void uavs3e_ipred_ang_y_26_avx2(pel *src, pel *dst, int i_dst, int mode, int wid
 void uavs3e_ipred_ang_y_28_avx2(pel *src, pel *dst, int i_dst, int mode, int width, int height);
 void uavs3e_ipred_ang_y_30_avx2(pel *src, pel *dst, int i_dst, int mode, int width, int height);
 void uavs3e_ipred_ang_y_32_avx2(pel *src, pel *dst, int i_dst, int mode, int width, int height);
+void uavs3e_ipred_ang_xy_13_avx2(pel *src, pel *dst, int i_dst, int mode, int width, int height);
 void uavs3e_ipred_ang_xy_14_avx2(pel *src, pel *dst, int i_dst, int mode, int width, int height);
+void uavs3e_ipred_ang_xy_15_avx2(pel *src, pel *dst, int i_dst, int mode, int width, int height);
 void uavs3e_ipred_ang_xy_16_avx2(pel *src, pel *dst, int i_dst, int mode, int width, int height);
+void uavs3e_ipred_ang_xy_17_avx2(pel *src, pel *dst, int i_dst, int mode, int width, int height);
 void uavs3e_ipred_ang_xy_18_avx2(pel *src, pel *dst, int i_dst, int mode, int width, int height);
+void uavs3e_ipred_ang_xy_19_avx2(pel *src, pel *dst, int i_dst, int mode, int width, int height);
 void uavs3e_ipred_ang_xy_20_avx2(pel *src, pel *dst, int i_dst, int mode, int width, int height);
+void uavs3e_ipred_ang_xy_21_avx2(pel *src, pel *dst, int i_dst, int mode, int width, int height);
 void uavs3e_ipred_ang_xy_22_avx2(pel *src, pel *dst, int i_dst, int mode, int width, int height);
+void uavs3e_ipred_ang_xy_23_avx2(pel *src, pel *dst, int i_dst, int mode, int width, int height);
+void uavs3e_ipred_offsets_seteps_init();
 
 void uavs3e_recon_w8_avx2(s16 *resi, pel *pred, int i_pred, int width, int height, pel *rec, int i_rec, int cbf, int bit_depth);
 void uavs3e_recon_w16_avx2(s16 *resi, pel *pred, int i_pred, int width, int height, pel *rec, int i_rec, int cbf, int bit_depth);

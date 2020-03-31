@@ -43,7 +43,8 @@
 #define ENC_ECU_DEPTH                      4 // for early CU termination
 #define ENC_ECU_ADAPTIVE                   1 // for early CU termination
 
-#define MAX_REORDER_BUF        33
+#define MAX_SUBGOP_SIZE        32
+#define MAX_REORDER_BUF        (MAX_SUBGOP_SIZE + 1)
 
 /* maximum cost value */
 #define MAX_D_COST                (1.7e+308)
@@ -60,6 +61,14 @@ typedef struct uavs3e_input_node_t {
 } input_node_t;
 
 /*****************************************************************************
+* input picture buffer structure
+*****************************************************************************/
+typedef struct uavs3e_analyze_node_t {
+    com_img_t *img;      /* original picture store     */
+    double sc_ratio;
+} analyze_node_t;
+
+/*****************************************************************************
  * inter prediction structure
  *****************************************************************************/
 
@@ -72,6 +81,7 @@ typedef struct uavs3e_enc_inter_data_t {
     int bit_depth;
     int gop_size;                       /* gop size           */
     int max_search_range;
+    int is_padding;
     s16 min_mv[MV_D];                   /* min mv relative to current coordinate */
     s16 max_mv[MV_D];                   /* max mv relative to current coordinate */
     s16 max_coord[MV_D];                /* max coordinate */
@@ -346,7 +356,7 @@ typedef struct uavs3e_enc_pic_t {
     enc_lcu_row_t  *array_row;
     core_t         *main_core;     /* for SBAC */
 
-    inter_search_t  rc_pinter;
+    inter_search_t  pinter; // used by ME, for rate control
 } enc_pic_t;
 
 typedef struct uavs3e_enc_rc_t
@@ -415,7 +425,8 @@ typedef struct uavs3e_pic_thd_param_t {
 typedef struct uavs3e_enc_ctrl_t {
     enc_cfg_t         cfg;                           /* encoding parameter */
 
-    com_img_t        *img_rlist[MAX_REORDER_BUF];    /*  inputted images */
+    com_img_t        *img_lastIP;
+    analyze_node_t   *img_rlist;                     /*  inputted images */
     int               img_rsize;
     input_node_t      node_list[MAX_REORDER_BUF];    /*  images after reorder */
     int               node_size;
@@ -448,6 +459,14 @@ typedef struct uavs3e_enc_ctrl_t {
 
     /*** Rate control data ***/
     enc_rc_t         rc;
+
+    /*** adaptive_gop and scenecut ***/
+    inter_search_t   pinter; // used by ME, for adaptive_gop and scenecut
+
+    /*** global table for ME ***/
+    u8  *tab_mvbits;
+    int  tab_mvbits_offset;
+
 } enc_ctrl_t;
 
 int  enc_pic_finish (enc_ctrl_t *h, pic_thd_param_t *pic_thd, enc_stat_t *stat);

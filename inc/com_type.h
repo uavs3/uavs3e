@@ -51,7 +51,6 @@ typedef struct uavs3e_com_pic_t {
     
     /*** extension info **/
     double       picture_satd;                   /* [org] */
-    double       picture_satd_blur;              /* [rec] */
     int          picture_qp;                     /* [org] */
     double       picture_qp_real;                /* [rec] - real qp in bit depth of 8 */
     int          picture_bits;                   /* [rec] */
@@ -88,6 +87,7 @@ typedef struct uavs3e_com_pic_manager_t {
     int                max_pb_size;               /* max number of picture buffer */
     long long          ptr_l_ip;                  /* ptr of last I/P/top-B frame */
     long long          ptr_l_l_ip;                /* ptr of last last I/P/top-B frame */
+    long long          ptr_l_i;                   /* ptr of last I frame */
 
     int                pic_width;
     int                pic_height;
@@ -432,6 +432,10 @@ typedef struct uavs3e_com_info_t {
 
     int                     max_b_frames;
     int                     gop_size;
+
+    /* global table for ME */
+    u8  *tab_mvbits;
+
 } com_info_t;
 
 #endif /* _COM_H_ */
