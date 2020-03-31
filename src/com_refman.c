@@ -328,8 +328,8 @@ void com_refm_remove_ref_pic(com_pic_manager_t *pm, com_pic_header_t *pichdr, co
             }
             pm->ptr_l_l_ip = pm->ptr_l_ip = pic->ptr;
             com_assert(pm->cur_num_ref_pics == 0);
+            return;
         }
-        return;
     } else if (pic->ptr > pm->ptr_l_i) {
         for (int i = 0; i < pm->cur_num_ref_pics; i++) {
             com_pic_t *ref = pm->pic[i];
