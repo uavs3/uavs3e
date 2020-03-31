@@ -132,6 +132,33 @@ double loka_estimate_coding_cost(inter_search_t *pi, com_img_t *img_org, com_img
 #endif
                     min_cost = cost;
                 }
+
+                pic.ptr = ref_l0[0]->ptr;
+                pic.img = ref_l0[0];
+                pic.stride_luma = STRIDE_IMGB2PIC(ref_l0[0]->stride[0]);
+                pic.y = ref_l0[0]->planes[0];
+                pic.subpel->imgs[0][0] = ref_l0[0];
+
+                com_mc_blk_luma(&pic, pred_buf_fwd, UNIT_SIZE, (x << 2), (y << 2), UNIT_SIZE, UNIT_SIZE, UNIT_WIDX, pi->max_coord[MV_X], pi->max_coord[MV_Y], (1 << bit_depth) - 1, 0);
+               
+                pic.ptr = ref_l1[0]->ptr;
+                pic.img = ref_l1[0];
+                pic.stride_luma = STRIDE_IMGB2PIC(ref_l1[0]->stride[0]);
+                pic.y = ref_l1[0]->planes[0];
+                pic.subpel->imgs[0][0] = ref_l1[0];
+                
+                com_mc_blk_luma(&pic, pred_buf_bwd, UNIT_SIZE, (x << 2), (y << 2), UNIT_SIZE, UNIT_SIZE, UNIT_WIDX, pi->max_coord[MV_X], pi->max_coord[MV_Y], (1 << bit_depth) - 1, 0);
+
+                uavs3e_funs_handle.pel_avrg[UNIT_WIDX](pred_buf, UNIT_SIZE, pred_buf_fwd, pred_buf_bwd, UNIT_SIZE);
+                
+                cost = com_had(UNIT_SIZE, UNIT_SIZE, org, pred_buf, i_org, UNIT_SIZE, bit_depth);
+                if (cost < min_cost) {
+#if WRITE_REC_PIC 
+                    uavs3e_funs_handle.ipcpy[UNIT_WIDX](pred_buf, UNIT_SIZE, buf + y * pic_width + x, pic_width, UNIT_SIZE, UNIT_SIZE);
+#endif
+                    min_cost = cost;
+                }
+
             }
 
             pel nb_buf[INTRA_NEIB_SIZE];
