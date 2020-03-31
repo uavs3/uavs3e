@@ -304,7 +304,7 @@ static void set_sqh(enc_ctrl_t *h, com_seqh_t *sqh)
     sqh->low_delay                  = h->cfg.max_b_frames == 0 ? 1 : 0;
     sqh->temporal_id_enable_flag    = 1;
     sqh->bbv_buffer_size            = (1 << 18) - 1;
-    sqh->max_dpb_size               = 7; 
+    sqh->max_dpb_size               = 16;
 
     sqh->rpl1_index_exist_flag      = 1;
 
