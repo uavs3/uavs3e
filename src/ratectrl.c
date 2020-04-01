@@ -128,13 +128,17 @@ int rc_get_qp(enc_rc_t *p,  com_pic_t *pic, int qp_l0, int qp_l1)
     long long ptr = pic->img->ptr;
 
     if (layer_id > FRM_DEPTH_1) {
+        com_assert(qp_l0 > 0);
+
         if (p->low_delay) {
-            com_assert(qp_l0 > 0);
             qp = enc_get_hgop_qp(qp_l0, layer_id, 1);
         } else {
-            com_assert(qp_l0 > 0);
-            com_assert(qp_l1 > 0);
-            qp = enc_get_hgop_qp((qp_l0 + qp_l1 * 3) / 4, layer_id, 0);
+            int weighted_qp = qp_l0;
+
+            if (qp_l1 > 0) {
+                weighted_qp = (qp_l0 + qp_l1 * 3) / 4;
+            }
+            qp = enc_get_hgop_qp(weighted_qp, layer_id, 0);
         }
         return (int)(COM_CLIP3(min_qp, max_qp, (qp + 0.5)));
     }
