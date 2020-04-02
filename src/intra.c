@@ -170,78 +170,153 @@ static double intra_pu_rdcost(core_t *core, pel rec[N_C][MAX_CU_DIM], pel *org_l
     return cost;
 }
 
-#define NUM_IPM_CAND 3
-#define PUT_IPM2LIST(list, cnt, ipm)\
-    {\
-        int idx_list, is_check = 0;\
-        for(idx_list = 0; idx_list < (cnt); idx_list++)\
-            if((ipm) == (list)[idx_list]) is_check = 1;\
-        if(is_check == 0)\
-        {\
-            (list)[(cnt)] = (ipm); (cnt)++;\
-        }\
-    }
-
-static int make_ipred_list(core_t *core, int width, int height, int cu_width_log2, int cu_height_log2, pel *org, int s_org, int *ipred_list, int part_idx, u16 avail_cu, int skip_ipd)
+static void com_updata_cand_list(const int ipm, u64 cost_satd, double cost, int ipred_list_len, int *rmd_ipred_list, u64 *rmd_cand_satd, double *rmd_cand_cost)
 {
-    int bit_depth = core->info->bit_depth_internal;
-    int pred_cnt, i, j;
-    double cost, cand_cost[IPD_RDO_CNT];
-    u64 cand_satd_cost[IPD_RDO_CNT];
-    u64 cost_satd;
-    const int ipd_rdo_cnt = (width >= height * 4 || height >= width * 4) ? IPD_RDO_CNT - 1 : IPD_RDO_CNT;
-    com_mode_t *cur_info = &core->mod_info_curr;
+	int shift = 0;
 
-    for (i = 0; i < ipd_rdo_cnt; i++) {
-        ipred_list[i] = IPD_DC;
-        cand_cost[i] = MAX_D_COST;
-        cand_satd_cost[i] = COM_UINT64_MAX;
-    }
-    pred_cnt = IPD_CNT;
-    for (i = 0; i < IPD_CNT; i++) {
-        if (skip_ipd == 1 && (i == IPD_PLN || i == IPD_BI || i == IPD_DC)) {
-            continue;
-        }
-        int bit_cnt, shift = 0;
-        pel *pred_buf = NULL;
-        pred_buf = core->intra_pred_all[i];
-
-        com_intra_pred(core->nb[Y_C] + INTRA_NEIB_MID, pred_buf, i, width, height, bit_depth, avail_cu, cur_info->ipf_flag);
-        cost_satd = calc_satd_16b(width, height, org, pred_buf, s_org, width, bit_depth);
-        cost = (double)cost_satd;
-
-        lbac_t *lbac = &core->sbac_rdo;
-        lbac_copy(lbac, &core->sbac_bakup);
-        bit_cnt = lbac_get_bits(lbac);
-        lbac_enc_intra_dir(lbac, NULL, (u8)i, cur_info->mpm[part_idx]);
-        bit_cnt = lbac_get_bits(lbac) - bit_cnt;
-        cost += RATE_TO_COST_SQRT_LAMBDA(core->sqrt_lambda[0], bit_cnt);
-
-        while (shift < ipd_rdo_cnt && cost < cand_cost[ipd_rdo_cnt - 1 - shift]) {
-            shift++;
-        }
-        if (shift != 0) {
-            for (j = 1; j < shift; j++) {
-                ipred_list[ipd_rdo_cnt - j] = ipred_list[ipd_rdo_cnt - 1 - j];
-                cand_cost[ipd_rdo_cnt - j] = cand_cost[ipd_rdo_cnt - 1 - j];
-                cand_satd_cost[ipd_rdo_cnt - j] = cand_satd_cost[ipd_rdo_cnt - 1 - j];
-            }
-            ipred_list[ipd_rdo_cnt - shift] = i;
-            cand_cost[ipd_rdo_cnt - shift] = cost;
-            cand_satd_cost[ipd_rdo_cnt - shift] = cost_satd;
-        }
-    }
-    pred_cnt = ipd_rdo_cnt;
-    for (i = ipd_rdo_cnt - 1; i >= 0; i--) {
-        if (cand_satd_cost[i] > core->inter_satd *(1.1)) {
-            pred_cnt--;
-        } else {
-            break;
-        }
-    }
-    return COM_MIN(pred_cnt, ipd_rdo_cnt);
+	while (shift < ipred_list_len && cost < rmd_cand_cost[ipred_list_len - 1 - shift]) {
+		shift++;
+	}
+	if (shift) {
+		for (int j = 1; j < shift; j++) {
+			rmd_ipred_list[ipred_list_len - j] = rmd_ipred_list[ipred_list_len - j - 1];
+			rmd_cand_satd [ipred_list_len - j] = rmd_cand_satd [ipred_list_len - j - 1];
+			rmd_cand_cost [ipred_list_len - j] = rmd_cand_cost [ipred_list_len - j - 1];
+		}
+		rmd_ipred_list[ipred_list_len - shift] = ipm;
+		rmd_cand_satd [ipred_list_len - shift] = cost_satd;
+		rmd_cand_cost [ipred_list_len - shift] = cost;
+	}
 }
 
+static void check_one_mode(core_t *core, pel *org, int s_org, int ipm, int ipred_list_len, int *rmd_ipred_list, u64 *rmd_cand_satd, double *rmd_cand_cost, int part_idx, int pb_w, int pb_h, u16 avail_cu)
+{
+	com_mode_t *cur_info = &core->mod_info_curr;
+	int bit_depth        =  core->info->bit_depth_internal;
+	pel *pred_buf        =  core->intra_pred_all[ipm];
+    lbac_t *lbac         = &core->sbac_rdo;
+    
+	com_intra_pred(core->nb[Y_C] + INTRA_NEIB_MID, pred_buf, ipm, pb_w, pb_h, bit_depth, avail_cu, cur_info->ipf_flag);
+
+	u64 satd = calc_satd_16b(pb_w, pb_h, org, pred_buf, s_org, pb_w, bit_depth);
+
+    lbac_copy(lbac, &core->sbac_bakup);
+    int bit_cnt = lbac_get_bits(lbac);
+	lbac_enc_intra_dir(lbac, NULL, (u8)ipm, cur_info->mpm[part_idx]);
+	bit_cnt = lbac_get_bits(lbac) - bit_cnt;
+
+	double cost = satd + RATE_TO_COST_SQRT_LAMBDA(core->sqrt_lambda[0], bit_cnt);
+	com_updata_cand_list(ipm, satd, cost, ipred_list_len, rmd_ipred_list, rmd_cand_satd, rmd_cand_cost);
+}
+
+static int make_ipred_list(core_t *core, int pb_width, int pb_height, int cu_width_log2, int cu_height_log2, pel *org, int s_org, int *ipred_list, int part_idx, u16 avail_cu, int skip_ipd)
+{
+	int ipd_rdo_cnt = (pb_width >= pb_height * 4 || pb_height >= pb_width * 4) ? IPD_RDO_CNT - 1 : IPD_RDO_CNT;
+    com_mode_t *cur_info = &core->mod_info_curr;
+
+	double rmd_cand_cost[10];
+	u64    rmd_cand_satd[10];
+
+    if (SPEED_LEVEL(1, core->param->speed_level) && 0) {
+        int       ipm_check_map[IPD_CNT] = { 0 };
+        const int rmd_range_4[10] = { 0,1,2,6,10,14,18,22,26,30 };
+        const int num_cand_4_in = 10;
+        const int num_cand_4_out = 7;
+
+        for (int i = 0; i < num_cand_4_in; i++) {
+            ipred_list[i] = IPD_DC;
+            rmd_cand_satd[i] = COM_UINT64_MAX;
+            rmd_cand_cost[i] = MAX_D_COST;
+            ipm_check_map[rmd_range_4[i]] = 1;
+        }
+	    for (int i = 0; i < num_cand_4_in; i++) {
+            int mode = rmd_range_4[i];
+		    if (skip_ipd == 1 && (mode == IPD_PLN || mode == IPD_BI || mode == IPD_DC)) {
+			    continue;
+		    }
+		    check_one_mode(core, org, s_org, mode, COM_MAX(ipd_rdo_cnt, num_cand_4_out), ipred_list, rmd_cand_satd, rmd_cand_cost, part_idx, pb_width, pb_height, avail_cu);
+	    }
+
+        int rmd_range_2[12] = { 0 };
+        int num_cand_2_in  = 0;
+        int num_cand_2_out = 3;
+
+	    for (int rmd_idx = 0; rmd_idx < num_cand_4_out; rmd_idx++) {
+		    int ipm = ipred_list[rmd_idx];
+		    int ipm_sub_2 = ipm - 2;
+		    int ipm_add_2 = ipm + 2;
+
+		    if (ipm >= 6) {
+			    if (ipm_check_map[ipm_sub_2] == 0) {
+				    rmd_range_2[num_cand_2_in++] = ipm_sub_2;
+				    ipm_check_map[ipm_sub_2] = 1;
+			    }
+			    if (ipm_check_map[ipm_add_2] == 0) {
+				    rmd_range_2[num_cand_2_in++] = ipm_add_2;
+				    ipm_check_map[ipm_add_2] = 1;
+			    }
+		    }
+	    }
+	    for (int i = 0; i < num_cand_2_in; i++) {
+		    check_one_mode(core, org, s_org, rmd_range_2[i], COM_MAX(ipd_rdo_cnt, num_cand_2_out), ipred_list, rmd_cand_satd, rmd_cand_cost, part_idx, pb_width, pb_height, avail_cu);
+	    }
+
+        int rmd_range_1[8] = { 0 };
+        int num_cand_1_in = 0;
+
+	    for (int rmd_idx = 0, i = 0; rmd_idx < num_cand_2_out && i < num_cand_4_in + num_cand_2_in;) {
+		    int ipm = ipred_list[i++];
+		    int ipm_sub_1 = ipm - 1;
+		    int ipm_add_1 = ipm + 1;
+
+		    if (ipm >= 4) {
+			    rmd_idx++;
+				if (ipm_check_map[ipm_sub_1] == 0) {
+				    rmd_range_1[num_cand_1_in++] = ipm_sub_1;
+				    ipm_check_map[ipm_sub_1] = 1;
+				}
+				if (ipm_check_map[ipm_add_1] == 0 && ipm_add_1 < IPD_CNT) {
+				    rmd_range_1[num_cand_1_in++] = ipm_add_1;
+				    ipm_check_map[ipm_add_1] = 1;
+				}
+		    }
+	    }
+	    for (int i = 0; i < num_cand_1_in; i++) {
+		    check_one_mode(core, org, s_org, rmd_range_1[i], COM_MIN(ipd_rdo_cnt, IPD_RDO_CNT), ipred_list, rmd_cand_satd, rmd_cand_cost, part_idx, pb_width, pb_height, avail_cu);
+	    }
+	    for (int mpmidx = 0; mpmidx < 2; mpmidx++) {
+		    int cur_mpm = cur_info->mpm[part_idx][mpmidx];
+		    if (cur_mpm < 33) {
+			    if (skip_ipd == 1 && (cur_mpm == IPD_PLN || cur_mpm == IPD_BI || cur_mpm == IPD_DC)) {
+				    continue;
+			    }
+			    if (ipm_check_map[cur_mpm] == 0) {
+				    check_one_mode(core, org, s_org, cur_mpm, COM_MIN(ipd_rdo_cnt, IPD_RDO_CNT), ipred_list, rmd_cand_satd, rmd_cand_cost, part_idx, pb_width, pb_height, avail_cu);
+			    }
+		    }
+	    }
+    } else {
+        for (int i = 0; i < ipd_rdo_cnt; i++) {
+            rmd_cand_satd[i] = COM_UINT64_MAX;
+            rmd_cand_cost[i] = MAX_D_COST;
+        }
+        for (int i = 0; i < IPD_CNT; i++) {
+            if (skip_ipd == 1 && (i == IPD_PLN || i == IPD_BI || i == IPD_DC)) {
+                continue;
+            }
+            check_one_mode(core, org, s_org, i, ipd_rdo_cnt, ipred_list, rmd_cand_satd, rmd_cand_cost, part_idx, pb_width, pb_height, avail_cu);
+        }
+    }
+	for (int i = ipd_rdo_cnt - 1; i >= 0; i--) {
+		if (rmd_cand_satd[i] > core->inter_satd *(1.1)) {
+            ipd_rdo_cnt--;
+		} else {
+			break;
+		}
+	}
+	return ipd_rdo_cnt;
+
+}
 void analyze_intra_cu(core_t *core, lbac_t *sbac_best)
 {
     com_pic_t *pic_rec = core->pic_rec;
