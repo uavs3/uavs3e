@@ -264,7 +264,7 @@ static int make_ipred_list(core_t *core, int pb_width, int pb_height, int cu_wid
         int rmd_range_1[8] = { 0 };
         int num_cand_1_in = 0;
 
-	    for (int rmd_idx = 0, i = 0; rmd_idx < num_cand_2_out && i < num_cand_4_in + num_cand_2_in;) {
+	    for (int rmd_idx = 0, i = 0; rmd_idx < num_cand_2_out && i < num_cand_4_in;) {
 		    int ipm = ipred_list[i++];
 		    int ipm_sub_1 = ipm - 1;
 		    int ipm_add_1 = ipm + 1;

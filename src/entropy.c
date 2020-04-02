@@ -1669,249 +1669,250 @@ void lbac_enc_run_length_cc_rdo(lbac_t *lbac, s16 *coef, int log2_w, int log2_h,
     int bitcounter = 0;
     int range = lbac->range;
     const u16 *scanp = com_tbl_scan[log2_w - 1][log2_h - 1];
+    tab_s16 *switch_tab_plps[2] = { tbl_plps_ext, tbl_plps };
 
     for (u32 scan_pos = 0; scan_pos < num_coeff; scan_pos++) {
         s16 coef_cur = coef[scanp[scan_pos]];
+        if (!coef_cur) {
+            run++;
+            continue;
+        }
 
-        if (coef_cur) {
-            /* Run coding */
-            int sym = COM_MIN(run, 16);
-            lbac_ctx_model_t *model_base = ctx_run + t0;
-            lbac_ctx_model_t *model = model_base;
-            u32 ctx_idx = 0;
+        /* Run coding */
+        int sym = COM_MIN(run, 16);
+        lbac_ctx_model_t *model = ctx_run + t0;
 
-            { /* first bin of Run */
-                u16 cmps = (*model) & 1;
-                u32 rMPS = range - (((*model) & PROB_MASK) >> (LG_PMPS_SHIFTNO + 1));
-                int s_flag = rMPS < QUAR_HALF_PROB;
-                rMPS |= 0x100;
-
-                if (!sym == cmps) { // MPS
-                    bitcounter += s_flag;
-                    range = rMPS;
-                    *model = tbl_plps[*model];
-                } else {
-                    u32 rLPS = (range << s_flag) - rMPS;
-                    int shift = get_shift(rLPS);
-                    range = rLPS << shift;
-                    bitcounter += shift + s_flag;
-                    *model = tbl_plps_ext[*model];
-                }
-            }
-            if (sym--) { 
-                lbac_ctx_model_t m = model_base[1];
-                ctx_idx++;
-
-                if ((m & 1) == 0 && sym > 0) { // MPS == '0'
-                    ctx_idx += sym;
-
-                    do { // MPS
-                        u32 rMPS = range - ((m & PROB_MASK) >> (LG_PMPS_SHIFTNO + 1));
-                        range = rMPS | 0x100;
-                        bitcounter += rMPS < QUAR_HALF_PROB;
-                        m = tbl_plps[m];
-                    } while (sym-- > 1);
-
-                    if (ctx_idx < 16) { // sym == 0
-                        u32 rMPS = range - ((m & PROB_MASK) >> (LG_PMPS_SHIFTNO + 1));
-                        int s_flag = rMPS < QUAR_HALF_PROB;
-                        u32 rLPS = (range << s_flag) - (rMPS | 0x100);
-                        int shift = get_shift(rLPS);
-                        range = rLPS << shift;
-                        bitcounter += shift + s_flag;
-                        m = tbl_plps_ext[m];
-                    }
-                } else {
-                    do {
-                        u32 rMPS = range - ((m & PROB_MASK) >> (LG_PMPS_SHIFTNO + 1));
-                        int s_flag = rMPS < QUAR_HALF_PROB;
-                        rMPS |= 0x100;
-
-                        if (!sym == (m & 1)) { // MPS
-                            bitcounter += s_flag;
-                            range = rMPS;
-                            m = tbl_plps[m];
-                        } else {
-                            u32 rLPS = (range << s_flag) - rMPS;
-                            int shift = get_shift(rLPS);
-                            range = rLPS << shift;
-                            bitcounter += shift + s_flag;
-                            m = tbl_plps_ext[m];
-                        }
-                    } while (++ctx_idx < 16 && sym--);
-                }
-
-                model_base[1] = m;
-            }
-
-            if (run >= 16) {
-                int exp_golomb_order = 1;
-                sym = run - 17;
-
-                while ((int)sym >= 0) {
-                    sym = sym - (1 << exp_golomb_order);
-                    exp_golomb_order++;
-                }
-                bitcounter += (exp_golomb_order << 1) - 1;
-            }
-
-            sym = run;
-            model = ctx_run_rdoq + t0;
-            *model = (!sym == ((*model) & 1) ? tbl_plps : tbl_plps_ext)[*model];
-
-            if (sym--) {
-                model = ctx_run_rdoq + t0 + 1;
-                do {
-                    *model = (!sym == ((*model) & 1) ? tbl_plps : tbl_plps_ext)[*model];
-                } while (sym--);
-            }
-
-            /* Level coding */
-            u32 level = COM_ABS16(coef_cur);
-            u32 t0_bakup = t0;
-            t0 = (COM_MIN(level - 1, 5)) << 1;
-            ctx_idx = 0;
-            sym = COM_MIN(level - 1, 8);
-            model_base = &ctx_level[t0_bakup];
-            model = model_base;
-
-            { /* first bin of Level */
-                u16 cmps = (*model) & 1;
-                u32 rLPS = ((*model) & PROB_MASK) >> (LG_PMPS_SHIFTNO + 1);
-                u32 rMPS = range - rLPS;
-                int s_flag = rMPS < QUAR_HALF_PROB;
-                rMPS |= 0x100;
-
-                if (!sym == cmps) { // MPS
-                    bitcounter += s_flag;
-                    range = rMPS;
-                    *model = tbl_plps[*model];
-                }
-                else {
-                    rLPS = (range << s_flag) - rMPS;
-                    int shift = get_shift(rLPS);
-                    range = rLPS << shift;
-                    bitcounter += shift + s_flag;
-                    *model = tbl_plps_ext[*model];
-                }
-            }
-            if (sym--) {
-                lbac_ctx_model_t m = model_base[1];
-                ctx_idx++;
-
-                if ((m & 1) == 0 && sym > 0) { // MPS == '0'
-                    ctx_idx += sym;
-
-                    do { // MPS
-                        u32 rMPS = range - ((m & PROB_MASK) >> (LG_PMPS_SHIFTNO + 1));
-                        range = rMPS | 0x100;
-                        bitcounter += rMPS < QUAR_HALF_PROB;
-                        m = tbl_plps[m];
-                    } while (sym-- > 1);
-
-                    if (ctx_idx < 8) { // sym == 0
-                        u32 rMPS = range - ((m & PROB_MASK) >> (LG_PMPS_SHIFTNO + 1));
-                        int s_flag = rMPS < QUAR_HALF_PROB;
-                        u32 rLPS = (range << s_flag) - (rMPS | 0x100);
-                        int shift = get_shift(rLPS);
-                        range = rLPS << shift;
-                        bitcounter += shift + s_flag;
-                        m = tbl_plps_ext[m];
-                    }
-                } else {
-                    do {
-                        u32 rMPS = range - ((m & PROB_MASK) >> (LG_PMPS_SHIFTNO + 1));
-                        int s_flag = rMPS < QUAR_HALF_PROB;
-                        rMPS |= 0x100;
-
-                        if (!sym == (m & 1)) { // MPS
-                            bitcounter += s_flag;
-                            range = rMPS;
-                            m = tbl_plps[m];
-                        } else {
-                            u32 rLPS = (range << s_flag) - rMPS;
-                            int shift = get_shift(rLPS);
-                            range = rLPS << shift;
-                            bitcounter += shift + s_flag;
-                            m = tbl_plps_ext[m];
-                        }
-                    } while (++ctx_idx < 8 && sym--);
-                }
-
-                model_base[1] = m;
-            }
-
-            if (level >= 9) {
-                int exp_golomb_order = 1;
-                sym = level - 10;
-
-                while ((int)sym >= 0) {
-                    sym = sym - (1 << exp_golomb_order);
-                    exp_golomb_order++;
-                }
-                bitcounter += (exp_golomb_order << 1) - 1;
-            }
-
-            /* Sign coding */
-            bitcounter++;
-            
-            if (scan_pos == num_coeff - 1) {
-                assert(num_sig == 1);
-                break;
-            }
-            run = 0;
-            num_sig--;
-
-            /* Last flag coding */
-            int last_flag = (num_sig == 0) ? 1 : 0;
-            lbac_ctx_model_t *model1 = &ctx_last1[t0_bakup >> 1];
-            lbac_ctx_model_t *model2 = &ctx_last2[uavs3e_get_log2(scan_pos + 1)];
-            u16 prob_lps;
-            u16 prob_lps1 = ((*model1) & PROB_MASK) >> 1;
-            u16 prob_lps2 = ((*model2) & PROB_MASK) >> 1;
-            u16 cmps;
-            u16 cmps1 = (*model1) & 1;
-            u16 cmps2 = (*model2) & 1;
-            u32 rLPS;
-            u32 rMPS;
-            int s_flag;
-
-            if (cmps1 == cmps2) {
-                cmps = cmps1;
-                prob_lps = (prob_lps1 + prob_lps2) >> 1;
-            } else {
-                if (prob_lps1 < prob_lps2) {
-                    cmps = cmps1;
-                    prob_lps = (256 << LG_PMPS_SHIFTNO) - 1 - ((prob_lps2 - prob_lps1) >> 1);
-                } else {
-                    cmps = cmps2;
-                    prob_lps = (256 << LG_PMPS_SHIFTNO) - 1 - ((prob_lps1 - prob_lps2) >> 1);
-                }
-            }
-
-            rLPS = prob_lps >> LG_PMPS_SHIFTNO;
-
-            rMPS = range - rLPS;
-            s_flag = rMPS < QUAR_HALF_PROB;
+        { /* first bin of Run */
+            u32 rMPS = range - (((*model) & PROB_MASK) >> (LG_PMPS_SHIFTNO + 1));
+            int s_flag = rMPS < QUAR_HALF_PROB;
             rMPS |= 0x100;
 
-            if (last_flag == cmps) { // MPS
+            if (!sym == ((*model) & 1)) { // MPS
                 bitcounter += s_flag;
                 range = rMPS;
+                *model = tbl_plps[*model];
             } else {
+                u32 rLPS = (range << s_flag) - rMPS;
+                int shift = get_shift(rLPS);
+                range = rLPS << shift;
+                bitcounter += shift + s_flag;
+                *model = tbl_plps_ext[*model];
+            }
+        }
+
+        u32 ctx_idx = 0;
+
+        if (sym--) { 
+            lbac_ctx_model_t m = model[1];
+            ctx_idx++;
+
+            if ((m & 1) == 0 && sym > 0) { // MPS == '0'
+                ctx_idx += sym;
+
+                do { // MPS
+                    u32 rMPS = range - ((m & PROB_MASK) >> (LG_PMPS_SHIFTNO + 1));
+                    range = rMPS | 0x100;
+                    bitcounter += rMPS < QUAR_HALF_PROB;
+                    m = tbl_plps[m];
+                } while (sym-- > 1);
+
+                if (ctx_idx < 16) { // sym == 0
+                    u32 rMPS = range - ((m & PROB_MASK) >> (LG_PMPS_SHIFTNO + 1));
+                    int s_flag = rMPS < QUAR_HALF_PROB;
+                    u32 rLPS = (range << s_flag) - (rMPS | 0x100);
+                    int shift = get_shift(rLPS);
+                    range = rLPS << shift;
+                    bitcounter += shift + s_flag;
+                    m = tbl_plps_ext[m];
+                }
+            } else {
+                do {
+                    u32 rMPS = range - ((m & PROB_MASK) >> (LG_PMPS_SHIFTNO + 1));
+                    int s_flag = rMPS < QUAR_HALF_PROB;
+                    rMPS |= 0x100;
+
+                    if (!sym == (m & 1)) { // MPS
+                        bitcounter += s_flag;
+                        range = rMPS;
+                        m = tbl_plps[m];
+                    } else {
+                        u32 rLPS = (range << s_flag) - rMPS;
+                        int shift = get_shift(rLPS);
+                        range = rLPS << shift;
+                        bitcounter += shift + s_flag;
+                        m = tbl_plps_ext[m];
+                    }
+                } while (++ctx_idx < 16 && sym--);
+            }
+            model[1] = m;
+        }
+
+        if (run >= 16) {
+            int exp_golomb_order = 1;
+            sym = run - 17;
+
+            while ((int)sym >= 0) {
+                sym = sym - (1 << exp_golomb_order);
+                exp_golomb_order++;
+            }
+            bitcounter += (exp_golomb_order << 1) - 1;
+        }
+
+        sym = run;
+        model = ctx_run_rdoq + t0;
+        *model = switch_tab_plps[!sym == ((*model) & 1)][*model];
+
+        if (sym--) {
+            model++;
+            do {
+                *model = switch_tab_plps[!sym == ((*model) & 1)][*model];
+            } while (sym--);
+        }
+
+        /* Level coding */
+        u32 level = COM_ABS16(coef_cur);
+        int t0_bakup = t0;
+        model = &ctx_level[t0];
+
+        t0 = (COM_MIN(level - 1, 5)) << 1;
+        sym = COM_MIN(level - 1, 8);
+
+        { /* first bin of Level */
+            u32 rLPS = ((*model) & PROB_MASK) >> (LG_PMPS_SHIFTNO + 1);
+            u32 rMPS = range - rLPS;
+            int s_flag = rMPS < QUAR_HALF_PROB;
+            rMPS |= 0x100;
+
+            if (!sym == ((*model) & 1)) { // MPS
+                bitcounter += s_flag;
+                range = rMPS;
+                *model = tbl_plps[*model];
+            }
+            else {
                 rLPS = (range << s_flag) - rMPS;
                 int shift = get_shift(rLPS);
                 range = rLPS << shift;
                 bitcounter += shift + s_flag;
+                *model = tbl_plps_ext[*model];
             }
-            *model1 = (last_flag != cmps1 ? tbl_plps_ext : tbl_plps)[*model1];
-            *model2 = (last_flag != cmps2 ? tbl_plps_ext : tbl_plps)[*model2];
-            
-            if (last_flag) {
-                break;
+        }
+
+        ctx_idx = 0;
+
+        if (sym--) {
+            lbac_ctx_model_t m = model[1];
+            ctx_idx++;
+
+            if ((m & 1) == 0 && sym) { // MPS == '0'
+                ctx_idx += sym;
+
+                do { // MPS
+                    u32 rMPS = range - ((m & PROB_MASK) >> (LG_PMPS_SHIFTNO + 1));
+                    range = rMPS | 0x100;
+                    bitcounter += rMPS < QUAR_HALF_PROB;
+                    m = tbl_plps[m];
+                } while (sym-- > 1);
+
+                if (ctx_idx < 8) { // sym == 0
+                    u32 rMPS = range - ((m & PROB_MASK) >> (LG_PMPS_SHIFTNO + 1));
+                    int s_flag = rMPS < QUAR_HALF_PROB;
+                    u32 rLPS = (range << s_flag) - (rMPS | 0x100);
+                    int shift = get_shift(rLPS);
+                    range = rLPS << shift;
+                    bitcounter += shift + s_flag;
+                    m = tbl_plps_ext[m];
+                }
+            } else {
+                do {
+                    u32 rMPS = range - ((m & PROB_MASK) >> (LG_PMPS_SHIFTNO + 1));
+                    int s_flag = rMPS < QUAR_HALF_PROB;
+                    rMPS |= 0x100;
+
+                    if (!sym == (m & 1)) { // MPS
+                        bitcounter += s_flag;
+                        range = rMPS;
+                        m = tbl_plps[m];
+                    } else {
+                        u32 rLPS = (range << s_flag) - rMPS;
+                        int shift = get_shift(rLPS);
+                        range = rLPS << shift;
+                        bitcounter += shift + s_flag;
+                        m = tbl_plps_ext[m];
+                    }
+                } while (++ctx_idx < 8 && sym--);
             }
+
+            model[1] = m;
+        }
+
+        if (level >= 9) {
+            int exp_golomb_order = 1;
+            sym = level - 10;
+
+            while ((int)sym >= 0) {
+                sym = sym - (1 << exp_golomb_order);
+                exp_golomb_order++;
+            }
+            bitcounter += (exp_golomb_order << 1) - 1;
+        }
+
+        /* Sign coding */
+        bitcounter++;
+        
+        if (scan_pos == num_coeff - 1) {
+            assert(num_sig == 1);
+            break;
+        }
+        run = 0;
+        num_sig--;
+
+        /* Last flag coding */
+        int last_flag = (num_sig == 0) ? 1 : 0;
+        lbac_ctx_model_t *model1 = &ctx_last1[t0_bakup >> 1];
+        lbac_ctx_model_t *model2 = &ctx_last2[uavs3e_get_log2(scan_pos + 1)];
+        u16 prob_lps;
+        u16 prob_lps1 = ((*model1) & PROB_MASK) >> 1;
+        u16 prob_lps2 = ((*model2) & PROB_MASK) >> 1;
+        u16 cmps;
+        u16 cmps1 = (*model1) & 1;
+        u16 cmps2 = (*model2) & 1;
+        u32 rLPS;
+        u32 rMPS;
+        int s_flag;
+
+        if (cmps1 == cmps2) {
+            cmps = cmps1;
+            prob_lps = (prob_lps1 + prob_lps2) >> 1;
         } else {
-            run++;
+            if (prob_lps1 < prob_lps2) {
+                cmps = cmps1;
+                prob_lps = (256 << LG_PMPS_SHIFTNO) - 1 - ((prob_lps2 - prob_lps1) >> 1);
+            } else {
+                cmps = cmps2;
+                prob_lps = (256 << LG_PMPS_SHIFTNO) - 1 - ((prob_lps1 - prob_lps2) >> 1);
+            }
+        }
+
+        rLPS = prob_lps >> LG_PMPS_SHIFTNO;
+
+        rMPS = range - rLPS;
+        s_flag = rMPS < QUAR_HALF_PROB;
+        rMPS |= 0x100;
+
+        if (last_flag == cmps) { // MPS
+            bitcounter += s_flag;
+            range = rMPS;
+        } else {
+            rLPS = (range << s_flag) - rMPS;
+            int shift = get_shift(rLPS);
+            range = rLPS << shift;
+            bitcounter += shift + s_flag;
+        }
+        *model1 = (last_flag != cmps1 ? tbl_plps_ext : tbl_plps)[*model1];
+        *model2 = (last_flag != cmps2 ? tbl_plps_ext : tbl_plps)[*model2];
+        
+        if (last_flag) {
+            break;
         }
     }
     lbac->range = range;
