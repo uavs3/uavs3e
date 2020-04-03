@@ -43,16 +43,23 @@ void com_mc_blk_luma(com_pic_t *pic, pel *dst, int dst_stride, int x_pos, int y_
     y_pos = COM_CLIP3(-MAX_CU_SIZE - 4, max_posy, y_pos);
 
     if (hp_flag) {
-        pel *src = pic->y + y_pos * i_src + x_pos;
-
-        if (dx == 0 && dy == 0) {
+        if ((dx == 0 || dx == 8) && (dy == 0 && dy == 8)) {
+            dx = dx >> 2;
+            dy = dy >> 2;
+            pel *src = (pel*)pic->subpel->imgs[dy][dx]->planes[0] + y_pos * i_src + x_pos;
             uavs3e_funs_handle.ipcpy[widx](src, i_src, dst, dst_stride, width, height);
-        } else if (dy == 0) {
-            uavs3e_funs_handle.ipflt[IPFILTER_H_8][widx](src, i_src, dst, dst_stride, width, height, coeff[dx], max_val);
-        } else if (dx == 0) {
-            uavs3e_funs_handle.ipflt[IPFILTER_V_8][widx](src, i_src, dst, dst_stride, width, height, coeff[dy], max_val);
         } else {
-            uavs3e_funs_handle.ipflt_ext[IPFILTER_EXT_8][widx](src, i_src, dst, dst_stride, width, height, coeff[dx], coeff[dy], max_val);
+            pel *src = pic->y + y_pos * i_src + x_pos;
+
+            if (dx == 0 && dy == 0) {
+                uavs3e_funs_handle.ipcpy[widx](src, i_src, dst, dst_stride, width, height);
+            } else if (dy == 0) {
+                uavs3e_funs_handle.ipflt[IPFILTER_H_8][widx](src, i_src, dst, dst_stride, width, height, coeff[dx], max_val);
+            } else if (dx == 0) {
+                uavs3e_funs_handle.ipflt[IPFILTER_V_8][widx](src, i_src, dst, dst_stride, width, height, coeff[dy], max_val);
+            } else {
+                uavs3e_funs_handle.ipflt_ext[IPFILTER_EXT_8][widx](src, i_src, dst, dst_stride, width, height, coeff[dx], coeff[dy], max_val);
+            }
         }
     } else {
         pel *src = (pel*)pic->subpel->imgs[dy][dx]->planes[0] + y_pos * i_src + x_pos;

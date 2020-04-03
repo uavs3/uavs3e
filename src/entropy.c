@@ -1670,13 +1670,16 @@ void lbac_enc_run_length_cc_rdo(lbac_t *lbac, s16 *coef, int log2_w, int log2_h,
     int range = lbac->range;
     const u16 *scanp = com_tbl_scan[log2_w - 1][log2_h - 1];
     tab_s16 *switch_tab_plps[2] = { tbl_plps_ext, tbl_plps };
+    u32 scan_pos = 0;
+    s16 coef_cur;
+    int last_nz_pos = -1;
 
-    for (u32 scan_pos = 0; scan_pos < num_coeff; scan_pos++) {
-        s16 coef_cur = coef[scanp[scan_pos]];
-        if (!coef_cur) {
-            run++;
-            continue;
+    do {
+        while (!(coef_cur = coef[scanp[scan_pos]])) {
+            scan_pos++;
         }
+        run = scan_pos - last_nz_pos - 1;
+        last_nz_pos = scan_pos;
 
         /* Run coding */
         int sym = COM_MIN(run, 16);
@@ -1771,10 +1774,8 @@ void lbac_enc_run_length_cc_rdo(lbac_t *lbac, s16 *coef, int log2_w, int log2_h,
 
         /* Level coding */
         u32 level = COM_ABS16(coef_cur);
-        int t0_bakup = t0;
         model = &ctx_level[t0];
 
-        t0 = (COM_MIN(level - 1, 5)) << 1;
         sym = COM_MIN(level - 1, 8);
 
         { /* first bin of Level */
@@ -1867,18 +1868,16 @@ void lbac_enc_run_length_cc_rdo(lbac_t *lbac, s16 *coef, int log2_w, int log2_h,
         num_sig--;
 
         /* Last flag coding */
-        int last_flag = (num_sig == 0) ? 1 : 0;
-        lbac_ctx_model_t *model1 = &ctx_last1[t0_bakup >> 1];
+        lbac_ctx_model_t *model1 = &ctx_last1[t0 >> 1];
         lbac_ctx_model_t *model2 = &ctx_last2[uavs3e_get_log2(scan_pos + 1)];
         u16 prob_lps;
         u16 prob_lps1 = ((*model1) & PROB_MASK) >> 1;
         u16 prob_lps2 = ((*model2) & PROB_MASK) >> 1;
-        u16 cmps;
         u16 cmps1 = (*model1) & 1;
         u16 cmps2 = (*model2) & 1;
-        u32 rLPS;
-        u32 rMPS;
-        int s_flag;
+        u16 cmps;
+
+        t0 = (COM_MIN(level - 1, 5)) << 1;
 
         if (cmps1 == cmps2) {
             cmps = cmps1;
@@ -1893,10 +1892,11 @@ void lbac_enc_run_length_cc_rdo(lbac_t *lbac, s16 *coef, int log2_w, int log2_h,
             }
         }
 
-        rLPS = prob_lps >> LG_PMPS_SHIFTNO;
+        u32 rLPS = prob_lps >> LG_PMPS_SHIFTNO;
+        u32 rMPS = range - rLPS;
+        int s_flag = rMPS < QUAR_HALF_PROB;
+        int last_flag = !num_sig;
 
-        rMPS = range - rLPS;
-        s_flag = rMPS < QUAR_HALF_PROB;
         rMPS |= 0x100;
 
         if (last_flag == cmps) { // MPS
@@ -1908,13 +1908,13 @@ void lbac_enc_run_length_cc_rdo(lbac_t *lbac, s16 *coef, int log2_w, int log2_h,
             range = rLPS << shift;
             bitcounter += shift + s_flag;
         }
-        *model1 = (last_flag != cmps1 ? tbl_plps_ext : tbl_plps)[*model1];
-        *model2 = (last_flag != cmps2 ? tbl_plps_ext : tbl_plps)[*model2];
-        
-        if (last_flag) {
-            break;
-        }
-    }
+        *model1 = switch_tab_plps[last_flag == cmps1][*model1];
+        *model2 = switch_tab_plps[last_flag == cmps2][*model2];
+
+        scan_pos++;
+
+    } while (num_sig);
+
     lbac->range = range;
     lbac->bitcounter += bitcounter;
 }

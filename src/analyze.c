@@ -1490,21 +1490,17 @@ int est_pred_info_bits(core_t *core)
 }
 #endif
 
-int enc_tq_itdq_yuv_nnz(core_t *core, lbac_t *lbac, com_mode_t *cur_mode, s16 coef[N_C][MAX_CU_DIM], s16 resi[N_C][MAX_CU_DIM], pel pred[N_C][MAX_CU_DIM], pel rec[N_C][MAX_CU_DIM],
-    s8 refi[REFP_NUM], s16 mv[REFP_NUM][MV_D], u8 is_mv_from_mvf)
+int enc_tq_itdq_yuv_nnz(core_t *core, lbac_t *lbac, com_mode_t *cur_mode, s16 coef[N_C][MAX_CU_DIM], s16 resi[N_C][MAX_CU_DIM], pel pred[N_C][MAX_CU_DIM], pel rec[N_C][MAX_CU_DIM], s8 refi[REFP_NUM], s16 mv[REFP_NUM][MV_D])
 {
-    int i;
-    int bit_depth = core->info->bit_depth_internal;
-    int cu_width_log2 = core->cu_width_log2;
+    int bit_depth      = core->info->bit_depth_internal;
+    int cu_width_log2  = core->cu_width_log2;
     int cu_height_log2 = core->cu_height_log2;
-    int slice_type = core->slice_type;
+    int slice_type     = core->slice_type;
 
     cu_nz_cln(cur_mode->num_nz);
-
-    // test 2Nx2N, loop luma and chroma
     cur_mode->tb_part = SIZE_2Nx2N;
 
-    for (i = 0; i < N_C; i++) {
+    for (int i = 0; i < N_C; i++) {
         if ((core->tree_status == TREE_L && i != Y_C) || (core->tree_status == TREE_C && i == Y_C)) {
             cur_mode->num_nz[TB0][i] = 0;
             continue;
@@ -1524,18 +1520,15 @@ int enc_tq_itdq_yuv_nnz(core_t *core, lbac_t *lbac, com_mode_t *cur_mode, s16 co
                 uavs3e_funs_handle.recon[plane_width_log2 - MIN_CU_LOG2](resi_it, pred[i], 1 << plane_width_log2, 1 << plane_width_log2, 1 << plane_height_log2, rec[i], 1 << plane_width_log2, cur_mode->num_nz[TB0][i], bit_depth);
             }
 #if TR_SAVE_LOAD
-        }
-        else {
+        } else {
             cur_mode->num_nz[TB0][i] = 0; //no need to try 2Nx2N transform
         }
 #endif
     }
 
-    int try_sub_block_transform = core->tree_status != TREE_C &&
-        is_tb_avaliable(core->info, cu_width_log2, cu_height_log2, cur_mode->pb_part, MODE_INTER);
+    int try_sub_block_transform = core->tree_status != TREE_C && is_tb_avaliable(core->info, cu_width_log2, cu_height_log2, cur_mode->pb_part, MODE_INTER);
 
-    //fast algorithm
-    if (try_sub_block_transform) {
+    if (try_sub_block_transform) { //fast algorithm
 #if TR_SAVE_LOAD
         if (core->best_tb_part_hist == SIZE_2Nx2N) {
             try_sub_block_transform = 0;
@@ -1553,16 +1546,14 @@ int enc_tq_itdq_yuv_nnz(core_t *core, lbac_t *lbac, com_mode_t *cur_mode, s16 co
         }
 #endif
     }
-
     if (try_sub_block_transform) {
         ALIGNED_32(s16 coef_NxN[MAX_CU_DIM]);
         int bak_2Nx2N_num_nz = cur_mode->num_nz[TB0][Y_C];
-        int cu_size = 1 << (cu_width_log2 + cu_height_log2);
-        int cu_width = 1 << cu_width_log2;
+        int cu_size   = 1 << (cu_width_log2 + cu_height_log2);
+        int cu_width  = 1 << cu_width_log2;
         int cu_height = 1 << cu_height_log2;
         int x = core->cu_pix_x;
         int y = core->cu_pix_y;
-        pel *pred = cur_mode->pred[Y_C];
         com_pic_t *pic_org = core->pic_org;
         pel *org = pic_org->y + (y * pic_org->stride_luma) + x;
         double cost_2Nx2N, cost_NxN;
@@ -1578,22 +1569,21 @@ int enc_tq_itdq_yuv_nnz(core_t *core, lbac_t *lbac, com_mode_t *cur_mode, s16 co
         get_tb_width_height_log2(cu_width_log2, cu_height_log2, part_size, &log2_tb_w, &log2_tb_h);
         tb_size = 1 << (log2_tb_w + log2_tb_h);
 
-        for (i = 0; i < part_num; i++) {
+        for (int i = 0; i < part_num; i++) {
             ALIGNED_32(s16 resi_buf[MAX_CU_DIM]);
             s16 *tb_resi = resi[Y_C];
 
             if (part_num > 1) {
-                int k, pos_x, pos_y;
+                int pos_x, pos_y;
                 int tu_w = 1 << log2_tb_w;
                 int tu_h = 1 << log2_tb_h;
-                s16 *s, *d;
 
                 get_tb_start_pos(cu_w, cu_h, part_size, i, &pos_x, &pos_y);
 
-                s = resi[Y_C] + pos_y * cu_w + pos_x;
-                d = resi_buf;
+                s16 *s = resi[Y_C] + pos_y * cu_w + pos_x;
+                s16 *d = resi_buf;
 
-                for (k = 0; k < tu_h; k++) {
+                for (int k = 0; k < tu_h; k++) {
                     memcpy(d, s, sizeof(s16) * tu_w);
                     d += tu_w;
                     s += cu_w;
@@ -1606,16 +1596,16 @@ int enc_tq_itdq_yuv_nnz(core_t *core, lbac_t *lbac, com_mode_t *cur_mode, s16 co
         if (bak_2Nx2N_num_nz && is_cu_plane_nz(cur_mode->num_nz, Y_C)) {
             ALIGNED_32(pel rec_NxN[MAX_CU_DIM]);
             ALIGNED_32(s16 resi_it[MAX_CU_DIM]);
-            int j, bit_cnt;
+            int bit_cnt;
             int bak_NxN_num_nz[MAX_NUM_TB];
 
             /*************************************************************************************************************/
             /* cal NxN */
-            for (j = 0; j < MAX_NUM_TB; j++) {
+            for (int j = 0; j < MAX_NUM_TB; j++) {
                 bak_NxN_num_nz[j] = cur_mode->num_nz[j][Y_C];
             }
             com_invqt_inter_plane(cur_mode, Y_C, coef_NxN, resi_it, core->wq, cu_width_log2, cu_height_log2, core->lcu_qp_y, bit_depth);
-            com_recon_plane(cur_mode->tb_part, resi_it, pred, cur_mode->num_nz, Y_C, cu_width, cu_height, cu_width, rec_NxN, bit_depth);
+            com_recon_plane(cur_mode->tb_part, resi_it, pred[Y_C], cur_mode->num_nz, Y_C, cu_width, cu_height, cu_width, rec_NxN, bit_depth);
             cost_NxN = (double)(block_pel_ssd(cu_width_log2, cu_height, rec_NxN, org, cu_width, pic_org->stride_luma, bit_depth));
 
             lbac_copy(lbac, &core->sbac_bakup);
@@ -1642,9 +1632,9 @@ int enc_tq_itdq_yuv_nnz(core_t *core, lbac_t *lbac, com_mode_t *cur_mode, s16 co
 
             if (cost_NxN < cost_2Nx2N) {
                 memcpy(coef[Y_C], coef_NxN, sizeof(s16) *cu_size);
-                memcpy(rec[Y_C], rec_NxN, sizeof(pel) *cu_size);
+                memcpy(rec [Y_C], rec_NxN,  sizeof(pel) *cu_size);
 
-                for (j = 0; j < MAX_NUM_TB; j++) {
+                for (int j = 0; j < MAX_NUM_TB; j++) {
                     cur_mode->num_nz[j][Y_C] = bak_NxN_num_nz[j];
                 }
                 cur_mode->tb_part = get_tb_part_size_by_pb(cur_mode->pb_part, MODE_INTER);
@@ -1659,7 +1649,7 @@ int enc_tq_itdq_yuv_nnz(core_t *core, lbac_t *lbac, com_mode_t *cur_mode, s16 co
             ALIGNED_32(s16 resi_it[MAX_CU_DIM]);
             memcpy(coef[Y_C], coef_NxN, sizeof(s16) *cu_size);
             com_invqt_inter_plane(cur_mode, Y_C, coef_NxN, resi_it, core->wq, cu_width_log2, cu_height_log2, core->lcu_qp_y, bit_depth);
-            com_recon_plane(cur_mode->tb_part, resi_it, pred, cur_mode->num_nz, Y_C, cu_width, cu_height, cu_width, rec[Y_C], bit_depth);
+            com_recon_plane(cur_mode->tb_part, resi_it, pred[Y_C], cur_mode->num_nz, Y_C, cu_width, cu_height, cu_width, rec[Y_C], bit_depth);
         }
     }
     check_set_tb_part(cur_mode);
