@@ -307,7 +307,6 @@ static u64 me_sub_pel_search(inter_search_t *pi, int x, int y, int w, int h, s8 
     int bit_depth = pi->bit_depth;
     int i_org = pi->i_org;
     pel *org = pi->org;
-    ALIGNED_32(pel pred[MAX_CU_DIM]);
     u64 cost, cost_best = COM_UINT64_MAX;
     s16 mv_x, mv_y, cx, cy;
     int i, mv_bits;
@@ -340,9 +339,9 @@ static u64 me_sub_pel_search(inter_search_t *pi, int x, int y, int w, int h, s8 
         mv_y = cy + tbl_search_pattern_hpel_partial[i][1];
         mv_bits = GET_MVBITS_X(mv_x) + GET_MVBITS_Y(mv_y);
         cost = MV_COST64(mv_bits);
-        com_mc_blk_luma(ref_pic, pred, w, mv_x + (x << 2), mv_y + (y << 2), w, h, widx, max_posx, max_posy, (1 << bit_depth) - 1, 0);
 
-        cost += (u64)(calc_satd_16b(w, h, org, pred, i_org, w, bit_depth) >> bi) << 16;
+        pel* pred = com_mc_blk_luma_pointer(ref_pic, mv_x + (x << 2), mv_y + (y << 2), max_posx, max_posy);
+        cost += (u64)(calc_satd_16b(w, h, org, pred, i_org, ref_pic->stride_luma, bit_depth) >> bi) << 16;
    
         if (cost < cost_best) {
             mv[MV_X] = mv_x;
@@ -365,9 +364,9 @@ static u64 me_sub_pel_search(inter_search_t *pi, int x, int y, int w, int h, s8 
             mv_bits = GET_MVBITS_X(mv_x) + GET_MVBITS_Y(mv_y);
 
             cost = MV_COST64(mv_bits);
-            com_mc_blk_luma(ref_pic, pred, w, mv_x + (x << 2), mv_y + (y << 2), w, h, widx, max_posx, max_posy, (1 << bit_depth) - 1, 0);
 
-            cost += (u64)(calc_satd_16b(w, h, org, pred, i_org, w, bit_depth) >> bi) << 16;
+            pel* pred = com_mc_blk_luma_pointer(ref_pic, mv_x + (x << 2), mv_y + (y << 2), max_posx, max_posy);
+            cost += (u64)(calc_satd_16b(w, h, org, pred, i_org, ref_pic->stride_luma, bit_depth) >> bi) << 16;
 
             if (cost < cost_best) {
                 mv[MV_X] = mv_x;

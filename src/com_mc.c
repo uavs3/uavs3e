@@ -60,6 +60,20 @@ void com_mc_blk_luma(com_pic_t *pic, pel *dst, int dst_stride, int x_pos, int y_
     }
 }
 
+pel* com_mc_blk_luma_pointer(com_pic_t *pic, int x_pos, int y_pos, int max_posx, int max_posy)
+{
+    int dx = x_pos & 3;
+    int dy = y_pos & 3;
+
+    x_pos >>= 2;
+    y_pos >>= 2;
+
+    x_pos = COM_CLIP3(-MAX_CU_SIZE - 4, max_posx, x_pos);
+    y_pos = COM_CLIP3(-MAX_CU_SIZE - 4, max_posy, y_pos);
+
+    return  (pel*)pic->subpel->imgs[dy][dx]->planes[0] + y_pos * pic->stride_luma + x_pos;
+}
+
 static void com_mc_blk_chroma(com_pic_t *pic, int uv_flag, pel *dst, int dst_stride, int x_pos, int y_pos, int width, int height, int widx, int max_posx, int max_posy, int max_val, int hp_flag)
 {
     int dx, dy;
