@@ -238,26 +238,25 @@ static void check_best_mode(core_t *core, lbac_t *sbac_best, lbac_t *lbac, const
 #if TR_SAVE_LOAD
 static u8 search_inter_tr_info(core_t *core, u16 cu_ssd)
 {
-    u8 tb_part_size = 255;
-    enc_history_t *p_data = &core->bef_data[core->cu_width_log2 - 2][core->cu_height_log2 - 2][core->cu_scup_in_lcu];
+    enc_history_t *p_data = &core->history_data[core->cu_width_log2 - 2][core->cu_height_log2 - 2][core->cu_scup_in_lcu];
 
     for (int idx = 0; idx < p_data->num_inter_pred; idx++) {
         if (p_data->inter_pred_dist[idx] == cu_ssd) {
             return p_data->inter_tb_part[idx];
         }
     }
-    return tb_part_size;
+    return 255;
 }
 
 static void save_inter_tr_info(core_t *core, u16 cu_ssd, u8 tb_part_size)
 {
-    enc_history_t *p_data = &core->bef_data[core->cu_width_log2 - 2][core->cu_height_log2 - 2][core->cu_scup_in_lcu];
+    enc_history_t *p_data = &core->history_data[core->cu_width_log2 - 2][core->cu_height_log2 - 2][core->cu_scup_in_lcu];
 
     if (p_data->num_inter_pred == NUM_SL_INTER) {
         return;
     }
     p_data->inter_pred_dist[p_data->num_inter_pred] = cu_ssd;
-    p_data->inter_tb_part[p_data->num_inter_pred] = tb_part_size;
+    p_data->inter_tb_part  [p_data->num_inter_pred] = tb_part_size;
     p_data->num_inter_pred++;
 }
 #endif
@@ -312,26 +311,21 @@ static double inter_rdcost(core_t *core, lbac_t *sbac_best, int bForceAllZero, i
     stride_org[U_C] = pic_org->stride_chroma;
     stride_org[V_C] = pic_org->stride_chroma;
 
-    /* prediction */
-    if (cur_info->affine_flag) {
-        com_mc_cu_affine(x, y, info->pic_width, info->pic_height, width[0], height[0], refi, cur_info->affine_mv, core->refp, pred, cur_info->affine_flag + 1, core->pichdr, core->map->map_mv, bit_depth);
-
-#if RDO_WITH_DBLOCK
-        com_set_affine_mvf(core->cu_scup_in_pic, cu_width_log2, cu_height_log2, info->i_scu, cur_info, map, core->pichdr);
-        is_from_mv_field = 1;
-#endif
-    } else {
-        assert(cur_info->pb_info.sub_scup[0] == core->cu_scup_in_pic);
-        com_mc_cu(x, y, info->pic_width, info->pic_height, width[0], height[0], refi, mv, core->refp, pred, width[0], core->tree_status, bit_depth);
+    if (need_mc) { // prediction
+        if (cur_info->affine_flag) {
+            com_mc_cu_affine(x, y, info->pic_width, info->pic_height, width[0], height[0], refi, cur_info->affine_mv, core->refp, pred, cur_info->affine_flag + 1, core->pichdr, core->map->map_mv, bit_depth);
+        } else {
+            com_mc_cu(x, y, info->pic_width, info->pic_height, width[0], height[0], refi, mv, core->refp, pred, width[0], core->tree_status, bit_depth);
+        }
     }
-
     for (int i = 0; i < num_n_c; i++) {
         dist[0][i] = dist_pred[i] = block_pel_ssd(log2_w[i], 1 << log2_h[i], pred[i], org[i], width[i], stride_org[i], bit_depth);
     }
-
-#if RDO_WITH_DBLOCK
+    if (cur_info->affine_flag) {
+        com_set_affine_mvf(core->cu_scup_in_pic, cu_width_log2, cu_height_log2, info->i_scu, cur_info, map, core->pichdr);
+        is_from_mv_field = 1;
+    }
     dist[0][Y_C] += calc_dist_filter_boundary(core, core->pic_rec, core->pic_org, cu_width, cu_height, pred[Y_C], cu_width, x, y, 0, 0, refi, mv, is_from_mv_field, 1);
-#endif
 
     /* test all zero case */
     if (cur_info->cu_mode != MODE_DIR) { // do not check forced zero for direct mode
@@ -368,7 +362,9 @@ static double inter_rdcost(core_t *core, lbac_t *sbac_best, int bForceAllZero, i
         u16 cu_ssd_u16 = 0;
         core->best_tb_part_hist = 255;
         if (info->sqh.pbt_enable && core->tree_status != TREE_L &&
-            is_tb_avaliable(info, cu_width_log2, cu_height_log2, cur_info->pb_part, MODE_INTER) && cur_info->pb_part == SIZE_2Nx2N) {
+            is_tb_avaliable(info, cu_width_log2, cu_height_log2, cur_info->pb_part, MODE_INTER) && 
+            cur_info->pb_part == SIZE_2Nx2N) 
+        {
             s64 cu_ssd_s64 = dist_pred[Y_C] + dist_pred[U_C] + dist_pred[V_C];
             int shift_val = COM_MIN(cu_width_log2 + cu_height_log2, 9);
             cu_ssd_u16 = (u16)(cu_ssd_s64 + (s64)(1 << (shift_val - 1))) >> shift_val;
@@ -380,15 +376,11 @@ static double inter_rdcost(core_t *core, lbac_t *sbac_best, int bForceAllZero, i
         if (enc_tq_itdq_yuv_nnz(core, lbac, cur_info, coef, resi_t, pred, rec, refi, mv)) {
             for (int i = 0; i < num_n_c; i++) {
                 if (is_cu_plane_nz(num_nz_coef, i)) {
-#if RDO_WITH_DBLOCK
                     if (i == 0) {
                         dist[1][i] = calc_dist_filter_boundary(core, core->pic_rec, core->pic_org, cu_width, cu_height, rec[Y_C], cu_width, x, y, 0, 1, refi, mv, is_from_mv_field, 0);
                     } else {
                         dist[1][i] = block_pel_ssd(log2_w[i], 1 << log2_h[i], rec[i], org[i], width[i], stride_org[i], bit_depth);
                     }
-#else
-                    dist[1][i] = block_pel_ssd(log2_w[i], 1 << log2_h[i], rec[i], org[i], width[i], stride_org[i], bit_depth);
-#endif
                 } else {
                     dist[1][i] = dist[0][i];
                 }
@@ -764,21 +756,11 @@ static void analyze_direct_skip(core_t *core, lbac_t *sbac_best)
 {
     com_info_t *info = core->info;
     com_mode_t *cur_info = &core->mod_info_curr;
-    double       cost;
-    int          skip_idx;
-    const int num_iter = 2;
-    int bNoResidual;
-    int cu_width_log2 = core->cu_width_log2;
-    int cu_height_log2 = core->cu_height_log2;
-    int cu_width = 1 << cu_width_log2;
-    int cu_height = 1 << cu_height_log2;
-
-    int num_cands_woUMVE = 0;
     s16 pmv_cands[MAX_SKIP_NUM + UMVE_MAX_REFINE_NUM * UMVE_BASE_NUM][REFP_NUM][MV_D];
     s8 refi_cands[MAX_SKIP_NUM + UMVE_MAX_REFINE_NUM * UMVE_BASE_NUM][REFP_NUM];
-    int num_cands_all, num_rdo;
     double cost_list[MAX_INTER_SKIP_RDO];
-    int mode_list[MAX_INTER_SKIP_RDO];
+    int    mode_list[MAX_INTER_SKIP_RDO];
+    int num_cands_all, num_rdo, num_cands_woUMVE;
 
     derive_inter_cands(core, pmv_cands, refi_cands, &num_cands_all, &num_cands_woUMVE);
     num_rdo = num_cands_woUMVE;
@@ -786,22 +768,23 @@ static void analyze_direct_skip(core_t *core, lbac_t *sbac_best)
 
     make_cand_list(core, mode_list, cost_list, num_cands_woUMVE, num_cands_all, num_rdo, pmv_cands, refi_cands);
 
-    for (skip_idx = 0; skip_idx < num_rdo; skip_idx++) {
-        int skip_idx_true = mode_list[skip_idx];
-        if (skip_idx_true < num_cands_woUMVE) {
+    for (int skip_idx = 0; skip_idx < num_rdo; skip_idx++) {
+        int mode = mode_list[skip_idx];
+
+        if (mode < num_cands_woUMVE) {
             cur_info->umve_flag = 0;
-            cur_info->skip_idx = skip_idx_true;
+            cur_info->skip_idx = mode;
         } else {
             cur_info->umve_flag = 1;
-            cur_info->umve_idx = skip_idx_true - num_cands_woUMVE;
+            cur_info->umve_idx = mode - num_cands_woUMVE;
         }
 
-        cur_info->mv[REFP_0][MV_X] = pmv_cands[skip_idx_true][REFP_0][MV_X];
-        cur_info->mv[REFP_0][MV_Y] = pmv_cands[skip_idx_true][REFP_0][MV_Y];
-        cur_info->mv[REFP_1][MV_X] = pmv_cands[skip_idx_true][REFP_1][MV_X];
-        cur_info->mv[REFP_1][MV_Y] = pmv_cands[skip_idx_true][REFP_1][MV_Y];
-        cur_info->refi[REFP_0] = refi_cands[skip_idx_true][REFP_0];
-        cur_info->refi[REFP_1] = refi_cands[skip_idx_true][REFP_1];
+        cur_info->mv[REFP_0][MV_X] = pmv_cands[mode][REFP_0][MV_X];
+        cur_info->mv[REFP_0][MV_Y] = pmv_cands[mode][REFP_0][MV_Y];
+        cur_info->mv[REFP_1][MV_X] = pmv_cands[mode][REFP_1][MV_X];
+        cur_info->mv[REFP_1][MV_Y] = pmv_cands[mode][REFP_1][MV_Y];
+        cur_info->refi[REFP_0] = refi_cands[mode][REFP_0];
+        cur_info->refi[REFP_1] = refi_cands[mode][REFP_1];
 
         if (!REFI_IS_VALID(cur_info->refi[REFP_0]) && !REFI_IS_VALID(cur_info->refi[REFP_1])) {
             continue;
@@ -809,10 +792,12 @@ static void analyze_direct_skip(core_t *core, lbac_t *sbac_best)
         if ((core->pichdr->slice_type == SLICE_P) && (cur_info->skip_idx == 1 || cur_info->skip_idx == 2) && (cur_info->umve_flag == 0)) {
             continue;
         }
-        for (bNoResidual = 0; bNoResidual < num_iter; bNoResidual++) {
-            cur_info->cu_mode = bNoResidual ? MODE_SKIP : MODE_DIR;
-            cost = inter_rdcost(core, sbac_best, 0, !bNoResidual);
-        }
+
+        cur_info->cu_mode = MODE_DIR;
+        inter_rdcost(core, sbac_best, 0, 1);
+
+        cur_info->cu_mode = MODE_SKIP;
+        inter_rdcost(core, sbac_best, 1, 0);
     }
 }
 
@@ -828,7 +813,6 @@ static void analyze_affine_merge(core_t *core, lbac_t *sbac_best)
 
     double       cost = MAX_D_COST;
     int          mrg_idx, num_cands = 0;
-    int          ver = 0, iter = 0, iter_start = 0, iter_end = 2;
 
     int x = core->cu_pix_x;
     int y = core->cu_pix_y;
@@ -895,7 +879,7 @@ static void analyze_affine_merge(core_t *core, lbac_t *sbac_best)
         cur_info->affine_flag = (u8)mrg_list_cp_num[mrg_idx] - 1;
         cur_info->skip_idx = (u8)mrg_idx;
 
-        for (ver = 0; ver < mrg_list_cp_num[mrg_idx]; ver++) {
+        for (int ver = 0; ver < mrg_list_cp_num[mrg_idx]; ver++) {
             cur_info->affine_mv[REFP_0][ver][MV_X] = mrg_list_cp_mv[mrg_idx][REFP_0][ver][MV_X];
             cur_info->affine_mv[REFP_0][ver][MV_Y] = mrg_list_cp_mv[mrg_idx][REFP_0][ver][MV_Y];
             cur_info->affine_mv[REFP_1][ver][MV_X] = mrg_list_cp_mv[mrg_idx][REFP_1][ver][MV_X];
@@ -904,10 +888,11 @@ static void analyze_affine_merge(core_t *core, lbac_t *sbac_best)
         cur_info->refi[REFP_0] = mrg_list_refi[mrg_idx][REFP_0];
         cur_info->refi[REFP_1] = mrg_list_refi[mrg_idx][REFP_1];
 
-        for (iter = iter_start; iter < iter_end; iter++) {
-            cur_info->cu_mode = iter ? MODE_SKIP : MODE_DIR;
-            cost = inter_rdcost(core, sbac_best, 0, !iter);
-        }
+        cur_info->cu_mode = MODE_DIR;
+        cost = inter_rdcost(core, sbac_best, 0, 1);
+
+        cur_info->cu_mode = MODE_SKIP;
+        cost = inter_rdcost(core, sbac_best, 1, 0);
     }
 }
 
@@ -1927,7 +1912,7 @@ void analyze_inter_cu(core_t *core, lbac_t *sbac_best)
     int cu_height_log2 = core->cu_height_log2;
     int cu_width = 1 << cu_width_log2;
     int cu_height = 1 << cu_height_log2;
-    enc_history_t *p_bef_data = &core->bef_data[cu_width_log2 - 2][cu_height_log2 - 2][core->cu_scup_in_lcu];
+    enc_history_t *history = &core->history_data[cu_width_log2 - 2][cu_height_log2 - 2][core->cu_scup_in_lcu];
     init_pb_part(cur_info);
     init_tb_part(cur_info);
     get_part_info(info->i_scu, core->cu_scu_x << 2, core->cu_scu_y << 2, cu_width, cu_height, cur_info->pb_part, &cur_info->pb_info);
@@ -1939,20 +1924,20 @@ void analyze_inter_cu(core_t *core, lbac_t *sbac_best)
     int num_amvr = MAX_NUM_MVR;
     int allow_affine = info->sqh.affine_enable;
 
-    if (p_bef_data->visit && info->sqh.emvr_enable) { 
-        num_hmvp_inter = p_bef_data->mvr_hmvp_idx_history + 1;
+    if (history->visit && info->sqh.emvr_enable) { 
+        num_hmvp_inter = history->mvr_hmvp_idx_history + 1;
         if (num_hmvp_inter > MAX_NUM_MVR) {
             num_hmvp_inter = MAX_NUM_MVR;
         }
     }
     if (info->sqh.amvr_enable) {
-        if (p_bef_data->visit) {
-            num_amvr = COM_MIN(MAX_NUM_MVR, p_bef_data->mvr_idx_history + 1);
+        if (history->visit) {
+            num_amvr = COM_MIN(MAX_NUM_MVR, history->mvr_idx_history + 1);
         }
     } else {
         num_amvr = 1;
     }
-    if (p_bef_data->visit && p_bef_data->affine_flag_history == 0) {
+    if (history->visit && history->affine_flag_history == 0) {
         allow_affine = 0;
     }
 
@@ -2032,12 +2017,12 @@ void analyze_inter_cu(core_t *core, lbac_t *sbac_best)
             }
         }
     }
-    if (!p_bef_data->visit) {
-        p_bef_data->affine_flag_history = bst_info->affine_flag;
-        p_bef_data->mvr_idx_history     = bst_info->mvr_idx;
+    if (!history->visit) {
+        history->affine_flag_history = bst_info->affine_flag;
+        history->mvr_idx_history     = bst_info->mvr_idx;
 
         if (bst_info->hmvp_flag) {
-            p_bef_data->mvr_hmvp_idx_history = bst_info->mvr_idx;
+            history->mvr_hmvp_idx_history = bst_info->mvr_idx;
         }
     }
 }

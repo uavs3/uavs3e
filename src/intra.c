@@ -37,7 +37,7 @@ static double intra_pu_rdcost(core_t *core, pel rec[N_C][MAX_CU_DIM], pel *org_l
     lbac_t *lbac = &core->sbac_rdo;
     com_map_t *map = core->map;
 
-    cu_width = 1 << cu_width_log2;
+    cu_width  = 1 << cu_width_log2;
     cu_height = 1 << cu_height_log2;
 
     if (!bChroma) {
@@ -107,15 +107,11 @@ static double intra_pu_rdcost(core_t *core, pel rec[N_C][MAX_CU_DIM], pel *org_l
             }
             com_recon_plane(SIZE_2Nx2N, resi_tb, pred_tb, num_nz_temp, Y_C, tb_w, tb_h, cu_width, rec_tb, bit_depth);
 
-#if RDO_WITH_DBLOCK
             if (cur_info->pb_part == SIZE_2Nx2N) {
                 cost += calc_dist_filter_boundary(core, pic, core->pic_org, cu_width, cu_height, rec[Y_C], cu_width, x, y, 1, cur_info->num_nz[TB0][Y_C] != 0, NULL, NULL, 0, 0);
             } else {
                 cost += block_pel_ssd(tb_width_log2, tb_h, rec_tb, org_luma_tb, cu_width, s_org, bit_depth); 
             }
-#else
-            cost += block_pel_ssd(tb_width_log2, tb_h, rec_tb, org_luma_tb, cu_width, s_org, bit_depth); // stride for rec_tb is cu_width
-#endif
             update_intra_info_map_scu(map->map_scu, map->map_ipm, pb_x, pb_y, pb_w, pb_h, info->i_scu, intra_mode);
             copy_rec_y_to_pic(rec_tb, tb_x, tb_y, tb_w, tb_h, cu_width, pic);
         }
@@ -359,7 +355,7 @@ void analyze_intra_cu(core_t *core, lbac_t *sbac_best)
     };
 
 #if DT_SAVE_LOAD
-    enc_history_t *pData = &core->bef_data[cu_width_log2 - 2][cu_height_log2 - 2][core->cu_scup_in_lcu];
+    enc_history_t *pData = &core->history_data[cu_width_log2 - 2][cu_height_log2 - 2][core->cu_scup_in_lcu];
 #endif
     ALIGNED_32(pel rec[N_C][MAX_CU_DIM]);
 
@@ -530,14 +526,14 @@ void analyze_intra_cu(core_t *core, lbac_t *sbac_best)
             }
 
             com_mcpy(rec[Y_C], rec_y_pb_part, cu_width * cu_height * sizeof(pel));
-#if RDO_WITH_DBLOCK
+
             if (cur_info->pb_part != SIZE_2Nx2N) {
                 int cbf_y = num_nz_y_pb_part[0] + num_nz_y_pb_part[1] + num_nz_y_pb_part[2] + num_nz_y_pb_part[3];
                 s64 delta_dist = calc_dist_filter_boundary(core, pic_rec, pic_org, cu_width, cu_height, rec[Y_C], cu_width, x, y, 1, cbf_y, NULL, NULL, 0, 1);
                 cost_temp += delta_dist;
                 best_dist_y_pb_part[PB0] += (s32)delta_dist; 
             }
-#endif
+
 #if DT_INTRA_FAST_BY_RD
             if (pb_part_size == SIZE_2Nx2N) {
                 cost_2Nx2N = cost_temp;

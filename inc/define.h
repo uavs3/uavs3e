@@ -26,7 +26,6 @@
 #define SPEED_LEVEL(x, p) ((p) >= (x))
 
 #define MAX_BS_BUF                        (32*1024*1024)
-#define RDO_WITH_DBLOCK                            1 // include DBK changes to luma samples into distortion
 #define DT_INTRA_BOUNDARY_FILTER_OFF        1 ///< turn off boundary filter if intra DT is ON
 #define MAX_INTER_SKIP_RDO                 MAX_SKIP_NUM
 #define THRESHOLD_MVPS_CHECK               1.1
@@ -275,7 +274,7 @@ typedef struct uavs3e_core_t {
     double         dist_chroma_weight[2];
     enc_cu_t       cu_data_best[MAX_CU_DEPTH][MAX_CU_DEPTH];
     enc_cu_t       cu_data_temp[MAX_CU_DEPTH][MAX_CU_DEPTH];
-    enc_history_t   bef_data[MAX_CU_DEPTH][MAX_CU_DEPTH][MAX_CU_CNT_IN_LCU];
+    enc_history_t  history_data[MAX_CU_DEPTH][MAX_CU_DEPTH][MAX_CU_CNT_IN_LCU];
 
     u8             tree_status;
     u8             cons_pred_mode;

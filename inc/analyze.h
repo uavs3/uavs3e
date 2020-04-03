@@ -33,10 +33,7 @@ void enc_bits_intra_chroma (core_t *core, lbac_t *lbac, s16 coef[N_C][MAX_CU_DIM
 void enc_bits_inter        (core_t *core, lbac_t *lbac, s32 slice_type);
 void enc_bits_inter_comp   (core_t *core, lbac_t *lbac, s16 coef[MAX_CU_DIM], int ch_type);
 
-#if RDO_WITH_DBLOCK
 s64 calc_dist_filter_boundary(core_t *core, com_pic_t *pic_rec, com_pic_t *pic_org, int cu_width, int cu_height, pel *src, int s_src, int x, int y, u8 intra_flag, u8 cu_cbf, s8 *refi, s16(*mv)[MV_D], u8 is_mv_from_mvf, int only_delta);
-#endif
-
 
 void analyze_inter_cu(core_t *core, lbac_t *sbac_best);
 double pinter_residue_rdo_chroma(core_t *core);

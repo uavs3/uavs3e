@@ -898,14 +898,14 @@ static void check_run_split(core_t *core, int cu_width_log2, int cu_height_log2,
     int i;
     double min_cost = MAX_D_COST;
     int run_list[NUM_SPLIT_MODE];
-    enc_history_t *p_bef_data = &core->bef_data[cu_width_log2 - 2][cu_height_log2 - 2][cup];
+    enc_history_t *history = &core->history_data[cu_width_log2 - 2][cu_height_log2 - 2][cup];
 
-    if (p_bef_data->split_visit) {
-        if (p_bef_data->nosplit < 1 && p_bef_data->split >= 1) {
+    if (history->split_visit) {
+        if (history->nosplit < 1 && history->split >= 1) {
             run_list[0] = 0;
             for (i = 1; i < NUM_SPLIT_MODE; i++) {
-                if (p_bef_data->split_cost[i] < min_cost && split_allow[i]) {
-                    min_cost = p_bef_data->split_cost[i];
+                if (history->split_cost[i] < min_cost && split_allow[i]) {
+                    min_cost = history->split_cost[i];
                 }
             }
             if (min_cost > MAX_D_COST_EXT) {
@@ -915,13 +915,8 @@ static void check_run_split(core_t *core, int cu_width_log2, int cu_height_log2,
                 }
             } else {
                 for (i = 1; i < NUM_SPLIT_MODE; i++) {
-#if RDO_WITH_DBLOCK 
                     double th = (min_cost < 0) ? 0.99 : 1.01;
-                    if (p_bef_data->split_cost[i] <= th * min_cost)
-#else
-                    if (p_bef_data->split_cost[i] <= (1.01) * min_cost)
-#endif
-                    {
+                    if (history->split_cost[i] <= th * min_cost) {
                         run_list[i] = 1;
                     } else {
                         run_list[i] = 0;
@@ -948,12 +943,11 @@ static void check_run_split(core_t *core, int cu_width_log2, int cu_height_log2,
     } else {
         for (i = 0; i < NUM_SPLIT_MODE; i++) {
             run_list[i] = 1;
-            p_bef_data->split_cost[i] = MAX_D_COST;
+            history->split_cost[i] = MAX_D_COST;
         }
     }
 }
 
-#if RDO_WITH_DBLOCK
 s64 calc_dist_filter_boundary(core_t *core, com_pic_t *pic_rec, com_pic_t *pic_org, int cu_width, int cu_height,
                                     pel *src, int s_src, int x, int y, u8 intra_flag, u8 cu_cbf, s8 *refi, s16(*mv)[MV_D], u8 is_mv_from_mvf, int only_delta)
 {
@@ -1056,7 +1050,7 @@ s64 calc_dist_filter_boundary(core_t *core, com_pic_t *pic_rec, com_pic_t *pic_o
     return dist_filter - dist_nofilt;
 }
 
-#endif
+
 
 static double mode_coding_tree(core_t *core, lbac_t *sbac_cur, int x0, int y0, int cup, int cu_width_log2, int cu_height_log2, int cud
                                , const int parent_split, int qt_depth, int bet_depth, u8 cons_pred_mode, u8 tree_status, double max_cost)
@@ -1077,7 +1071,7 @@ static double mode_coding_tree(core_t *core, lbac_t *sbac_cur, int x0, int y0, i
     int next_split = 1; //early termination flag
     enc_cu_t *cu_data_tmp = &core->cu_data_temp[cu_width_log2 - 2][cu_height_log2 - 2];       // stack structure 
     enc_cu_t *cu_data_bst = &core->cu_data_best[cu_width_log2 - 2][cu_height_log2 - 2];       // stack structure 
-    enc_history_t *p_bef_data = &core->bef_data[cu_width_log2 - 2][cu_height_log2 - 2][cup];  // stack structure 
+    enc_history_t *history = &core->history_data[cu_width_log2 - 2][cu_height_log2 - 2][cup];  // stack structure 
     com_motion_t motion_cands_curr[ALLOWED_HMVP_NUM];
     s8 cnt_hmvp_cands_curr = 0;
     com_motion_t motion_cands_last[ALLOWED_HMVP_NUM];
@@ -1156,12 +1150,12 @@ static double mode_coding_tree(core_t *core, lbac_t *sbac_cur, int x0, int y0, i
             cost_best = cost_temp;
             best_split_mode = NO_SPLIT;
             best_cons_pred_mode = cons_pred_mode;
-            p_bef_data->visit = 1;
+            history->visit = 1;
         } else {
             cost_temp = MAX_D_COST;
         }
-        if (!p_bef_data->split_visit) {
-            p_bef_data->split_cost[NO_SPLIT] = cost_temp;
+        if (!history->split_visit) {
+            history->split_cost[NO_SPLIT] = cost_temp;
             best_curr_cost = cost_temp;
         }
     }
@@ -1353,11 +1347,11 @@ static double mode_coding_tree(core_t *core, lbac_t *sbac_cur, int x0, int y0, i
                         }
                     }
                 }
-                if (!p_bef_data->split_visit) {
-                    p_bef_data->split_cost[split_mode] = best_cons_cost;
+                if (!history->split_visit) {
+                    history->split_cost[split_mode] = best_cons_cost;
                 }
             }
-            if (!p_bef_data->split_visit && num_split_tried > 0) {
+            if (!history->split_visit && num_split_tried > 0) {
                 if ((best_curr_cost *(1.10)) < best_split_cost) {
                     break;
                 }
@@ -1384,11 +1378,11 @@ static double mode_coding_tree(core_t *core, lbac_t *sbac_cur, int x0, int y0, i
 
     if (num_split_to_try > 0) {
         if (best_split_mode == NO_SPLIT) {
-            p_bef_data->nosplit += 1;
+            history->nosplit += 1;
         } else {
-            p_bef_data->split += 1;
+            history->split += 1;
         }
-        p_bef_data->split_visit = 1;
+        history->split_visit = 1;
     }
     update_map_scu(core, x0, y0, 1 << cu_width_log2, 1 << cu_height_log2);
 
@@ -1508,7 +1502,7 @@ int enc_tq_itdq_yuv_nnz(core_t *core, lbac_t *lbac, com_mode_t *cur_mode, s16 co
 #if TR_SAVE_LOAD
         if (core->best_tb_part_hist == 255 || core->best_tb_part_hist == SIZE_2Nx2N || i != Y_C) {
 #endif
-            int plane_width_log2 = cu_width_log2 - (i != Y_C);
+            int plane_width_log2  = cu_width_log2  - (i != Y_C);
             int plane_height_log2 = cu_height_log2 - (i != Y_C);
             int qp = (i == Y_C ? core->lcu_qp_y : (i == U_C ? core->lcu_qp_u : core->lcu_qp_v));
 

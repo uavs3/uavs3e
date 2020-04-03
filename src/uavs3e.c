@@ -776,7 +776,7 @@ void *enc_lcu_row(core_t *core, enc_lcu_row_t *row)
 
         /* initialize structures *****************************************/
         enc_mode_init_lcu(core);
-        com_mset(core->bef_data, 0, sizeof(enc_history_t) * MAX_CU_DEPTH * MAX_CU_DEPTH * MAX_CU_CNT_IN_LCU);
+        com_mset(core->history_data, 0, sizeof(enc_history_t) * MAX_CU_DEPTH * MAX_CU_DEPTH * MAX_CU_CNT_IN_LCU);
 
         /* mode decision *************************************************/
         enc_mode_analyze_lcu(core, lbac);
