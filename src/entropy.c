@@ -1284,7 +1284,7 @@ void lbac_encode_bin_trm(u32 bin, lbac_t *lbac, bs_t *bs)
     }
 }
 
-static void sbac_encode_bin_ep(u32 bin, lbac_t *lbac, bs_t *bs)
+static void lbac_encode_bin_ep(u32 bin, lbac_t *lbac, bs_t *bs)
 {
     if (bs == NULL) {
         lbac->bitcounter++;
@@ -1299,7 +1299,7 @@ static void sbac_encode_bin_ep(u32 bin, lbac_t *lbac, bs_t *bs)
     }
 }
 
-static void sbac_write_unary_sym_ep(u32 sym, lbac_t *lbac, bs_t *bs)
+static void lbac_write_unary_sym_ep(u32 sym, lbac_t *lbac, bs_t *bs)
 {
     if (bs == NULL) {
         lbac->bitcounter += sym + 1;
@@ -1316,7 +1316,7 @@ static void sbac_write_unary_sym_ep(u32 sym, lbac_t *lbac, bs_t *bs)
     }
 }
 
-static void sbac_write_truncate_unary_sym(u32 sym, u32 num_ctx, u32 max_num, lbac_t *lbac, lbac_ctx_model_t *model_base, bs_t *bs)
+static void lbac_write_truncate_unary_sym(u32 sym, u32 num_ctx, u32 max_num, lbac_t *lbac, lbac_ctx_model_t *model_base, bs_t *bs)
 {
     u32 ctx_idx = 0;
 
@@ -1348,7 +1348,7 @@ static void sbac_write_truncate_unary_sym(u32 sym, u32 num_ctx, u32 max_num, lba
     }
 }
 
-static void sbac_encode_bins_msb(u32 value, int num_bin, lbac_t *lbac, lbac_ctx_model_t *model, bs_t *bs)
+static void lbac_encode_bins_msb(u32 value, int num_bin, lbac_t *lbac, lbac_ctx_model_t *model, bs_t *bs)
 {
     if (bs == NULL) {
         for (int i = num_bin - 1; i >= 0; i--, model++) {
@@ -1378,7 +1378,7 @@ static void sbac_encode_bins_msb(u32 value, int num_bin, lbac_t *lbac, lbac_ctx_
     }
 }
 
-static void sbac_encode_bins_ep_msb(u32 value, int num_bin, lbac_t *lbac, bs_t *bs)
+static void lbac_encode_bins_ep_msb(u32 value, int num_bin, lbac_t *lbac, bs_t *bs)
 {
     if (bs == NULL) {
         lbac->bitcounter += num_bin;
@@ -1404,7 +1404,7 @@ void lbac_enc_affine_flag(lbac_t *lbac, bs_t *bs, core_t *core, int flag)
 
 void lbac_enc_affine_mrg_idx(lbac_t *lbac, bs_t *bs, s16 affine_mrg_idx)
 {
-    sbac_write_truncate_unary_sym(affine_mrg_idx, LBAC_CTX_AFFINE_MRG, AFF_MAX_NUM_MRG, lbac, lbac->h.affine_mrg_idx, bs);
+    lbac_write_truncate_unary_sym(affine_mrg_idx, LBAC_CTX_AFFINE_MRG, AFF_MAX_NUM_MRG, lbac, lbac->h.affine_mrg_idx, bs);
 }
 
 void lbac_enc_smvd_flag(lbac_t *lbac, bs_t *bs, int flag)
@@ -1512,14 +1512,14 @@ void lbac_enc_umve_idx(lbac_t *lbac, bs_t *bs, int umve_idx)
     } else {
         lbac_encode_bin(0, lbac, lbac->h.umve_step_idx, bs);
         for (idx = 1; idx < UMVE_REFINE_STEP - 1; idx++) {
-            sbac_encode_bin_ep(ref_step == idx ? 1 : 0, lbac, bs);
+            lbac_encode_bin_ep(ref_step == idx ? 1 : 0, lbac, bs);
 
             if (ref_step == idx) {
                 break;
             }
         }
     }
-    sbac_encode_bins_msb(direction, 2, lbac, lbac->h.umve_dir_idx, bs);
+    lbac_encode_bins_msb(direction, 2, lbac, lbac->h.umve_dir_idx, bs);
 }
 
 void lbac_enc_skip_idx(lbac_t *lbac, bs_t *bs, com_pic_header_t *pichdr, int skip_idx, int num_hmvp_cands)
@@ -1530,7 +1530,7 @@ void lbac_enc_skip_idx(lbac_t *lbac, bs_t *bs, com_pic_header_t *pichdr, int ski
     if (pichdr->slice_type == SLICE_P && skip_idx > 0) { // for P slice, change 3, 4, ..., 13 to 1, 2, ..., 11
         skip_idx -= 2;
     }
-    sbac_write_truncate_unary_sym(skip_idx, LBAC_CTX_SKIP_IDX, max_skip_num, lbac, lbac->h.skip_idx_ctx, bs);
+    lbac_write_truncate_unary_sym(skip_idx, LBAC_CTX_SKIP_IDX, max_skip_num, lbac, lbac->h.skip_idx_ctx, bs);
 }
 
 void lbac_enc_direct_flag(lbac_t *lbac, bs_t *bs, core_t *core, int direct_flag)
@@ -1552,17 +1552,17 @@ static int lbac_enc_run(u32 sym, lbac_t *lbac, lbac_ctx_model_t *model, bs_t *bs
     int exp_golomb_order = 0;
 
     if (sym < 16) {
-        sbac_write_truncate_unary_sym(sym, 2, 17, lbac, model, bs);
+        lbac_write_truncate_unary_sym(sym, 2, 17, lbac, model, bs);
     } else {
         sym -= 16;
-        sbac_write_truncate_unary_sym(16, 2, 17, lbac, model, bs);
+        lbac_write_truncate_unary_sym(16, 2, 17, lbac, model, bs);
 
         while ((int)sym >= (1 << exp_golomb_order)) {
             sym = sym - (1 << exp_golomb_order);
             exp_golomb_order++;
         }
-        sbac_write_unary_sym_ep(exp_golomb_order, lbac, bs);
-        sbac_encode_bins_ep_msb(sym, exp_golomb_order, lbac, bs);
+        lbac_write_unary_sym_ep(exp_golomb_order, lbac, bs);
+        lbac_encode_bins_ep_msb(sym, exp_golomb_order, lbac, bs);
     }
     return COM_OK;
 }
@@ -1591,30 +1591,30 @@ static int lbac_enc_level(u32 sym, lbac_t *lbac, lbac_ctx_model_t *model, bs_t *
     int exp_golomb_order = 0;
 
     if (sym < 8) {
-        sbac_write_truncate_unary_sym(sym, 2, 9, lbac, model, bs);
+        lbac_write_truncate_unary_sym(sym, 2, 9, lbac, model, bs);
     } else {
         sym -= 8;
-        sbac_write_truncate_unary_sym(8, 2, 9, lbac, model, bs);
+        lbac_write_truncate_unary_sym(8, 2, 9, lbac, model, bs);
 
         while ((int)sym >= (1 << exp_golomb_order)) {
             sym = sym - (1 << exp_golomb_order);
             exp_golomb_order++;
         }
-        sbac_write_unary_sym_ep(exp_golomb_order, lbac, bs);
-        sbac_encode_bins_ep_msb(sym, exp_golomb_order, lbac, bs);
+        lbac_write_unary_sym_ep(exp_golomb_order, lbac, bs);
+        lbac_encode_bins_ep_msb(sym, exp_golomb_order, lbac, bs);
     }
     return COM_OK;
 }
 
 void lbac_enc_run_length_cc(lbac_t *lbac, bs_t *bs, s16 *coef, int log2_w, int log2_h, int num_sig, int ch_type)
 {
-    com_lbac_all_ctx_t *sbac_ctx = &lbac->h;
+    com_lbac_all_ctx_t *lbac_ctx = &lbac->h;
     const u16 *scanp = com_tbl_scan[log2_w - 1][log2_h - 1];
-    lbac_ctx_model_t *ctx_last1    = sbac_ctx->last1    + (ch_type == Y_C ? 0 : LBAC_CTX_LAST1);
-    lbac_ctx_model_t *ctx_last2    = sbac_ctx->last2    + (ch_type == Y_C ? 0 : LBAC_CTX_LAST2);
-    lbac_ctx_model_t *ctx_run      = sbac_ctx->run      + (ch_type == Y_C ? 0 : 12);
-    lbac_ctx_model_t *ctx_run_rdoq = sbac_ctx->run_rdoq + (ch_type == Y_C ? 0 : 12);
-    lbac_ctx_model_t *ctx_level    = sbac_ctx->level    + (ch_type == Y_C ? 0 : 12);
+    lbac_ctx_model_t *ctx_last1    = lbac_ctx->last1    + (ch_type == Y_C ? 0 : LBAC_CTX_LAST1);
+    lbac_ctx_model_t *ctx_last2    = lbac_ctx->last2    + (ch_type == Y_C ? 0 : LBAC_CTX_LAST2);
+    lbac_ctx_model_t *ctx_run      = lbac_ctx->run      + (ch_type == Y_C ? 0 : 12);
+    lbac_ctx_model_t *ctx_run_rdoq = lbac_ctx->run_rdoq + (ch_type == Y_C ? 0 : 12);
+    lbac_ctx_model_t *ctx_level    = lbac_ctx->level    + (ch_type == Y_C ? 0 : 12);
     u32 num_coeff = 1 << (log2_w + log2_h);
     u32 run = 0;
     u32 prev_level = 6;
@@ -1634,7 +1634,7 @@ void lbac_enc_run_length_cc(lbac_t *lbac, bs_t *bs, s16 *coef, int log2_w, int l
             lbac_enc_level(level - 1, lbac, &ctx_level[t0], bs);
 
             /* Sign coding */
-            sbac_encode_bin_ep(coef_cur <= 0, lbac, bs);
+            lbac_encode_bin_ep(coef_cur <= 0, lbac, bs);
             if (scan_pos == num_coeff - 1) {
                 assert(num_sig == 1);
                 break;
@@ -1657,12 +1657,12 @@ void lbac_enc_run_length_cc(lbac_t *lbac, bs_t *bs, s16 *coef, int log2_w, int l
 
 void lbac_enc_run_length_cc_rdo(lbac_t *lbac, s16 *coef, int log2_w, int log2_h, int num_sig, int ch_type)
 {
-    com_lbac_all_ctx_t *sbac_ctx = &lbac->h;
-    lbac_ctx_model_t *ctx_last1    = sbac_ctx->last1    + (ch_type == Y_C ? 0 : LBAC_CTX_LAST1);
-    lbac_ctx_model_t *ctx_last2    = sbac_ctx->last2    + (ch_type == Y_C ? 0 : LBAC_CTX_LAST2);
-    lbac_ctx_model_t *ctx_run      = sbac_ctx->run      + (ch_type == Y_C ? 0 : 12);
-    lbac_ctx_model_t *ctx_run_rdoq = sbac_ctx->run_rdoq + (ch_type == Y_C ? 0 : 12);
-    lbac_ctx_model_t *ctx_level    = sbac_ctx->level    + (ch_type == Y_C ? 0 : 12);
+    com_lbac_all_ctx_t *lbac_ctx = &lbac->h;
+    lbac_ctx_model_t *ctx_last1    = lbac_ctx->last1    + (ch_type == Y_C ? 0 : LBAC_CTX_LAST1);
+    lbac_ctx_model_t *ctx_last2    = lbac_ctx->last2    + (ch_type == Y_C ? 0 : LBAC_CTX_LAST2);
+    lbac_ctx_model_t *ctx_run      = lbac_ctx->run      + (ch_type == Y_C ? 0 : 12);
+    lbac_ctx_model_t *ctx_run_rdoq = lbac_ctx->run_rdoq + (ch_type == Y_C ? 0 : 12);
+    lbac_ctx_model_t *ctx_level    = lbac_ctx->level    + (ch_type == Y_C ? 0 : 12);
     u32 num_coeff = 1 << (log2_w + log2_h);
     u32 run = 0;
     u32 t0 = 10;
@@ -1934,18 +1934,18 @@ void lbac_enc_xcoef(lbac_t *lbac, bs_t *bs, s16 *coef, int log2_w, int log2_h, i
 
 int lbac_enc_cbf_uv(lbac_t *lbac, bs_t *bs, int num_nz[MAX_NUM_TB][N_C])
 {
-    com_lbac_all_ctx_t *sbac_ctx = &lbac->h;
+    com_lbac_all_ctx_t *lbac_ctx = &lbac->h;
     assert(num_nz[TBUV0][Y_C] == 0);
 
-    lbac_encode_bin(!!num_nz[TBUV0][U_C], lbac, sbac_ctx->cbf + 1, bs);
-    lbac_encode_bin(!!num_nz[TBUV0][V_C], lbac, sbac_ctx->cbf + 2, bs);
+    lbac_encode_bin(!!num_nz[TBUV0][U_C], lbac, lbac_ctx->cbf + 1, bs);
+    lbac_encode_bin(!!num_nz[TBUV0][V_C], lbac, lbac_ctx->cbf + 2, bs);
 
     return COM_OK;
 }
 
 int lbac_enc_cbf(lbac_t *lbac, bs_t *bs, core_t *core, int tb_avaliable, int pb_part_size, int tb_part_size, int num_nz[MAX_NUM_TB][N_C], u8 pred_mode, s8 ipm[MAX_NUM_PB][2], u8 tree_status)
 {
-    com_lbac_all_ctx_t *sbac_ctx = &lbac->h;
+    com_lbac_all_ctx_t *lbac_ctx = &lbac->h;
     int ctp_zero_flag = !is_cu_nz(num_nz);
 
     /* code allcbf */
@@ -1955,10 +1955,10 @@ int lbac_enc_cbf(lbac_t *lbac, bs_t *bs, core_t *core, int tb_avaliable, int pb_
         } else {
             if (tree_status == TREE_LC) {
                 if (core->cu_width_log2 > 6 || core->cu_height_log2 > 6) {
-                    lbac_encode_bin(1, lbac, sbac_ctx->ctp_zero_flag + 1, bs);
+                    lbac_encode_bin(1, lbac, lbac_ctx->ctp_zero_flag + 1, bs);
                     assert(ctp_zero_flag == 1);
                 } else {
-                    lbac_encode_bin(ctp_zero_flag, lbac, sbac_ctx->ctp_zero_flag, bs);
+                    lbac_encode_bin(ctp_zero_flag, lbac, lbac_ctx->ctp_zero_flag, bs);
                 }
                 if (ctp_zero_flag) {
                     for (int i = 0; i < MAX_NUM_TB; i++) {
@@ -1970,13 +1970,13 @@ int lbac_enc_cbf(lbac_t *lbac, bs_t *bs, core_t *core, int tb_avaliable, int pb_
             }
         }
         if (tb_avaliable) {
-            lbac_encode_bin(tb_part_size != SIZE_2Nx2N, lbac, sbac_ctx->tb_split, bs);
+            lbac_encode_bin(tb_part_size != SIZE_2Nx2N, lbac, lbac_ctx->tb_split, bs);
         } else {
             assert(tb_part_size == SIZE_2Nx2N);
         }
         if (tree_status == TREE_LC) {
-            lbac_encode_bin(!!num_nz[TBUV0][U_C], lbac, sbac_ctx->cbf + 1, bs);
-            lbac_encode_bin(!!num_nz[TBUV0][V_C], lbac, sbac_ctx->cbf + 2, bs);
+            lbac_encode_bin(!!num_nz[TBUV0][U_C], lbac, lbac_ctx->cbf + 1, bs);
+            lbac_encode_bin(!!num_nz[TBUV0][V_C], lbac, lbac_ctx->cbf + 2, bs);
         } else {
             assert(tree_status == TREE_L);
         }
@@ -1985,7 +1985,7 @@ int lbac_enc_cbf(lbac_t *lbac, bs_t *bs, core_t *core, int tb_avaliable, int pb_
         } else {
             int i, part_num = get_part_num(tb_part_size);
             for (i = 0; i < part_num; i++) {
-                lbac_encode_bin(!!num_nz[i][Y_C], lbac, sbac_ctx->cbf, bs);
+                lbac_encode_bin(!!num_nz[i][Y_C], lbac, lbac_ctx->cbf, bs);
             }
         }
     } else {
@@ -1994,13 +1994,13 @@ int lbac_enc_cbf(lbac_t *lbac, bs_t *bs, core_t *core, int tb_avaliable, int pb_
             assert(tb_part_size == get_tb_part_size_by_pb(pb_part_size, pred_mode));
 
             for (i = 0; i < part_num; i++) {
-                lbac_encode_bin(!!num_nz[i][Y_C], lbac, sbac_ctx->cbf, bs);
+                lbac_encode_bin(!!num_nz[i][Y_C], lbac, lbac_ctx->cbf, bs);
             }
         }
         if (tree_status == TREE_LC) {
             if (!(ipm[PB0][0] == IPD_IPCM && ipm[PB0][1] == IPD_DM_C)) {
-                lbac_encode_bin(!!num_nz[TBUV0][U_C], lbac, sbac_ctx->cbf + 1, bs);
-                lbac_encode_bin(!!num_nz[TBUV0][V_C], lbac, sbac_ctx->cbf + 2, bs);
+                lbac_encode_bin(!!num_nz[TBUV0][U_C], lbac, lbac_ctx->cbf + 1, bs);
+                lbac_encode_bin(!!num_nz[TBUV0][V_C], lbac, lbac_ctx->cbf + 2, bs);
             }
         } else {
             assert(tree_status == TREE_L);
@@ -2094,7 +2094,7 @@ int lbac_enc_intra_dir(lbac_t *lbac, bs_t *bs, u8 ipm, u8 mpm[2])
         lbac_encode_bin(ipm_code + 2, lbac, lbac->h.intra_dir + 6, bs);
     } else {
         lbac_encode_bin(0, lbac, lbac->h.intra_dir, bs);
-        sbac_encode_bins_msb(ipm_code, 5, lbac, lbac->h.intra_dir + 1, bs);
+        lbac_encode_bins_msb(ipm_code, 5, lbac, lbac->h.intra_dir + 1, bs);
     }
     return COM_OK;
 }
@@ -2115,7 +2115,7 @@ int lbac_enc_intra_dir_c(lbac_t *lbac, bs_t *bs, u8 ipm, u8 ipm_l, u8 tscpm_enab
             }
         }
         u8 symbol = (chk_bypass && ipm > ipm_l) ? ipm - 2 : ipm - 1;
-        sbac_write_truncate_unary_sym(symbol, 1, IPD_CHROMA_CNT - 1, lbac, lbac->h.intra_dir + 8, bs);
+        lbac_write_truncate_unary_sym(symbol, 1, IPD_CHROMA_CNT - 1, lbac, lbac->h.intra_dir + 8, bs);
     }
     return COM_OK;
 }
@@ -2152,7 +2152,7 @@ void lbac_enc_inter_dir(lbac_t *lbac, bs_t *bs, core_t *core, s8 refi[REFP_NUM],
 int lbac_enc_refi(lbac_t *lbac, bs_t *bs, int num_refp, int refi)
 {
     if (num_refp > 1) {
-        sbac_write_truncate_unary_sym(refi, 3, num_refp, lbac, lbac->h.refi, bs);
+        lbac_write_truncate_unary_sym(refi, 3, num_refp, lbac, lbac->h.refi, bs);
     }
     return COM_OK;
 }
@@ -2160,9 +2160,9 @@ int lbac_enc_refi(lbac_t *lbac, bs_t *bs, int num_refp, int refi)
 int lbac_enc_mvr_idx(lbac_t *lbac, bs_t *bs, u8 mvr_idx, BOOL is_affine_mode)
 {
     if (is_affine_mode) {
-        sbac_write_truncate_unary_sym(mvr_idx, LBAC_CTX_AFFINE_MVR_IDX, MAX_NUM_AFFINE_MVR, lbac, lbac->h.affine_mvr_idx, bs);
+        lbac_write_truncate_unary_sym(mvr_idx, LBAC_CTX_AFFINE_MVR_IDX, MAX_NUM_AFFINE_MVR, lbac, lbac->h.affine_mvr_idx, bs);
     } else {
-        sbac_write_truncate_unary_sym(mvr_idx, LBAC_CTX_MVR_IDX, MAX_NUM_MVR, lbac, lbac->h.mvr_idx, bs);
+        lbac_write_truncate_unary_sym(mvr_idx, LBAC_CTX_MVR_IDX, MAX_NUM_MVR, lbac, lbac->h.mvr_idx, bs);
     }
     return COM_OK;
 }
@@ -2202,15 +2202,15 @@ static int lbac_enc_abs_mvd(u32 sym, lbac_t *lbac, lbac_ctx_model_t *model, bs_t
         lbac_encode_bin(1, lbac, model + 1, bs);
         lbac_encode_bin(1, lbac, model + 2, bs);
 
-        sbac_encode_bin_ep(offset, lbac, bs);
+        lbac_encode_bin_ep(offset, lbac, bs);
         sym = (sym - offset) >> 1;
 
         while ((int)sym >= (1 << exp_golomb_order)) {
             sym = sym - (1 << exp_golomb_order);
             exp_golomb_order++;
         }
-        sbac_write_unary_sym_ep(exp_golomb_order, lbac, bs);
-        sbac_encode_bins_ep_msb(sym, exp_golomb_order, lbac, bs);
+        lbac_write_unary_sym_ep(exp_golomb_order, lbac, bs);
+        lbac_encode_bins_ep_msb(sym, exp_golomb_order, lbac, bs);
     }
 
     return COM_OK;
@@ -2218,25 +2218,25 @@ static int lbac_enc_abs_mvd(u32 sym, lbac_t *lbac, lbac_ctx_model_t *model, bs_t
 
 int lbac_enc_mvd(lbac_t *lbac, bs_t *bs, s16 mvd[MV_D])
 {
-    com_lbac_all_ctx_t *sbac_ctx = &lbac->h;
+    com_lbac_all_ctx_t *lbac_ctx = &lbac->h;
 
     if (mvd[MV_X] == 0) {
-        lbac_enc_abs_mvd(0, lbac, sbac_ctx->mvd[0], bs);
+        lbac_enc_abs_mvd(0, lbac, lbac_ctx->mvd[0], bs);
     } else if (mvd[MV_X] < 0) {
-        lbac_enc_abs_mvd(-mvd[MV_X], lbac, sbac_ctx->mvd[0], bs);
-        sbac_encode_bin_ep(1, lbac, bs);
+        lbac_enc_abs_mvd(-mvd[MV_X], lbac, lbac_ctx->mvd[0], bs);
+        lbac_encode_bin_ep(1, lbac, bs);
     } else {
-        lbac_enc_abs_mvd(mvd[MV_X], lbac, sbac_ctx->mvd[0], bs);
-        sbac_encode_bin_ep(0, lbac, bs);
+        lbac_enc_abs_mvd(mvd[MV_X], lbac, lbac_ctx->mvd[0], bs);
+        lbac_encode_bin_ep(0, lbac, bs);
     }
     if (mvd[MV_Y] == 0) {
-        lbac_enc_abs_mvd(0, lbac, sbac_ctx->mvd[1], bs);
+        lbac_enc_abs_mvd(0, lbac, lbac_ctx->mvd[1], bs);
     } else if (mvd[MV_Y] < 0) {
-        lbac_enc_abs_mvd(-mvd[MV_Y], lbac, sbac_ctx->mvd[1], bs);
-        sbac_encode_bin_ep(1, lbac, bs);
+        lbac_enc_abs_mvd(-mvd[MV_Y], lbac, lbac_ctx->mvd[1], bs);
+        lbac_encode_bin_ep(1, lbac, bs);
     } else {
-        lbac_enc_abs_mvd(mvd[MV_Y], lbac, sbac_ctx->mvd[1], bs);
-        sbac_encode_bin_ep(0, lbac, bs);
+        lbac_enc_abs_mvd(mvd[MV_Y], lbac, lbac_ctx->mvd[1], bs);
+        lbac_encode_bin_ep(0, lbac, bs);
     }
     return COM_OK;
 }
@@ -2704,10 +2704,10 @@ void lbac_enc_sao_mode(lbac_t *lbac, bs_t *bs, com_sao_param_t *saoBlkParam)
         lbac_encode_bin(1, lbac, lbac->h.sao_mode, bs);
     } else if (saoBlkParam->typeIdc == SAO_TYPE_BO) {
         lbac_encode_bin(0, lbac, lbac->h.sao_mode, bs);
-        sbac_encode_bin_ep(1, lbac, bs);
+        lbac_encode_bin_ep(1, lbac, bs);
     } else {
         lbac_encode_bin(0, lbac, lbac->h.sao_mode, bs);
-        sbac_encode_bin_ep(0, lbac, bs);
+        lbac_encode_bin_ep(0, lbac, bs);
     }
     
 }
@@ -2727,7 +2727,7 @@ static void sao_one_offset(int value1, int offset_type, lbac_t *lbac, bs_t *bs)
         if (offset_type == SAO_CLASS_BO) {
             lbac_encode_bin(1, lbac, lbac->h.sao_offset, bs);
         } else {
-            sbac_encode_bin_ep(1, lbac, bs);
+            lbac_encode_bin_ep(1, lbac, bs);
         }
     } else {
         int temp = act_sym;
@@ -2736,15 +2736,15 @@ static void sao_one_offset(int value1, int offset_type, lbac_t *lbac, bs_t *bs)
             if (offset_type == SAO_CLASS_BO && temp == act_sym) {
                 lbac_encode_bin(0, lbac, lbac->h.sao_offset, bs);
             } else {
-                sbac_encode_bin_ep(0, lbac, bs);
+                lbac_encode_bin_ep(0, lbac, bs);
             }
             temp--;
         }
         if (act_sym < tbl_sao_bound_clip[offset_type][2]) {
-            sbac_encode_bin_ep(1, lbac, bs);
+            lbac_encode_bin_ep(1, lbac, bs);
         }
         if (offset_type == SAO_CLASS_BO) {
-            sbac_encode_bin_ep(value1 < 0, lbac, bs);
+            lbac_encode_bin_ep(value1 < 0, lbac, bs);
         }
     }
 }
@@ -2774,17 +2774,17 @@ static void sao_band_and_type(int value1, int value2, lbac_t *lbac, bs_t *bs)
 
         while (1) {
             if ((unsigned int)temp >= (unsigned int)(1 << exp_golomb_order)) {
-                sbac_encode_bin_ep(0, lbac, bs);
+                lbac_encode_bin_ep(0, lbac, bs);
                 temp = temp - (1 << exp_golomb_order);
                 exp_golomb_order++;
             } else {
                 if (exp_golomb_order == 4) {
                     exp_golomb_order = 0;
                 } else {
-                    sbac_encode_bin_ep(1, lbac, bs);
+                    lbac_encode_bin_ep(1, lbac, bs);
                 }
                 while (exp_golomb_order--) {   //next binary part
-                    sbac_encode_bin_ep((unsigned char)((temp >> exp_golomb_order) & 1), lbac, bs);
+                    lbac_encode_bin_ep((unsigned char)((temp >> exp_golomb_order) & 1), lbac, bs);
                 }
                 break;
             }
@@ -2793,7 +2793,7 @@ static void sao_band_and_type(int value1, int value2, lbac_t *lbac, bs_t *bs)
         int length = value2 ? NUM_SAO_BO_CLASSES_LOG2 : NUM_SAO_EO_TYPES_LOG2;
 
         for (int i = 0; i < length; i++) {
-            sbac_encode_bin_ep(value1 & 1, lbac, bs);
+            lbac_encode_bin_ep(value1 & 1, lbac, bs);
             value1 >>= 1;
         }
     }
@@ -2870,7 +2870,7 @@ void lbac_enc_alf_flag(lbac_t *lbac, bs_t *bs, int iflag)
 
 void lbac_enc_lcu_delta_qp(lbac_t *lbac, bs_t *bs, int val, int last_dqp)
 {
-    com_lbac_all_ctx_t *sbac_ctx = &lbac->h;
+    com_lbac_all_ctx_t *lbac_ctx = &lbac->h;
     int act_sym;
     int act_ctx = ((last_dqp != 0) ? 1 : 0);
 
@@ -2881,20 +2881,20 @@ void lbac_enc_lcu_delta_qp(lbac_t *lbac, bs_t *bs, int val, int last_dqp)
     }
 
     if (act_sym == 0) {
-        lbac_encode_bin(1, lbac, sbac_ctx->lcu_qp_delta + act_ctx, bs);
+        lbac_encode_bin(1, lbac, lbac_ctx->lcu_qp_delta + act_ctx, bs);
     } else {
-        lbac_encode_bin(0, lbac, sbac_ctx->lcu_qp_delta + act_ctx, bs);
+        lbac_encode_bin(0, lbac, lbac_ctx->lcu_qp_delta + act_ctx, bs);
         act_ctx = 2;
         if (act_sym == 1) {
-            lbac_encode_bin(1, lbac, sbac_ctx->lcu_qp_delta + act_ctx, bs);
+            lbac_encode_bin(1, lbac, lbac_ctx->lcu_qp_delta + act_ctx, bs);
         } else {
-            lbac_encode_bin(0, lbac, sbac_ctx->lcu_qp_delta + act_ctx, bs);
+            lbac_encode_bin(0, lbac, lbac_ctx->lcu_qp_delta + act_ctx, bs);
             act_ctx++;
             while (act_sym > 2) {
-                lbac_encode_bin(0, lbac, sbac_ctx->lcu_qp_delta + act_ctx, bs);
+                lbac_encode_bin(0, lbac, lbac_ctx->lcu_qp_delta + act_ctx, bs);
                 act_sym--;
             }
-            lbac_encode_bin(1, lbac, sbac_ctx->lcu_qp_delta + act_ctx, bs);
+            lbac_encode_bin(1, lbac, lbac_ctx->lcu_qp_delta + act_ctx, bs);
         }
     }
 }

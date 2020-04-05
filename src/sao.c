@@ -39,8 +39,8 @@ static double sao_rdcost_merge(core_t *core, const lbac_t *lbac, int lcu_pos, in
 
     for (mergeIdx = 0; mergeIdx < NUM_SAO_MERGE_TYPES; mergeIdx++) {
         if (merge_avail[mergeIdx]) {
-            lbac_t sao_sbac_tmp;
-            lbac_copy(&sao_sbac_tmp, lbac);
+            lbac_t sao_lbac_tmp;
+            lbac_copy(&sao_lbac_tmp, lbac);
 
             curdist = 0;
             copySAOParam_for_blk(temp_sao_param, merge_candidate[mergeIdx]);
@@ -53,9 +53,9 @@ static double sao_rdcost_merge(core_t *core, const lbac_t *lbac, int lcu_pos, in
                 }
             }
 
-            currate = lbac_get_bits(&sao_sbac_tmp);
-            lbac_enc_sao_mrg_flag(&sao_sbac_tmp, NULL, *MergeLeftAvail, *MergeUpAvail, temp_sao_param);
-            currate = lbac_get_bits(&sao_sbac_tmp) - currate;
+            currate = lbac_get_bits(&sao_lbac_tmp);
+            lbac_enc_sao_mrg_flag(&sao_lbac_tmp, NULL, *MergeLeftAvail, *MergeUpAvail, temp_sao_param);
+            currate = lbac_get_bits(&sao_lbac_tmp) - currate;
             curcost = currate + curdist;
 
             if (curcost < mincost) {
@@ -262,8 +262,8 @@ static double sao_rdcost_new(core_t *core, lbac_t *sao_sbac, int MergeLeftAvail,
         mergeflag_rate = lbac_get_bits(sao_sbac) - mergeflag_rate;
     }
     for (compIdx = Y_C; compIdx < N_C; compIdx++) {
-        lbac_t sao_sbac_backup;
-        lbac_copy(&sao_sbac_backup, sao_sbac);
+        lbac_t sao_lbac_backup;
+        lbac_copy(&sao_lbac_backup, sao_sbac);
         minrate[compIdx] = lbac_get_bits(sao_sbac);
         sao_cur_param[compIdx].modeIdc = SAO_MODE_NEW;
         sao_cur_param[compIdx].typeIdc = -1;
@@ -274,24 +274,24 @@ static double sao_rdcost_new(core_t *core, lbac_t *sao_sbac, int MergeLeftAvail,
 
         if (pathdr->slice_sao_enable[compIdx]) {
             for (type = 0; type < NUM_SAO_NEW_TYPES; type++) {
-                lbac_t sao_sbac_tmp;
-                lbac_copy(&sao_sbac_tmp, &sao_sbac_backup);
+                lbac_t sao_lbac_tmp;
+                lbac_copy(&sao_lbac_tmp, &sao_lbac_backup);
                 temp_sao_param[compIdx].modeIdc = SAO_MODE_NEW;
                 temp_sao_param[compIdx].typeIdc = type;
                 sao_find_offset(compIdx, type, saostatData, temp_sao_param, sao_lambda[compIdx]);
                 curdist[compIdx] = get_distortion(compIdx, type, saostatData, temp_sao_param);
-                currate[compIdx] = lbac_get_bits(&sao_sbac_tmp);
-                lbac_enc_sao_mode(&sao_sbac_tmp, NULL, &(temp_sao_param[compIdx]));
-                lbac_enc_sao_offset(&sao_sbac_tmp, NULL, &(temp_sao_param[compIdx]));
-                lbac_enc_sao_type(&sao_sbac_tmp, NULL, &(temp_sao_param[compIdx]));
-                currate[compIdx] = lbac_get_bits(&sao_sbac_tmp) - currate[compIdx];
+                currate[compIdx] = lbac_get_bits(&sao_lbac_tmp);
+                lbac_enc_sao_mode(&sao_lbac_tmp, NULL, &(temp_sao_param[compIdx]));
+                lbac_enc_sao_offset(&sao_lbac_tmp, NULL, &(temp_sao_param[compIdx]));
+                lbac_enc_sao_type(&sao_lbac_tmp, NULL, &(temp_sao_param[compIdx]));
+                currate[compIdx] = lbac_get_bits(&sao_lbac_tmp) - currate[compIdx];
                 curcost = (double)(curdist[compIdx]) + RATE_TO_COST_LAMBDA(sao_lambda[compIdx], currate[compIdx]);
                 if (curcost < mincost) {
                     mincost = curcost;
                     minrate[compIdx] = currate[compIdx];
                     mindist[compIdx] = curdist[compIdx];
                     copySAOParam_for_blk_onecomponent(&sao_cur_param[compIdx], &temp_sao_param[compIdx]);
-                    lbac_copy(sao_sbac, &sao_sbac_tmp);
+                    lbac_copy(sao_sbac, &sao_lbac_tmp);
                 }
             }
         } else {
@@ -315,7 +315,7 @@ static void sao_get_lcu_param(core_t *core, const lbac_t *lbac, int lcu_pos, int
     int MergeUpAvail = 0;
     double mcost, mincost;
     com_sao_param_t sao_cur_param[N_C];
-    lbac_t sao_sbac_new;
+    lbac_t sao_lbac_new;
 
     if (!pathdr->slice_sao_enable[Y_C] && !pathdr->slice_sao_enable[U_C] && !pathdr->slice_sao_enable[V_C]) {
         off_sao(saoBlkParam);
@@ -326,9 +326,9 @@ static void sao_get_lcu_param(core_t *core, const lbac_t *lbac, int lcu_pos, int
 
     copySAOParam_for_blk(saoBlkParam, sao_cur_param);
 
-    lbac_copy(&sao_sbac_new, lbac);
+    lbac_copy(&sao_lbac_new, lbac);
 
-    mcost = sao_rdcost_new(core, &sao_sbac_new, MergeLeftAvail, MergeUpAvail, sao_labmda, saostatData, sao_cur_param);
+    mcost = sao_rdcost_new(core, &sao_lbac_new, MergeLeftAvail, MergeUpAvail, sao_labmda, saostatData, sao_cur_param);
 
     if (mcost < mincost) {
         mincost = mcost;

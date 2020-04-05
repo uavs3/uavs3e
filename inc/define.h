@@ -118,8 +118,8 @@ typedef struct uavs3e_lbac_t {
     u32            stacked_ff;
     u32            pending_byte;
     u32            is_pending_byte;
-    com_lbac_all_ctx_t   h;
     u32            bitcounter;
+    com_lbac_all_ctx_t   h;
 } lbac_t;
 
 
@@ -219,8 +219,8 @@ typedef struct uavs3e_enc_pic_param_t {
 
 typedef struct uavs3e_enc_lcu_row_t {
     int            lcu_y;
-    lbac_t     sbac_row;
-    lbac_t    *sbac_row_next;
+    lbac_t     lbac_row;
+    lbac_t    *lbac_row_next;
     uavs3e_sem_t   sem;
     uavs3e_sem_t  *sem_up;
     uavs3e_sem_t  *sem_curr;
@@ -300,10 +300,10 @@ typedef struct uavs3e_core_t {
     s16            coef[N_C][MAX_CU_DIM];
     s16            ctmp[N_C][MAX_CU_DIM];
 
-    lbac_t     sbac_rdo;
-    lbac_t     sbac_bakup; // h before mode decision
-    lbac_t     sbac_prev_intra_pu;
-    lbac_t     sbac_tree_c;
+    lbac_t     lbac_rdo;
+    lbac_t         lbac_bakup; // lbac ctx before mode decision
+    lbac_t         lbac_intra_prev_pu;
+    lbac_t         lbac_tree_c;
 
     s32            rdoq_bin_est_ctp[2];
     s32            rdoq_bin_est_cbf[LBAC_CTX_CBF][2];

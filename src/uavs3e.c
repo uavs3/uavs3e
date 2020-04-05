@@ -681,8 +681,8 @@ void *enc_lcu_row(core_t *core, enc_lcu_row_t *row)
     com_info_t *info = pic_ctx->info;
     com_pic_header_t *pichdr = pic_ctx->pichdr;
     u8 *map_qp = pic_ctx->map->map_qp + lcu_y * info->pic_width_in_lcu;
-    lbac_t *lbac = &row->sbac_row;
-    lbac_t *sbac_row_next = row->sbac_row_next;
+    lbac_t *lbac = &row->lbac_row;
+    lbac_t *lbac_row_next = row->lbac_row_next;
     uavs3e_sem_t *sem_up      = row->sem_up;
     uavs3e_sem_t *sem_curr    = row->sem_curr;
 
@@ -796,14 +796,14 @@ void *enc_lcu_row(core_t *core, enc_lcu_row_t *row)
 
 #define KEEP_CONST 0
 
-        if (sbac_row_next) {
+        if (lbac_row_next) {
             if (core->param->wpp_threads > 1 || KEEP_CONST) {
                 if (core->lcu_x == 1) {
-                    lbac_copy(sbac_row_next, lbac);
+                    lbac_copy(lbac_row_next, lbac);
                 }
             } else {
                 if (core->lcu_x == info->pic_width_in_lcu - 1) {
-                    lbac_copy(sbac_row_next, lbac);
+                    lbac_copy(lbac_row_next, lbac);
                 }
             }
         }
@@ -928,9 +928,9 @@ void *enc_pic_thread(enc_pic_t *ep, pic_thd_param_t *p)
 
     p->total_qp = 0;
 
-    lbac_t *sbac_fst_row = &ep->array_row[0].sbac_row;
-    lbac_reset(sbac_fst_row);
-    com_sbac_ctx_init(&sbac_fst_row->h);
+    lbac_t *lbac_fst_row = &ep->array_row[0].lbac_row;
+    lbac_reset(lbac_fst_row);
+    com_lbac_ctx_init(&lbac_fst_row->h);
 
     if (info->wpp_threads == 1) {
         for (int lcu_y = 0; lcu_y < info->pic_height_in_lcu; lcu_y++) {
@@ -939,7 +939,7 @@ void *enc_pic_thread(enc_pic_t *ep, pic_thd_param_t *p)
             row->lcu_y         = lcu_y;
             row->sem_up        = NULL;
             row->sem_curr      = NULL;
-            row->sbac_row_next = (lcu_y == info->pic_height_in_lcu - 1) ? NULL : &ep->array_row[lcu_y + 1].sbac_row;
+            row->lbac_row_next = (lcu_y == info->pic_height_in_lcu - 1) ? NULL : &ep->array_row[lcu_y + 1].lbac_row;
             enc_lcu_row(ep->main_core, row);
             p->total_qp += row->total_qp;
         }
@@ -955,7 +955,7 @@ void *enc_pic_thread(enc_pic_t *ep, pic_thd_param_t *p)
             row->lcu_y         = lcu_y;
             row->sem_up        = lcu_y ? &ep->array_row[lcu_y - 1].sem : NULL;
             row->sem_curr      = (lcu_y == info->pic_height_in_lcu - 1) ? NULL : &row->sem;
-            row->sbac_row_next = (lcu_y == info->pic_height_in_lcu - 1) ? NULL : &ep->array_row[lcu_y + 1].sbac_row;
+            row->lbac_row_next = (lcu_y == info->pic_height_in_lcu - 1) ? NULL : &ep->array_row[lcu_y + 1].lbac_row;
             uavs3e_threadpool_run(ep->wpp_threads_pool, (void*(*)(void *, void*))enc_lcu_row, row, 1);
         }
         for (int lcu_y = 0; lcu_y < info->pic_height_in_lcu; lcu_y++) {
@@ -1042,10 +1042,10 @@ void *enc_pic_thread(enc_pic_t *ep, pic_thd_param_t *p)
     }
 
     int lcu_pos = 0;
-    lbac_t sbac_enc;
-    lbac_t *lbac = &sbac_enc;
+    lbac_t lbac_enc;
+    lbac_t *lbac = &lbac_enc;
     lbac_reset(lbac);
-    com_sbac_ctx_init(&lbac->h);
+    com_lbac_ctx_init(&lbac->h);
 
     /* Encode slice data */
     int last_lcu_qp = pathdr.slice_qp;

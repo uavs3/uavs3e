@@ -1425,10 +1425,6 @@ void com_check_split_mode(com_seqh_t *sqh, int *split_allow, int cu_width_log2, 
 
 void com_set_affine_mvf(int scup, int log2_cuw, int log2_cuh, int i_scu, com_mode_t *cur_info, com_map_t *pic_map, com_pic_header_t *sh)
 {
-    int   cu_w_in_scu, cu_h_in_scu;
-    int   sub_w_in_scu, sub_h_in_scu;
-    int   w_sch, h_sch, x, y;
-    int   lidx;
     int   cp_num = cur_info->affine_flag + 1;
     int   aff_scup[VER_NUM];
     int   sub_w = 4;
@@ -1443,53 +1439,51 @@ void com_set_affine_mvf(int scup, int log2_cuw, int log2_cuh, int i_scu, com_mod
         sub_h = 8;
     }
 
-    int   half_w = sub_w >> 1;
-    int   half_h = sub_h >> 1;
-    int   addr_in_scu;
+    int half_w = sub_w >> 1;
+    int half_h = sub_h >> 1;
+    int cu_w_in_scu = (1 << log2_cuw) >> MIN_CU_LOG2;
+    int cu_h_in_scu = (1 << log2_cuh) >> MIN_CU_LOG2;
+    int sub_w_in_scu = sub_w >> MIN_CU_LOG2;
+    int sub_h_in_scu = sub_h >> MIN_CU_LOG2;
 
-    cu_w_in_scu = (1 << log2_cuw) >> MIN_CU_LOG2;
-    cu_h_in_scu = (1 << log2_cuh) >> MIN_CU_LOG2;
-    sub_w_in_scu = sub_w >> MIN_CU_LOG2;
-    sub_h_in_scu = sub_h >> MIN_CU_LOG2;
+    s8(*map_refi)[REFP_NUM] = pic_map->map_refi + scup;
 
-    addr_in_scu = scup;
-    for (h_sch = 0; h_sch < cu_h_in_scu; h_sch++) {
-        for (w_sch = 0; w_sch < cu_w_in_scu; w_sch++) {
-            pic_map->map_refi[addr_in_scu + w_sch][REFP_0] = cur_info->refi[REFP_0];
-            pic_map->map_refi[addr_in_scu + w_sch][REFP_1] = cur_info->refi[REFP_1];
-            pic_map->map_mv[addr_in_scu + w_sch][REFP_0][MV_X] = 0;
-            pic_map->map_mv[addr_in_scu + w_sch][REFP_0][MV_Y] = 0;
-            pic_map->map_mv[addr_in_scu + w_sch][REFP_1][MV_X] = 0;
-            pic_map->map_mv[addr_in_scu + w_sch][REFP_1][MV_Y] = 0;
+    for (int h_sch = 0; h_sch < cu_h_in_scu; h_sch++) {
+        for (int w_sch = 0; w_sch < cu_w_in_scu; w_sch++) {
+            CP16(map_refi + w_sch, cur_info->refi);
         }
-        addr_in_scu += i_scu;
+        map_refi += i_scu;
     }
 
     aff_scup[0] = 0;
     aff_scup[1] = (cu_w_in_scu - 1);
     aff_scup[2] = (cu_h_in_scu - 1) * i_scu;
     aff_scup[3] = (cu_w_in_scu - 1) + (cu_h_in_scu - 1) * i_scu;
-    for (lidx = 0; lidx < REFP_NUM; lidx++) {
+
+    for (int lidx = 0; lidx < REFP_NUM; lidx++) {
         if (cur_info->refi[lidx] >= 0) {
             CPMV(*ac_mv)[MV_D] = cur_info->affine_mv[lidx];
-            s32 dmv_hor_x, dmv_ver_x, dmv_hor_y, dmv_ver_y;
+            s32 dmv_ver_x, dmv_ver_y;
             s32 mv_scale_hor = (s32)ac_mv[0][MV_X] << 7;
             s32 mv_scale_ver = (s32)ac_mv[0][MV_Y] << 7;
             s32 mv_scale_tmp_hor, mv_scale_tmp_ver;
 
             // convert to 2^(storeBit + iBit) precision
-            dmv_hor_x = (((s32)ac_mv[1][MV_X] - (s32)ac_mv[0][MV_X]) << 7) >> log2_cuw;     // deltaMvHor
-            dmv_hor_y = (((s32)ac_mv[1][MV_Y] - (s32)ac_mv[0][MV_Y]) << 7) >> log2_cuw;
+            s32 dmv_hor_x = (((s32)ac_mv[1][MV_X] - (s32)ac_mv[0][MV_X]) << 7) >> log2_cuw;
+            s32 dmv_hor_y = (((s32)ac_mv[1][MV_Y] - (s32)ac_mv[0][MV_Y]) << 7) >> log2_cuw;
+
             if (cp_num == 3) {
-                dmv_ver_x = (((s32)ac_mv[2][MV_X] - (s32)ac_mv[0][MV_X]) << 7) >> log2_cuh; // deltaMvVer
+                dmv_ver_x = (((s32)ac_mv[2][MV_X] - (s32)ac_mv[0][MV_X]) << 7) >> log2_cuh;
                 dmv_ver_y = (((s32)ac_mv[2][MV_Y] - (s32)ac_mv[0][MV_Y]) << 7) >> log2_cuh;
             } else {
-                dmv_ver_x = -dmv_hor_y;                                                     // deltaMvVer
-                dmv_ver_y = dmv_hor_x;
+                dmv_ver_x = -dmv_hor_y;                                                    
+                dmv_ver_y =  dmv_hor_x;
             }
 
-            for (h_sch = 0; h_sch < cu_h_in_scu; h_sch += sub_h_in_scu) {
-                for (w_sch = 0; w_sch < cu_w_in_scu; w_sch += sub_w_in_scu) {
+            s16(*map_mv)[REFP_NUM][MV_D] = pic_map->map_mv + scup; 
+
+            for (int h_sch = 0; h_sch < cu_h_in_scu; h_sch += sub_h_in_scu) {
+                for (int w_sch = 0; w_sch < cu_w_in_scu; w_sch += sub_w_in_scu) {
                     int pos_x = (w_sch << MIN_CU_LOG2) + half_w;
                     int pos_y = (h_sch << MIN_CU_LOG2) + half_h;
                     if (w_sch == 0 && h_sch == 0) {
@@ -1517,14 +1511,19 @@ void com_set_affine_mvf(int scup, int log2_cuw, int log2_cuh, int i_scu, com_mod
                     mv_scale_tmp_ver = COM_CLIP3(COM_INT16_MIN, COM_INT16_MAX, mv_scale_tmp_ver);
 
                     // save MV for each 4x4 block
-                    for (y = h_sch; y < h_sch + sub_h_in_scu; y++) {
-                        for (x = w_sch; x < w_sch + sub_w_in_scu; x++) {
-                            addr_in_scu = scup + x + y * i_scu;
-                            pic_map->map_mv[addr_in_scu][lidx][MV_X] = (s16)mv_scale_tmp_hor;
-                            pic_map->map_mv[addr_in_scu][lidx][MV_Y] = (s16)mv_scale_tmp_ver;
-                        }
-                    }
+                    map_mv[w_sch][lidx][MV_X] = (s16)mv_scale_tmp_hor;
+                    map_mv[w_sch][lidx][MV_Y] = (s16)mv_scale_tmp_ver;
+
+                    if (sub_w_in_scu > 1) {
+                        map_mv[w_sch +         1][lidx][MV_X] = (s16)mv_scale_tmp_hor;
+                        map_mv[w_sch +         1][lidx][MV_Y] = (s16)mv_scale_tmp_ver;
+                        map_mv[w_sch + i_scu    ][lidx][MV_X] = (s16)mv_scale_tmp_hor;
+                        map_mv[w_sch + i_scu    ][lidx][MV_Y] = (s16)mv_scale_tmp_ver;
+                        map_mv[w_sch + i_scu + 1][lidx][MV_X] = (s16)mv_scale_tmp_hor;
+                        map_mv[w_sch + i_scu + 1][lidx][MV_Y] = (s16)mv_scale_tmp_ver;
+                    } 
                 }
+                map_mv += sub_h_in_scu * i_scu;
             }
         }
     }
@@ -2052,15 +2051,15 @@ void com_get_affine_mvp_scaling(s64 ptr, int scup, int lidx, s8 cur_refi, \
 }
 
 
-void com_sbac_ctx_init(com_lbac_all_ctx_t *sbac_ctx)
+void com_lbac_ctx_init(com_lbac_all_ctx_t *lbac_ctx)
 {
     int i, num;
     lbac_ctx_model_t *p;
-    com_mset(sbac_ctx, 0x00, sizeof(*sbac_ctx));
+    com_mset(lbac_ctx, 0x00, sizeof(*lbac_ctx));
 
     /* Initialization of the context models */
     num = sizeof(com_lbac_all_ctx_t) / sizeof(lbac_ctx_model_t);
-    p = (lbac_ctx_model_t *)sbac_ctx;
+    p = (lbac_ctx_model_t *)lbac_ctx;
 
     for (i = 0; i < num; i++) {
         p[i] = PROB_INIT;

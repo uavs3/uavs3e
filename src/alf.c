@@ -833,8 +833,8 @@ double alf_decision_all_lcu(enc_pic_t *ep, lbac_t *lbac, com_alf_pic_param_t *al
                 distEnc = calcAlfLCUDist(ep, compIdx, ctu, ctuYPos, ctuXPos, ctuHeight, ctuWidth, isAboveAvail, org, i_org_plane, pRest, stride_in, formatShift);
                 distEnc -= calcAlfLCUDist(ep, compIdx, ctu, ctuYPos, ctuXPos, ctuHeight, ctuWidth, isAboveAvail, org, i_org_plane, pDec, stride_in, formatShift);
             }
-            lbac_t alf_sbac_off;
-            lbac_copy(&alf_sbac_off, &alf_sbac);
+            lbac_t alf_lbac_off;
+            lbac_copy(&alf_lbac_off, &alf_sbac);
 
             // ALF ON
             rateEnc = lbac_get_bits(&alf_sbac);
@@ -844,9 +844,9 @@ double alf_decision_all_lcu(enc_pic_t *ep, lbac_t *lbac, com_alf_pic_param_t *al
 
             //ALF OFF
             distOff = 0;
-            rateOff = lbac_get_bits(&alf_sbac_off);
-            lbac_enc_alf_flag(&alf_sbac_off, NULL, 0);
-            rateOff = lbac_get_bits(&alf_sbac_off) - rateOff;
+            rateOff = lbac_get_bits(&alf_lbac_off);
+            lbac_enc_alf_flag(&alf_lbac_off, NULL, 0);
+            rateOff = lbac_get_bits(&alf_lbac_off) - rateOff;
             costOff = (double)distOff + (compIdx == 0 ? lambda_luma : lambda_chroma) * rateOff;
 
             if (costEnc >= costOff) {
@@ -855,7 +855,7 @@ double alf_decision_all_lcu(enc_pic_t *ep, lbac_t *lbac, com_alf_pic_param_t *al
                 if (!isRDOEstimate) {
                     copyOneAlfBlk(pRest, pDec, stride_in, ctuYPos >> formatShift, ctuXPos >> formatShift, ctuHeight >> formatShift, ctuWidth >> formatShift, isAboveAvail, isBelowAvail);
                 }
-                lbac_copy(&alf_sbac, &alf_sbac_off);
+                lbac_copy(&alf_sbac, &alf_lbac_off);
             } else {
                 Enc_ALF->m_AlfLCUEnabled[ctu][compIdx] = TRUE;
             }
@@ -1667,8 +1667,8 @@ static void alf_decision(enc_pic_t *ep, com_alf_pic_param_t *alfPictureParam, co
     int lumaStride; // Add to avoid micro trubles
     pel *pResY, *pDecY, *pOrgY;
     pel *pResUV[2], *pDecUV[2], *pOrgUV[2];
-    lbac_t sbac_alf;
-    lbac_t *lbac = &sbac_alf;
+    lbac_t lbac_alf;
+    lbac_t *lbac = &lbac_alf;
 
     pResY = pic_rec->y;
     pResUV[0] = pic_rec->u;
@@ -1681,7 +1681,7 @@ static void alf_decision(enc_pic_t *ep, com_alf_pic_param_t *alfPictureParam, co
     pOrgUV[1] = pic_alf_Org->v;
 
     lbac_reset(lbac); // init lbac for alf rdo
-    com_sbac_ctx_init(&lbac->h);
+    com_lbac_ctx_init(&lbac->h);
 
     lumaStride = pic_rec->stride_luma;
 

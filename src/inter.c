@@ -50,46 +50,32 @@ static void create_bi_org(pel *org, pel *pred, int s_o, int cu_width, int cu_hei
 
 static void make_cand_list(core_t *core, int *mode_list, double *cost_list, int num_cands_woUMVE, int num_cands_all, int num_rdo, s16 pmv_skip_cand[MAX_SKIP_NUM][REFP_NUM][MV_D],  s8 refi_skip_cand[MAX_SKIP_NUM][REFP_NUM])
 {
-    com_info_t *info = core->info;
+    com_info_t *info     =  core->info;
     com_mode_t *cur_info = &core->mod_info_curr;
-    int bit_depth = info->bit_depth_internal;
-    com_pic_t *pic_org = core->pic_org;
-    int skip_idx, i;
-    s16 mvp[REFP_NUM][MV_D];
-    s8 refi[REFP_NUM];
-    u32 cy/*, cu, cv*/;
-    double cost_y;
-    int slice_type = core->pichdr->slice_type;
-    int x = core->cu_pix_x;
-    int y = core->cu_pix_y;
-    int cu_width  = core->cu_width;
-    int cu_height = core->cu_height;
-    int cu_width_log2  = core->cu_width_log2;
-    int cu_height_log2 = core->cu_height_log2;
+    com_pic_t *pic_org   =  core->pic_org;
+    int slice_type       =  core->pichdr->slice_type;
+    int x                =  core->cu_pix_x;
+    int y                =  core->cu_pix_y;
+    int cu_width         =  core->cu_width;
+    int cu_height        =  core->cu_height;
+    int cu_width_log2    =  core->cu_width_log2;
+    int cu_height_log2   =  core->cu_height_log2;
+    int bit_depth        =  info->bit_depth_internal;
 
-    pel *y_org = pic_org->y + x + y * pic_org->stride_luma;
-    pel *u_org = pic_org->u + (x >> 1) + ((y >> 1) * pic_org->stride_chroma);
-    pel *v_org = pic_org->v + (x >> 1) + ((y >> 1) * pic_org->stride_chroma);
+    pel *y_org = pic_org->y +  x       +  y       * pic_org->stride_luma;
+    pel *u_org = pic_org->u + (x >> 1) + (y >> 1) * pic_org->stride_chroma;
+    pel *v_org = pic_org->v + (x >> 1) + (y >> 1) * pic_org->stride_chroma;
 
     cur_info->cu_mode = MODE_SKIP;
-    for (i = 0; i < num_rdo; i++) {
+
+    for (int i = 0; i < num_rdo; i++) {
         mode_list[i] = 0;
         cost_list[i] = MAX_D_COST;
     }
+    for (int skip_idx = 0; skip_idx < num_cands_all; skip_idx++) {
+        int shift = 0;
 
-    for (skip_idx = 0; skip_idx < num_cands_all; skip_idx++) {
-        int bit_cnt, shift = 0;
-
-        mvp[REFP_0][MV_X] = pmv_skip_cand[skip_idx][REFP_0][MV_X];
-        mvp[REFP_0][MV_Y] = pmv_skip_cand[skip_idx][REFP_0][MV_Y];
-        mvp[REFP_1][MV_X] = pmv_skip_cand[skip_idx][REFP_1][MV_X];
-        mvp[REFP_1][MV_Y] = pmv_skip_cand[skip_idx][REFP_1][MV_Y];
-        refi[REFP_0] = refi_skip_cand[skip_idx][REFP_0];
-        refi[REFP_1] = refi_skip_cand[skip_idx][REFP_1];
-
-        if (!REFI_IS_VALID(refi[REFP_0]) && !REFI_IS_VALID(refi[REFP_1])) {
-            continue;
-        }
+        com_assert(REFI_IS_VALID(refi_skip_cand[skip_idx][REFP_0]) || REFI_IS_VALID(refi_skip_cand[skip_idx][REFP_1]));
 
         if (skip_idx < num_cands_woUMVE) {
             cur_info->umve_flag = 0;
@@ -101,34 +87,32 @@ static void make_cand_list(core_t *core, int *mode_list, double *cost_list, int 
         if ((slice_type == SLICE_P) && (cur_info->skip_idx == 1 || cur_info->skip_idx == 2) && (cur_info->umve_flag == 0)) {
             continue;
         }
+        com_mc_cu(x, y, info->pic_width, info->pic_height, cu_width, cu_height, refi_skip_cand[skip_idx], pmv_skip_cand[skip_idx], core->refp, cur_info->pred, cu_width, CHANNEL_L, bit_depth);
+        
+        double cost = calc_satd_16b(cu_width, cu_height, y_org, cur_info->pred[Y_C], pic_org->stride_luma, cu_width, bit_depth);
 
-        com_mc_cu(x, y, info->pic_width, info->pic_height, cu_width, cu_height, refi, mvp, core->refp, cur_info->pred, cu_width, CHANNEL_L, bit_depth);
-        cy = calc_satd_16b(cu_width, cu_height, y_org, cur_info->pred[Y_C], pic_org->stride_luma, cu_width, bit_depth);
-        cost_y = (double)cy;
+        lbac_t lbac_temp;
+        lbac_copy(&lbac_temp, &core->lbac_bakup);
+        int bit_cnt = lbac_get_bits(&lbac_temp);
+        enc_bits_inter_skip_flag(core, &lbac_temp);
+        bit_cnt = lbac_get_bits(&lbac_temp) - bit_cnt;
+        cost += core->sqrt_lambda[0] * bit_cnt;
 
-        lbac_t *lbac = &core->sbac_rdo;
-        lbac_copy(lbac, &core->sbac_bakup);
-        bit_cnt = lbac_get_bits(lbac);
-        enc_bits_inter(core, lbac, slice_type);
-        bit_cnt = lbac_get_bits(lbac) - bit_cnt;
-
-        cost_y += RATE_TO_COST_SQRT_LAMBDA(core->sqrt_lambda[0], bit_cnt);
-        while (shift < num_rdo && cost_y < cost_list[num_rdo - 1 - shift]) {
+        while (shift < num_rdo && cost < cost_list[num_rdo - 1 - shift]) {
             shift++;
         }
         if (shift != 0) {
-            for (i = 1; i < shift; i++) {
+            for (int i = 1; i < shift; i++) {
                 mode_list[num_rdo - i] = mode_list[num_rdo - 1 - i];
                 cost_list[num_rdo - i] = cost_list[num_rdo - 1 - i];
             }
             mode_list[num_rdo - shift] = skip_idx;
-            cost_list[num_rdo - shift] = cost_y;
+            cost_list[num_rdo - shift] = cost;
         }
     }
-
 }
 
-static void check_best_mode(core_t *core, lbac_t *sbac_best, lbac_t *lbac, const double cost_curr, pel(*pred)[MAX_CU_DIM])
+static void check_best_mode(core_t *core, lbac_t *lbac_best, lbac_t *lbac, const double cost_curr, pel(*pred)[MAX_CU_DIM])
 {
     com_mode_t *bst_info = &core->mod_info_best;
     com_mode_t *cur_info = &core->mod_info_curr;
@@ -150,7 +134,7 @@ static void check_best_mode(core_t *core, lbac_t *sbac_best, lbac_t *lbac, const
 
         core->cost_best = cost_curr;
 
-        lbac_copy(sbac_best, lbac);
+        lbac_copy(lbac_best, lbac);
 
         if (bst_info->cu_mode != MODE_INTRA) {
             if (cur_info->affine_flag) {
@@ -261,7 +245,7 @@ static void save_inter_tr_info(core_t *core, u16 cu_ssd, u8 tb_part_size)
 }
 #endif
 
-static double inter_rdcost(core_t *core, lbac_t *sbac_best, int bForceAllZero, int need_mc)
+static double inter_rdcost(core_t *core, lbac_t *lbac_best_ret, int bForceAllZero, int need_mc, s64 dist_input[2][N_C], s64 *dist_pred_input)
 {
     com_pic_t *pic_org     =  core->pic_org;
     com_info_t *info       =  core->info;
@@ -281,17 +265,21 @@ static double inter_rdcost(core_t *core, lbac_t *sbac_best, int bForceAllZero, i
     s8 *refi               = cur_info->refi;
     int(*num_nz_coef)[N_C] = cur_info->num_nz;
 
-    s64 dist[2]  [N_C] = { 0 };
-    s64 dist_pred[N_C] = { 0 };
+    s64 dist_local[2][N_C] = { 0 };
+    s64 dist_pred_local[N_C] = { 0 };
     int cbf_best [N_C] = { 0 };
     int cbf_comps[N_C] = { 0 };
+    s64 (*dist)[N_C] = dist_input      ? dist_input      : dist_local;
+    s64  *dist_pred  = dist_pred_input ? dist_pred_input : dist_pred_local;
 
-    double cost, cost_best = MAX_D_COST;
+    double cost_best = MAX_D_COST;
     int num_n_c = core->tree_status == TREE_LC ? N_C : 1;
     int bit_depth = info->bit_depth_internal;
     u8  is_from_mv_field = 0;
     int slice_type = core->pichdr->slice_type;
-    lbac_t sbac_cur_mode;
+    lbac_t  lbac_best;
+    lbac_t  lbac_temp;
+    lbac_t *lbac = &lbac_temp;
 
     int width[N_C], height[N_C], log2_w[N_C], log2_h[N_C], stride_org[N_C];
     pel *org[N_C];
@@ -311,26 +299,27 @@ static double inter_rdcost(core_t *core, lbac_t *sbac_best, int bForceAllZero, i
     stride_org[U_C] = pic_org->stride_chroma;
     stride_org[V_C] = pic_org->stride_chroma;
 
-    if (need_mc) { // prediction
-        if (cur_info->affine_flag) {
-            com_mc_cu_affine(x, y, info->pic_width, info->pic_height, width[0], height[0], refi, cur_info->affine_mv, core->refp, pred, cur_info->affine_flag + 1, core->pichdr, core->map->map_mv, bit_depth);
-        } else {
-            com_mc_cu(x, y, info->pic_width, info->pic_height, width[0], height[0], refi, mv, core->refp, pred, width[0], core->tree_status, bit_depth);
-        }
-    }
-    for (int i = 0; i < num_n_c; i++) {
-        dist[0][i] = dist_pred[i] = block_pel_ssd(log2_w[i], 1 << log2_h[i], pred[i], org[i], width[i], stride_org[i], bit_depth);
-    }
+    cur_info->tb_part = SIZE_2Nx2N;
+
     if (cur_info->affine_flag) {
         com_set_affine_mvf(core->cu_scup_in_pic, cu_width_log2, cu_height_log2, info->i_scu, cur_info, map, core->pichdr);
         is_from_mv_field = 1;
     }
-    dist[0][Y_C] += calc_dist_filter_boundary(core, core->pic_rec, core->pic_org, cu_width, cu_height, pred[Y_C], cu_width, x, y, 0, 0, refi, mv, is_from_mv_field, 1);
+    if (need_mc) { // prediction
+        if (cur_info->affine_flag) {
+            com_mc_cu_affine(x, y, info->pic_width, info->pic_height, width[0], height[0], refi, cur_info->affine_mv, core->refp, pred, cur_info->affine_flag + 1, core->pichdr, bit_depth);
+        } else {
+            com_mc_cu(x, y, info->pic_width, info->pic_height, width[0], height[0], refi, mv, core->refp, pred, width[0], core->tree_status, bit_depth);
+        }
+        for (int i = 0; i < num_n_c; i++) {
+            dist[0][i] = dist_pred[i] = block_pel_ssd(log2_w[i], 1 << log2_h[i], pred[i], org[i], width[i], stride_org[i], bit_depth);
+        }
+        dist[0][0] += calc_dist_filter_boundary(core, core->pic_rec, core->pic_org, cu_width, cu_height, pred[Y_C], cu_width, x, y, 0, 0, refi, mv, is_from_mv_field, 1);
+    } 
 
     /* test all zero case */
     if (cur_info->cu_mode != MODE_DIR) { // do not check forced zero for direct mode
         memset(num_nz_coef, 0, sizeof(int) * MAX_NUM_TB * N_C);
-        cur_info->tb_part = SIZE_2Nx2N;
 
         if (core->tree_status == TREE_LC) {
             cost_best = (double)dist[0][Y_C] + ((dist[0][U_C] + dist[0][V_C]) * core->dist_chroma_weight[0]);
@@ -338,13 +327,8 @@ static double inter_rdcost(core_t *core, lbac_t *sbac_best, int bForceAllZero, i
             assert(core->tree_status == TREE_L);
             cost_best = (double)dist[0][Y_C];
         }
-        lbac_t *lbac = &core->sbac_rdo;
-        lbac_copy(lbac, &core->sbac_bakup);
-        int bit_cnt = lbac_get_bits(lbac);
-        enc_bits_inter(core, lbac, slice_type);
-        bit_cnt = lbac_get_bits(lbac) - bit_cnt;
-        cost_best += RATE_TO_COST_LAMBDA(core->lambda[0], bit_cnt);
-        lbac_copy(&sbac_cur_mode, lbac);
+        cost_best += get_bits_cost(core, lbac, slice_type, core->lambda[0]);
+        lbac_copy(&lbac_best, lbac);
     }
 
     /* transform and quantization */
@@ -353,7 +337,6 @@ static double inter_rdcost(core_t *core, lbac_t *sbac_best, int bForceAllZero, i
 
     if (!bForceAllZero) {
         ALIGNED_32(s16 resi_t[N_C][MAX_CU_DIM]);
-        lbac_t *lbac = &core->sbac_rdo;
 
 #if TR_EARLY_TERMINATE
         core->dist_pred_luma = dist_pred[Y_C];
@@ -390,40 +373,35 @@ static double inter_rdcost(core_t *core, lbac_t *sbac_best, int bForceAllZero, i
             int cbf_u = is_cu_plane_nz(num_nz_coef, U_C) > 0 ? 1 : 0;
             int cbf_v = is_cu_plane_nz(num_nz_coef, V_C) > 0 ? 1 : 0;
 
+            double cost = get_bits_cost(core, lbac, slice_type, core->lambda[0]);
+
             if (core->tree_status == TREE_LC) {
-                cost = (double)dist[cbf_y][Y_C] + ((dist[cbf_u][U_C] + dist[cbf_v][V_C]) * core->dist_chroma_weight[0]);
+                cost += (double)dist[cbf_y][Y_C] + ((dist[cbf_u][U_C] + dist[cbf_v][V_C]) * core->dist_chroma_weight[0]);
             } else {
                 assert(core->tree_status == TREE_L);
-                cost = (double)dist[cbf_y][Y_C];
+                cost += (double)dist[cbf_y][Y_C];
             }
-
-            lbac_copy(lbac, &core->sbac_bakup);
-            int bit_cnt = lbac_get_bits(lbac);
-            enc_bits_inter(core, lbac, slice_type);
-            bit_cnt = lbac_get_bits(lbac) - bit_cnt;
-            cost += RATE_TO_COST_LAMBDA(core->lambda[0], bit_cnt);
-
             if (cost < cost_best) {
                 cost_best = cost;
                 cbf_best[Y_C] = cbf_y;
                 cbf_best[U_C] = cbf_u;
                 cbf_best[V_C] = cbf_v;
-                lbac_copy(&sbac_cur_mode, lbac);
+                lbac_copy(&lbac_best, lbac);
             }
 
             int nnz_store[MAX_NUM_TB][N_C];
             com_mcpy(nnz_store, num_nz_coef, sizeof(int) * MAX_NUM_TB * N_C);
             int tb_part_store = cur_info->tb_part;
 
-            lbac_t sbac_cur_comp_best;
-            lbac_copy(&sbac_cur_comp_best, &core->sbac_bakup);
+            lbac_t lbac_cur_comp_best;
+            lbac_copy(&lbac_cur_comp_best, &core->lbac_bakup);
 
             if (core->tree_status == TREE_LC) { 
                 for (int i = 0; i < N_C; i++) {
                     if (is_cu_plane_nz(nnz_store, i) > 0) {
                         double cost_comp_best = MAX_D_COST;
-                        lbac_t sbac_cur_comp;
-                        lbac_copy(&sbac_cur_comp, &sbac_cur_comp_best);
+                        lbac_t lbac_cur_comp;
+                        lbac_copy(&lbac_cur_comp, &lbac_cur_comp_best);
 
                         for (int j = 0; j < 2; j++) {
                             cost = dist[j][i] * (i == 0 ? 1 : core->dist_chroma_weight[i - 1]);
@@ -438,16 +416,12 @@ static double inter_rdcost(core_t *core, lbac_t *sbac_best, int bForceAllZero, i
                                     cur_info->tb_part = SIZE_2Nx2N;
                                 }
                             }
-                            lbac_copy(lbac, &sbac_cur_comp);
-                            int bit_cnt = lbac_get_bits(lbac);
-                            enc_bits_inter_comp(core, lbac, coef[i], i);
-                            bit_cnt = lbac_get_bits(lbac) - bit_cnt;
-                            cost += RATE_TO_COST_LAMBDA(core->lambda[i], bit_cnt);
+                            cost += get_bits_cost_comp(core, lbac, &lbac_cur_comp, coef[i], core->lambda[i], i);
 
                             if (cost < cost_comp_best) {
                                 cost_comp_best = cost;
                                 cbf_comps[i] = j;
-                                lbac_copy(&sbac_cur_comp_best, lbac);
+                                lbac_copy(&lbac_cur_comp_best, lbac);
                             }
                         }
                     } else {
@@ -473,18 +447,14 @@ static double inter_rdcost(core_t *core, lbac_t *sbac_best, int bForceAllZero, i
                         cbf_u = cbf_comps[U_C];
                         cbf_v = cbf_comps[V_C];
                         cost = dist[cbf_y][Y_C] + ((dist[cbf_u][U_C] + dist[cbf_v][V_C]) * core->dist_chroma_weight[0]);
+                        cost += get_bits_cost(core, lbac, slice_type, core->lambda[0]);
 
-                        lbac_copy(lbac, &core->sbac_bakup);
-                        bit_cnt = lbac_get_bits(lbac);
-                        enc_bits_inter(core, lbac, slice_type);
-                        bit_cnt = lbac_get_bits(lbac) - bit_cnt;
-                        cost += RATE_TO_COST_LAMBDA(core->lambda[0], bit_cnt);
                         if (cost < cost_best) {
                             cost_best = cost;
                             cbf_best[Y_C] = cbf_y;
                             cbf_best[U_C] = cbf_u;
                             cbf_best[V_C] = cbf_v;
-                            lbac_copy(&sbac_cur_mode, lbac);
+                            lbac_copy(&lbac_best, lbac);
                         }
                     }
                 }
@@ -512,50 +482,51 @@ static double inter_rdcost(core_t *core, lbac_t *sbac_best, int bForceAllZero, i
     if (!is_cu_plane_nz(num_nz_coef, Y_C)) {
         cur_info->tb_part = SIZE_2Nx2N; 
     }
-    check_best_mode(core, sbac_best, &sbac_cur_mode, cost_best, pred);
+    check_best_mode(core, lbac_best_ret, &lbac_best, cost_best, pred);
 
     return cost_best;
 }
 
 double pinter_residue_rdo_chroma(core_t *core)
 {
-    com_pic_t *pic_org = core->pic_org;
-    com_info_t *info = core->info;
+    com_pic_t *pic_org   = core->pic_org;
+    com_info_t *info     = core->info;
     com_mode_t *cur_info = &core->mod_info_curr;
+    int x                = core->cu_pix_x;
+    int y                = core->cu_pix_y;
+    int cu_width_log2    = core->cu_width_log2;
+    int cu_height_log2   = core->cu_height_log2;
+    int cu_width         = 1 << cu_width_log2;
+    int cu_height        = 1 << cu_height_log2;
+
     s16(*coef)[MAX_CU_DIM] = cur_info->coef;
-    s16(*mv)[MV_D] = cur_info->mv;
-    s8 *refi = cur_info->refi;
     pel(*pred)[MAX_CU_DIM] = cur_info->pred;
-    int bit_depth = info->bit_depth_internal;
-    int(*num_nz_coef)[N_C], tnnz, width[N_C], height[N_C], log2_w[N_C], log2_h[N_C];;
-    pel(*rec)[MAX_CU_DIM];
-    s64    dist[2][N_C];
-    double cost, cost_best = MAX_D_COST;
-    int    cbf_best[N_C];
-    int    bit_cnt;
-    int    i, cbf_y, cbf_u, cbf_v;
-    pel   *org[N_C];
-    int x = core->cu_pix_x;
-    int y = core->cu_pix_y;
-    int cu_width_log2 = core->cu_width_log2;
-    int cu_height_log2 = core->cu_height_log2;
-    int cu_width = 1 << cu_width_log2;
-    int cu_height = 1 << cu_height_log2;
+    pel(*rec )[MAX_CU_DIM] = cur_info->rec;
+    s16(*mv)[MV_D]         = cur_info->mv;
+    s8 *refi               = cur_info->refi;
+    int(*num_nz_coef)[N_C] = cur_info->num_nz;
+
     ALIGNED_32(s16 resi_t[N_C][MAX_CU_DIM]);
 
-    rec = cur_info->rec;
-    num_nz_coef = cur_info->num_nz;
-    width[Y_C] = 1 << cu_width_log2;
+    int bit_depth = info->bit_depth_internal;
+    s64    dist[2] [N_C] = { 0 };
+    int    cbf_best[N_C] = { 0 };
+    double cost, cost_best = MAX_D_COST;
+
+    pel  *org[N_C];
+    int width[N_C], height[N_C], log2_w[N_C], log2_h[N_C];;
+
+    width [Y_C] = 1 << cu_width_log2;
     height[Y_C] = 1 << cu_height_log2;
-    width[U_C] = width[V_C] = 1 << (cu_width_log2 - 1);
+    width [U_C] = width[V_C] = 1 << (cu_width_log2 - 1);
     height[U_C] = height[V_C] = 1 << (cu_height_log2 - 1);
     log2_w[Y_C] = cu_width_log2;
     log2_h[Y_C] = cu_height_log2;
     log2_w[U_C] = log2_w[V_C] = cu_width_log2 - 1;
     log2_h[U_C] = log2_h[V_C] = cu_height_log2 - 1;
-    org[Y_C] = pic_org->y + (y * pic_org->stride_luma) + x;
-    org[U_C] = pic_org->u + ((y >> 1) * pic_org->stride_chroma) + (x >> 1);
-    org[V_C] = pic_org->v + ((y >> 1) * pic_org->stride_chroma) + (x >> 1);
+    org   [Y_C] = pic_org->y + (y * pic_org->stride_luma) + x;
+    org   [U_C] = pic_org->u + ((y >> 1) * pic_org->stride_chroma) + (x >> 1);
+    org   [V_C] = pic_org->v + ((y >> 1) * pic_org->stride_chroma) + (x >> 1);
 
     init_pb_part(cur_info);
     init_tb_part(cur_info);
@@ -566,7 +537,7 @@ double pinter_residue_rdo_chroma(core_t *core)
 
     com_map_t *map = core->map;
 
-    for (i = 0; i < REFP_NUM; i++) {
+    for (int i = 0; i < REFP_NUM; i++) {
         refi[i] = map->map_refi[luma_scup][i];
         mv[i][MV_X] = map->map_mv[luma_scup][i][MV_X];
         mv[i][MV_Y] = map->map_mv[luma_scup][i][MV_Y];
@@ -578,26 +549,20 @@ double pinter_residue_rdo_chroma(core_t *core)
     cu_pel_sub(core->tree_status, x, y, cu_width_log2, cu_height_log2, core->pic_org, pred, resi_t);
     memset(dist, 0, sizeof(s64) * 2 * N_C);
 
-    for (i = 1; i < N_C; i++) {
+    for (int i = 1; i < N_C; i++) {
         dist[0][i] = block_pel_ssd(log2_w[i], 1 << log2_h[i], pred[i], org[i], width[i], pic_org->stride_chroma, bit_depth);
     }
 
-    memset(cbf_best, 0, sizeof(int) * N_C);
     memset(num_nz_coef, 0, sizeof(int) * MAX_NUM_TB * N_C);
     assert(cur_info->tb_part == SIZE_2Nx2N);
     cost_best = (double)((dist[0][U_C] + dist[0][V_C]) * core->dist_chroma_weight[0]);
 
-    lbac_t *lbac = &core->sbac_rdo;
-    lbac_copy(lbac, &core->sbac_bakup);
-    bit_cnt = lbac_get_bits(lbac);
-    lbac_enc_coef(lbac, NULL, core, coef, core->cu_width_log2, core->cu_height_log2, cur_info->cu_mode, cur_info, core->tree_status); // only count coeff bits for chroma tree
-    bit_cnt = lbac_get_bits(lbac) - bit_cnt;
-    cost_best += RATE_TO_COST_LAMBDA(core->lambda[0], bit_cnt);
+    lbac_t lbac_temp;
+    cost_best += get_bits_cost_coef(core, &lbac_temp, coef);
+    cur_info->tb_part = SIZE_2Nx2N;
 
-    tnnz = enc_tq_itdq_yuv_nnz(core, lbac, cur_info, coef, resi_t, pred, rec, refi, mv);
-
-    if (tnnz) {
-        for (i = 1; i < N_C; i++) {
+    if (enc_tq_itdq_yuv_nnz(core, &lbac_temp, cur_info, coef, resi_t, pred, rec, refi, mv)) {
+        for (int i = 1; i < N_C; i++) {
             if (is_cu_plane_nz(num_nz_coef, i)) {
                 dist[1][i] = block_pel_ssd(log2_w[i], 1 << log2_h[i], rec[i], org[i], width[i], pic_org->stride_chroma, bit_depth);
             } else {
@@ -605,17 +570,13 @@ double pinter_residue_rdo_chroma(core_t *core)
             }
         }
 
-        cbf_y = is_cu_plane_nz(num_nz_coef, Y_C) > 0 ? 1 : 0;
-        cbf_u = is_cu_plane_nz(num_nz_coef, U_C) > 0 ? 1 : 0;
-        cbf_v = is_cu_plane_nz(num_nz_coef, V_C) > 0 ? 1 : 0;
+        int cbf_y = is_cu_plane_nz(num_nz_coef, Y_C) > 0 ? 1 : 0;
+        int cbf_u = is_cu_plane_nz(num_nz_coef, U_C) > 0 ? 1 : 0;
+        int cbf_v = is_cu_plane_nz(num_nz_coef, V_C) > 0 ? 1 : 0;
 
         cost = (double)((dist[cbf_u][U_C] + dist[cbf_v][V_C]) * core->dist_chroma_weight[0]);
+        cost += get_bits_cost_coef(core, &lbac_temp, coef);
 
-        lbac_copy(lbac, &core->sbac_bakup);
-        bit_cnt = lbac_get_bits(lbac);
-        lbac_enc_coef(lbac, NULL, core, coef, core->cu_width_log2, core->cu_height_log2, cur_info->cu_mode, cur_info, core->tree_status); // only count coeff bits for chroma tree
-        bit_cnt = lbac_get_bits(lbac) - bit_cnt;
-        cost += RATE_TO_COST_LAMBDA(core->lambda[0], bit_cnt);
         if (cost < cost_best) {
             cost_best = cost;
             cbf_best[Y_C] = cbf_y;
@@ -626,7 +587,7 @@ double pinter_residue_rdo_chroma(core_t *core)
 
     com_mode_t *mod_best = &core->mod_info_best;
 
-    for (i = 1; i < N_C; i++) {
+    for (int i = 1; i < N_C; i++) {
         int size_tmp = (cu_width * cu_height) >> (i == 0 ? 0 : 2);
         if (cbf_best[i] == 0) {
             cu_plane_nz_cln(mod_best->num_nz, i);
@@ -695,11 +656,9 @@ static void derive_inter_cands(core_t *core, s16(*pmv_cands)[REFP_NUM][MV_D], s8
         if (REFI_IS_VALID(core->refp[0][REFP_0].map_refi[scup_co][REFP_0])) {
             get_col_mv_from_list0(core->refp[0], core->ptr, scup_co, pmv_cands[num_cands]);
         } else {
-            pmv_cands[num_cands][REFP_0][MV_X] = 0;
-            pmv_cands[num_cands][REFP_0][MV_Y] = 0;
+            M32(pmv_cands[num_cands][REFP_0]) = 0;
         }
-        pmv_cands[num_cands][REFP_1][MV_X] = 0;
-        pmv_cands[num_cands][REFP_1][MV_Y] = 0;
+        M32(pmv_cands[num_cands][REFP_1]) = 0;
     } else {
         if (!REFI_IS_VALID(core->refp[0][REFP_1].map_refi[scup_co][REFP_0])) {
             com_get_mvp_default(core->ptr, core->cu_scup_in_pic, REFP_0, 0, map->map_mv, map->map_refi, core->refp,
@@ -752,7 +711,7 @@ static void derive_inter_cands(core_t *core, s16(*pmv_cands)[REFP_NUM][MV_D], s8
     *num_cands_all = num_cands;
 }
 
-static void analyze_direct_skip(core_t *core, lbac_t *sbac_best)
+static void analyze_direct_skip(core_t *core, lbac_t *lbac_best)
 {
     com_info_t *info = core->info;
     com_mode_t *cur_info = &core->mod_info_curr;
@@ -779,12 +738,9 @@ static void analyze_direct_skip(core_t *core, lbac_t *sbac_best)
             cur_info->umve_idx = mode - num_cands_woUMVE;
         }
 
-        cur_info->mv[REFP_0][MV_X] = pmv_cands[mode][REFP_0][MV_X];
-        cur_info->mv[REFP_0][MV_Y] = pmv_cands[mode][REFP_0][MV_Y];
-        cur_info->mv[REFP_1][MV_X] = pmv_cands[mode][REFP_1][MV_X];
-        cur_info->mv[REFP_1][MV_Y] = pmv_cands[mode][REFP_1][MV_Y];
-        cur_info->refi[REFP_0] = refi_cands[mode][REFP_0];
-        cur_info->refi[REFP_1] = refi_cands[mode][REFP_1];
+        CP32(cur_info->mv[REFP_0], pmv_cands[mode][REFP_0]);
+        CP32(cur_info->mv[REFP_1], pmv_cands[mode][REFP_1]);
+        CP16(cur_info->refi, refi_cands[mode]);
 
         if (!REFI_IS_VALID(cur_info->refi[REFP_0]) && !REFI_IS_VALID(cur_info->refi[REFP_1])) {
             continue;
@@ -793,36 +749,38 @@ static void analyze_direct_skip(core_t *core, lbac_t *sbac_best)
             continue;
         }
 
+        s64 dist[2][N_C] = { 0 };
+        s64 dist_pred[N_C] = { 0 };
+
         cur_info->cu_mode = MODE_DIR;
-        inter_rdcost(core, sbac_best, 0, 1);
+        inter_rdcost(core, lbac_best, 0, 1, dist, dist_pred);
 
         cur_info->cu_mode = MODE_SKIP;
-        inter_rdcost(core, sbac_best, 1, 0);
+        inter_rdcost(core, lbac_best, 1, 0, dist, dist_pred);
     }
 }
 
-static void analyze_affine_merge(core_t *core, lbac_t *sbac_best)
+static void analyze_affine_merge(core_t *core, lbac_t *lbac_best)
 {
-    com_info_t *info = core->info;
+    com_info_t *info     = core->info;
     com_mode_t *cur_info = &core->mod_info_curr;
-    pel          *y_org, *u_org, *v_org;
-    com_pic_t *pic_org = core->pic_org;
+    com_pic_t *pic_org   = core->pic_org;
+    int x                = core->cu_pix_x;
+    int y                = core->cu_pix_y;
+    int log2_cuw         = core->cu_width_log2;
+    int log2_cuh         = core->cu_height_log2;
+    int cu_width         = 1 << log2_cuw;
+    int cu_height        = 1 << log2_cuh;
+
     s8           mrg_list_refi[AFF_MAX_NUM_MRG][REFP_NUM];
     int          mrg_list_cp_num[AFF_MAX_NUM_MRG];
     CPMV         mrg_list_cp_mv[AFF_MAX_NUM_MRG][REFP_NUM][VER_NUM][MV_D];
-
     double       cost = MAX_D_COST;
     int          mrg_idx, num_cands = 0;
 
-    int x = core->cu_pix_x;
-    int y = core->cu_pix_y;
-    int log2_cuw = core->cu_width_log2;
-    int log2_cuh = core->cu_height_log2;
-    int cu_width = 1 << log2_cuw;
-    int cu_height = 1 << log2_cuh;
-    y_org = pic_org->y + x + y * pic_org->stride_luma;
-    u_org = pic_org->u + (x >> 1) + ((y >> 1) * pic_org->stride_chroma);
-    v_org = pic_org->v + (x >> 1) + ((y >> 1) * pic_org->stride_chroma);
+    pel*y_org = pic_org->y + x + y * pic_org->stride_luma;
+    pel*u_org = pic_org->u + (x >> 1) + ((y >> 1) * pic_org->stride_chroma);
+    pel*v_org = pic_org->v + (x >> 1) + ((y >> 1) * pic_org->stride_chroma);
 
     init_pb_part(cur_info);
     init_tb_part(cur_info);
@@ -880,39 +838,40 @@ static void analyze_affine_merge(core_t *core, lbac_t *sbac_best)
         cur_info->skip_idx = (u8)mrg_idx;
 
         for (int ver = 0; ver < mrg_list_cp_num[mrg_idx]; ver++) {
-            cur_info->affine_mv[REFP_0][ver][MV_X] = mrg_list_cp_mv[mrg_idx][REFP_0][ver][MV_X];
-            cur_info->affine_mv[REFP_0][ver][MV_Y] = mrg_list_cp_mv[mrg_idx][REFP_0][ver][MV_Y];
-            cur_info->affine_mv[REFP_1][ver][MV_X] = mrg_list_cp_mv[mrg_idx][REFP_1][ver][MV_X];
-            cur_info->affine_mv[REFP_1][ver][MV_Y] = mrg_list_cp_mv[mrg_idx][REFP_1][ver][MV_Y];
+            CP64(cur_info->affine_mv[REFP_0][ver], mrg_list_cp_mv[mrg_idx][REFP_0][ver]);
+            CP64(cur_info->affine_mv[REFP_1][ver], mrg_list_cp_mv[mrg_idx][REFP_1][ver]);
         }
-        cur_info->refi[REFP_0] = mrg_list_refi[mrg_idx][REFP_0];
-        cur_info->refi[REFP_1] = mrg_list_refi[mrg_idx][REFP_1];
+        CP16(cur_info->refi, mrg_list_refi[mrg_idx]);
+
+        s64 dist[2][N_C] = { 0 };
+        s64 dist_pred[N_C] = { 0 };
 
         cur_info->cu_mode = MODE_DIR;
-        cost = inter_rdcost(core, sbac_best, 0, 1);
+        cost = inter_rdcost(core, lbac_best, 0, 1, dist, dist_pred);
 
         cur_info->cu_mode = MODE_SKIP;
-        cost = inter_rdcost(core, sbac_best, 1, 0);
+        cost = inter_rdcost(core, lbac_best, 1, 0, dist, dist_pred);
     }
 }
 
-static void analyze_uni_pred(core_t *core, lbac_t *sbac_best, double *cost_L0L1, s16 mv_L0L1[REFP_NUM][MV_D], s8 *refi_L0L1)
+static void analyze_uni_pred(core_t *core, lbac_t *lbac_best, double *cost_L0L1, s16 mv_L0L1[REFP_NUM][MV_D], s8 *refi_L0L1)
 {
     com_mode_t *cur_info = &core->mod_info_curr;
-    inter_search_t *pi = &core->pinter;
+    inter_search_t *pi  = &core->pinter;
+    int x                = core->cu_pix_x;
+    int y                = core->cu_pix_y;
+    int cu_width_log2    = core->cu_width_log2;
+    int cu_height_log2   = core->cu_height_log2;
+    int cu_width         = 1 << cu_width_log2;
+    int cu_height        = 1 << cu_height_log2;
     s8 best_refi = 0;
-    int x = core->cu_pix_x;
-    int y = core->cu_pix_y;
-    int cu_width_log2 = core->cu_width_log2;
-    int cu_height_log2 = core->cu_height_log2;
-    int cu_width = 1 << cu_width_log2;
-    int cu_height = 1 << cu_height_log2;
+
+    pi->i_org   = core->pic_org->stride_luma;
+    pi->org     = core->pic_org->y + y * pi->i_org + x;
+    pi->fast_me = core->param->speed_level;
 
     cur_info->cu_mode = MODE_INTER;
 
-    pi->i_org = core->pic_org->stride_luma;
-    pi->org = core->pic_org->y + y * pi->i_org + x;
-    pi->fast_me = core->param->speed_level;
 
     for (int lidx = 0; lidx <= ((core->slice_type == SLICE_P) ? PRED_L0 : PRED_L1); lidx++) {
         u64 best_mecost = COM_UINT64_MAX;
@@ -948,46 +907,37 @@ static void analyze_uni_pred(core_t *core, lbac_t *sbac_best, double *cost_L0L1,
 
         SET_REFI(cur_info->refi, t0, t1);
 
-        mv_L0L1[lidx][MV_X] = mv[MV_X] = pi->mv_scale[lidx][best_refi][MV_X];
-        mv_L0L1[lidx][MV_Y] = mv[MV_Y] = pi->mv_scale[lidx][best_refi][MV_Y];
+        M32(mv_L0L1[lidx]) = M32(mv) = M32(pi->mv_scale[lidx][best_refi]);
         mvd[MV_X] = mv[MV_X] - mvp[MV_X];
         mvd[MV_Y] = mv[MV_Y] - mvp[MV_Y];
 
         pi->mot_bits[lidx] = get_mv_bits(pi, mvd[MV_X], mvd[MV_Y], pi->num_refp, best_refi, cur_info->mvr_idx);
 
         refi_L0L1[lidx] = best_refi;
-        cost_L0L1[lidx] = inter_rdcost(core, sbac_best, 0, 1);
+        cost_L0L1[lidx] = inter_rdcost(core, lbac_best, 0, 1, NULL, NULL);
     }
 }
 
-static void analyze_bi(core_t *core, lbac_t *sbac_best, s16 mv_L0L1[REFP_NUM][MV_D], const s8 *refi_L0L1, const double *cost_L0L1)
+static void analyze_bi(core_t *core, lbac_t *lbac_best, s16 mv_L0L1[REFP_NUM][MV_D], const s8 *refi_L0L1, const double *cost_L0L1)
 {
-    com_pic_t *pic_org = core->pic_org;
-    com_info_t *info = core->info;
+    com_pic_t *pic_org   = core->pic_org;
+    com_info_t *info     = core->info;
     com_mode_t *cur_info = &core->mod_info_curr;
-    inter_search_t *pi = &core->pinter;
-    int bit_depth = info->bit_depth_internal;
-    s8  refi[REFP_NUM] = { REFI_INVALID, REFI_INVALID };
+    inter_search_t *pi   = &core->pinter;
+    int x                = core->cu_pix_x;
+    int y                = core->cu_pix_y;
+    int cu_width_log2    = core->cu_width_log2;
+    int cu_height_log2   = core->cu_height_log2;
+    int cu_width         = 1 << cu_width_log2;
+    int cu_height        = 1 << cu_height_log2;
+
+    int bit_depth   = info->bit_depth_internal;
     u64 best_mecost = COM_UINT64_MAX;
-    s8  refi_best = 0, refi_cur;
-    int changed = 0;
-    u64 mecost;
-    pel *org;
-    pel(*pred)[MAX_CU_DIM];
-    s8 t0, t1;
-    double cost;
     s8  lidx_ref, lidx_cnd;
-    int i;
-    int x = core->cu_pix_x;
-    int y = core->cu_pix_y;
-    int cu_width_log2  = core->cu_width_log2;
-    int cu_height_log2 = core->cu_height_log2;
-    int cu_width  = 1 << cu_width_log2;
-    int cu_height = 1 << cu_height_log2;
 
     cur_info->cu_mode = MODE_INTER;
-
     init_inter_data(core);
+
     if (cost_L0L1[PRED_L0] <= cost_L0L1[PRED_L1]) {
         lidx_ref = REFP_0;
         lidx_cnd = REFP_1;
@@ -995,36 +945,38 @@ static void analyze_bi(core_t *core, lbac_t *sbac_best, s16 mv_L0L1[REFP_NUM][MV
         lidx_ref = REFP_1;
         lidx_cnd = REFP_0;
     }
-    cur_info->refi[REFP_0] = refi_L0L1[REFP_0];
-    cur_info->refi[REFP_1] = refi_L0L1[REFP_1];
-    t0 = (lidx_ref == REFP_0) ? refi_L0L1[lidx_ref] : REFI_INVALID;
-    t1 = (lidx_ref == REFP_1) ? refi_L0L1[lidx_ref] : REFI_INVALID;
-    SET_REFI(refi, t0, t1);
-    cur_info->mv[lidx_ref][MV_X] = mv_L0L1[lidx_ref][MV_X];
-    cur_info->mv[lidx_ref][MV_Y] = mv_L0L1[lidx_ref][MV_Y];
-    cur_info->mv[lidx_cnd][MV_X] = mv_L0L1[lidx_cnd][MV_X];
-    cur_info->mv[lidx_cnd][MV_Y] = mv_L0L1[lidx_cnd][MV_Y];
 
-    org = pic_org->y + x + y * pic_org->stride_luma;
-    pred = cur_info->pred;
+    s8 t0 = (lidx_ref == REFP_0) ? refi_L0L1[lidx_ref] : REFI_INVALID;
+    s8 t1 = (lidx_ref == REFP_1) ? refi_L0L1[lidx_ref] : REFI_INVALID;
+    s8 refi[REFP_NUM] = { t0, t1 };
 
-    for (i = 0; i < 2; i++) {
+    CP16(cur_info->refi, refi_L0L1);
+    CP32(cur_info->mv[lidx_ref], mv_L0L1[lidx_ref]);
+    CP32(cur_info->mv[lidx_cnd], mv_L0L1[lidx_cnd]);
+
+    pel *org = pic_org->y + x + y * pic_org->stride_luma;
+    pel(*pred)[MAX_CU_DIM] = cur_info->pred;
+    s8  refi_best = 0;
+    int changed = 0;
+
+    for (int i = 0; i < 2; i++) {
         ALIGNED_32(pel org_bi[MAX_CU_DIM]);
         pi->i_org = cu_width;
         pi->org = org_bi;
         pi->fast_me = 0;
 
         com_mc_cu(x, y, info->pic_width, info->pic_height, cu_width, cu_height, refi, cur_info->mv, core->refp, pred, cu_width, CHANNEL_L, bit_depth);
-        create_bi_org(org, pred[Y_C], pic_org->stride_luma, cu_width, cu_height, org_bi, cu_width, info->bit_depth_internal);
+        create_bi_org(org, pred[0], pic_org->stride_luma, cu_width, cu_height, org_bi, cu_width, info->bit_depth_internal);
 
         SWAP(refi[lidx_ref], refi[lidx_cnd], t0);
         SWAP(lidx_ref, lidx_cnd, t0);
         changed = 0;
         pi->num_refp = (u8)core->num_refp[lidx_ref];
 
-        for (refi_cur = 0; refi_cur < pi->num_refp; refi_cur++) {
+        for (int refi_cur = 0; refi_cur < pi->num_refp; refi_cur++) {
             pi->ref_pic = core->refp[refi_cur][lidx_ref].pic;
-            mecost = me_search_tz(pi, x, y, cu_width, cu_height, core->info->pic_width, core->info->pic_height, refi_cur, lidx_ref, pi->mvp_scale[lidx_ref][refi_cur], pi->mv_scale[lidx_ref][refi_cur], 1);
+            u64 mecost = me_search_tz(pi, x, y, cu_width, cu_height, core->info->pic_width, core->info->pic_height, refi_cur, lidx_ref, pi->mvp_scale[lidx_ref][refi_cur], pi->mv_scale[lidx_ref][refi_cur], 1);
+      
             if (mecost < best_mecost) {
                 refi_best = refi_cur;
                 best_mecost = mecost;
@@ -1045,93 +997,73 @@ static void analyze_bi(core_t *core, lbac_t *sbac_best, s16 mv_L0L1[REFP_NUM][MV
             break;
         }
     }
-
-    cur_info->mv[REFP_0][MV_X] = (cur_info->mv[REFP_0][MV_X] >> cur_info->mvr_idx) << cur_info->mvr_idx;
-    cur_info->mv[REFP_0][MV_Y] = (cur_info->mv[REFP_0][MV_Y] >> cur_info->mvr_idx) << cur_info->mvr_idx;
-    cur_info->mv[REFP_1][MV_X] = (cur_info->mv[REFP_1][MV_X] >> cur_info->mvr_idx) << cur_info->mvr_idx;
-    cur_info->mv[REFP_1][MV_Y] = (cur_info->mv[REFP_1][MV_Y] >> cur_info->mvr_idx) << cur_info->mvr_idx;
-
     cur_info->mvd[REFP_0][MV_X] = cur_info->mv[REFP_0][MV_X] - pi->mvp_scale[REFP_0][cur_info->refi[REFP_0]][MV_X];
     cur_info->mvd[REFP_0][MV_Y] = cur_info->mv[REFP_0][MV_Y] - pi->mvp_scale[REFP_0][cur_info->refi[REFP_0]][MV_Y];
     cur_info->mvd[REFP_1][MV_X] = cur_info->mv[REFP_1][MV_X] - pi->mvp_scale[REFP_1][cur_info->refi[REFP_1]][MV_X];
     cur_info->mvd[REFP_1][MV_Y] = cur_info->mv[REFP_1][MV_Y] - pi->mvp_scale[REFP_1][cur_info->refi[REFP_1]][MV_Y];
 
-    for (i = 0; i < REFP_NUM; i++) {
-        int amvr_shift = cur_info->mvr_idx;
-        cur_info->mvd[i][MV_X] = cur_info->mvd[i][MV_X] >> amvr_shift << amvr_shift;
-        cur_info->mvd[i][MV_Y] = cur_info->mvd[i][MV_Y] >> amvr_shift << amvr_shift;
-
-        int mv_x = (s32)cur_info->mvd[i][MV_X] + pi->mvp_scale[i][cur_info->refi[i]][MV_X];
-        int mv_y = (s32)cur_info->mvd[i][MV_Y] + pi->mvp_scale[i][cur_info->refi[i]][MV_Y];
-        cur_info->mv[i][MV_X] = COM_CLIP3(COM_INT16_MIN, COM_INT16_MAX, mv_x);
-        cur_info->mv[i][MV_Y] = COM_CLIP3(COM_INT16_MIN, COM_INT16_MAX, mv_y);
-    }
-
-    cost = inter_rdcost(core, sbac_best, 0, 1);
+    inter_rdcost(core, lbac_best, 0, 1, NULL, NULL);
 }
 
 static u32 smvd_refine(core_t *core, int x, int y, int log2_cuw, int log2_cuh, s16 mv[REFP_NUM][MV_D], s16 mvp[REFP_NUM][MV_D], s8 refi[REFP_NUM], s32 lidx_cur, s32 lidx_tar, u32 mecost, s32 search_pattern, s32 search_round, s32 search_shift)
 {
-    com_info_t *info = core->info;
-    com_pic_t *pic_org = core->pic_org;
-    inter_search_t *pi = &core->pinter;
+    com_info_t *info     = core->info;
+    com_pic_t *pic_org   = core->pic_org;
+    inter_search_t *pi   = &core->pinter;
     com_mode_t *cur_info = &core->mod_info_curr;
     int bit_depth = info->bit_depth_internal;
+    int cu_width  = (1 << log2_cuw);
+    int cu_height = (1 << log2_cuh);
 
-    int cu_width, cu_height;
-    u8  mv_bits = 0;
-    pel *org;
-
-    s32 search_offset_cross[4][MV_D] = { { 0, 1 }, { 1, 0 }, { 0, -1 }, { -1, 0 } };
-    s32 search_offset_square[8][MV_D] = { { -1, 1 }, { 0, 1 }, { 1, 1 }, { 1, 0 }, { 1, -1 }, { 0, -1 }, { -1, -1 }, { -1, 0 } };
-    s32 search_offset_diamond[8][MV_D] = { { 0, 2 }, { 1, 1 }, { 2, 0 }, { 1, -1 }, { 0, -2 }, { -1, -1 }, { -2, 0 }, { -1, 1 } };
-    s32 search_offset_hexagon[6][MV_D] = { { 2, 0 }, { 1, 2 }, { -1, 2 }, { -2, 0 }, { -1, -2 }, { 1, -2 } };
+    static const s32 search_offset_cross  [4][MV_D] = { {  0, 1 }, { 1, 0 }, {  0, -1 }, { -1,  0 } };
+    static const s32 search_offset_square [8][MV_D] = { { -1, 1 }, { 0, 1 }, {  1,  1 }, {  1,  0 }, {  1, -1 }, {  0, -1 }, { -1, -1 }, { -1, 0 } };
+    static const s32 search_offset_diamond[8][MV_D] = { {  0, 2 }, { 1, 1 }, {  2,  0 }, {  1, -1 }, {  0, -2 }, { -1, -1 }, { -2,  0 }, { -1, 1 } };
+    static const s32 search_offset_hexagon[6][MV_D] = { {  2, 0 }, { 1, 2 }, { -1,  2 }, { -2,  0 }, { -1, -2 }, {  1, -2 } };
+    const s32(*search_offset)[MV_D];
 
     s32 direct_start = 0;
-    s32 direct_end = 0;
+    s32 direct_end;
     s32 direct_rounding = 0;
     s32 direct_mask = 0;
-    s32(*search_offset)[MV_D] = search_offset_diamond;
 
-    s32 round;
-    s32 best_direct = -1;
-    s32 step = 1;
     int ref_mvr_bits = tbl_refi_bits[0][cur_info->refi[lidx_cur]] + pi->curr_mvr + (pi->curr_mvr < MAX_NUM_MVR - 1);
     u8 *tab_mvbits_x = pi->tab_mvbits;
     u8 *tab_mvbits_y = pi->tab_mvbits;
+    u32 lambda_mv    = pi->lambda_mv;
+
     int mvr_idx = cur_info->mvr_idx;
-    u32 lambda_mv = pi->lambda_mv;
-
-    org = pic_org->y + x + y * pic_org->stride_luma;
-
-    cu_width = (1 << log2_cuw);
-    cu_height = (1 << log2_cuh);
+    pel *org = pic_org->y + x + y * pic_org->stride_luma;
 
     if (search_pattern == 0) {
-        direct_end = 3;
+        direct_end      = 3;
         direct_rounding = 4;
-        direct_mask = 0x03;
-        search_offset = search_offset_cross;
+        direct_mask     = 0x03;
+        search_offset   = search_offset_cross;
     } else if (search_pattern == 1) {
-        direct_end = 7;
+        direct_end      = 7;
         direct_rounding = 8;
-        direct_mask = 0x07;
-        search_offset = search_offset_square;
+        direct_mask     = 0x07;
+        search_offset   = search_offset_square;
     } else if (search_pattern == 2) {
-        direct_end = 7;
+        direct_end      = 7;
         direct_rounding = 8;
-        direct_mask = 0x07;
-        search_offset = search_offset_diamond;
+        direct_mask     = 0x07;
+        search_offset   = search_offset_diamond;
     } else if (search_pattern == 3) {
-        direct_end = 5;
-        search_offset = search_offset_hexagon;
+        direct_end      = 5;
+        search_offset   = search_offset_hexagon;
+    } else {
+        search_offset   = search_offset_diamond;
+        com_assert(0);
     }
 
-    for (round = 0; round < search_round; round++) {
+    s32 step = 1;
+
+    for (int round = 0; round < search_round; round++) {
         s16 mv_cur_center[MV_D];
         s32 index;
+        int best_direct = -1;
 
-        best_direct = -1;
         mv_cur_center[MV_X] = mv[lidx_cur][MV_X];
         mv_cur_center[MV_Y] = mv[lidx_cur][MV_Y];
 
@@ -1145,7 +1077,6 @@ static u32 smvd_refine(core_t *core, int x, int y, int log2_cuw, int log2_cuh, s
             } else {
                 direct = (index + direct_rounding) & direct_mask;
             }
-
             mv_cand [lidx_cur][MV_X] = mv_cur_center[MV_X] + (s16)(search_offset[direct][MV_X] << search_shift);
             mv_cand [lidx_cur][MV_Y] = mv_cur_center[MV_Y] + (s16)(search_offset[direct][MV_Y] << search_shift);
             mvd_cand[lidx_cur][MV_X] = mv_cand[lidx_cur][MV_X] - mvp[lidx_cur][MV_X];
@@ -1156,24 +1087,18 @@ static u32 smvd_refine(core_t *core, int x, int y, int log2_cuw, int log2_cuh, s
 
             com_mc_cu(x, y, info->pic_width, info->pic_height, cu_width, cu_height, cur_info->refi, mv_cand, core->refp, cur_info->pred, cu_width, CHANNEL_L, bit_depth);
 
-            mv_bits = GET_MVBITS_X(mvd_cand[lidx_cur][MV_X]) + GET_MVBITS_Y(mvd_cand[lidx_cur][MV_Y]);
-            mv_bits += ref_mvr_bits;
+            int mv_bits = ref_mvr_bits + GET_MVBITS_X(mvd_cand[lidx_cur][MV_X]) + GET_MVBITS_Y(mvd_cand[lidx_cur][MV_Y]);
 
             mecost_tmp = block_pel_satd(log2_cuw, log2_cuh, org, cur_info->pred[0], pic_org->stride_luma, cu_width, bit_depth);
             mecost_tmp += MV_COST(mv_bits);
 
             if (mecost_tmp < mecost) {
                 mecost = mecost_tmp;
-                mv[lidx_cur][MV_X] = mv_cand[lidx_cur][MV_X];
-                mv[lidx_cur][MV_Y] = mv_cand[lidx_cur][MV_Y];
-
-                mv[lidx_tar][MV_X] = mv_cand[lidx_tar][MV_X];
-                mv[lidx_tar][MV_Y] = mv_cand[lidx_tar][MV_Y];
-
+                CP32(mv[lidx_cur], mv_cand[lidx_cur]);
+                CP32(mv[lidx_tar], mv_cand[lidx_tar]);
                 best_direct = direct;
             }
         }
-
         if (best_direct == -1) {
             break;
         }
@@ -1182,28 +1107,30 @@ static u32 smvd_refine(core_t *core, int x, int y, int log2_cuw, int log2_cuh, s
             step = 2 - (best_direct & 0x01);
         }
         direct_start = best_direct - step;
-        direct_end = best_direct + step;
+        direct_end   = best_direct + step;
     }
 
     return mecost;
 };
 
-static void analyze_smvd(core_t *core, lbac_t *sbac_best)
+static void analyze_smvd(core_t *core, lbac_t *lbac_best)
 {
-    s16 mv[REFP_NUM][MV_D], mvp[REFP_NUM][MV_D], mvd[MV_D];
-    com_info_t *info     =  core->info;
+    com_info_t *info     = core->info;
     com_mode_t *cur_info = &core->mod_info_curr;
     inter_search_t *pi   = &core->pinter;
-    int bit_depth        = info->bit_depth_internal;
     int x                = core->cu_pix_x;
     int y                = core->cu_pix_y;
     int log2_cuw         = core->cu_width_log2;
     int log2_cuh         = core->cu_height_log2;
+    com_pic_t *pic_org   = core->pic_org;
     int cu_width         = 1 << log2_cuw;
     int cu_height        = 1 << log2_cuh;
-    com_pic_t *pic_org   = core->pic_org;
+
     pel *org             = pic_org->y + x + y * pic_org->stride_luma;
     u32 lambda_mv        = pi->lambda_mv;
+    int bit_depth        = info->bit_depth_internal;
+
+    s16 mv[REFP_NUM][MV_D], mvp[REFP_NUM][MV_D], mvd[MV_D];
 
     init_inter_data(core);
 
@@ -1234,20 +1161,16 @@ static void analyze_smvd(core_t *core, lbac_t *sbac_best)
 
     if (mecost_bi < mecost) {
         mecost = mecost_bi;
-        mv[0][MV_X] = mv_bi[0][MV_X];
-        mv[0][MV_Y] = mv_bi[0][MV_Y];
-        mv[1][MV_X] = mv_bi[1][MV_X];
-        mv[1][MV_Y] = mv_bi[1][MV_Y];
+        CP32(mv[0], mv_bi[0]);
+        CP32(mv[1], mv_bi[1]);
     }
 
     // refine
     mecost = smvd_refine(core, x, y, log2_cuw, log2_cuh, mv, mvp, cur_info->refi, 0, 1, mecost, 2, 8, cur_info->mvr_idx);
     mecost = smvd_refine(core, x, y, log2_cuw, log2_cuh, mv, mvp, cur_info->refi, 0, 1, mecost, 0, 1, cur_info->mvr_idx);
 
-    cur_info->mv [REFP_0][MV_X] = mv[REFP_0][MV_X];
-    cur_info->mv [REFP_0][MV_Y] = mv[REFP_0][MV_Y];
-    cur_info->mv [REFP_1][MV_X] = mv[REFP_1][MV_X];
-    cur_info->mv [REFP_1][MV_Y] = mv[REFP_1][MV_Y];
+    CP32(cur_info->mv[REFP_0], mv[REFP_0]);
+    CP32(cur_info->mv[REFP_1], mv[REFP_1]);
 
     cur_info->mvd[REFP_0][MV_X] = mv[REFP_0][MV_X] - mvp[REFP_0][MV_X];
     cur_info->mvd[REFP_0][MV_Y] = mv[REFP_0][MV_Y] - mvp[REFP_0][MV_Y];
@@ -1257,7 +1180,7 @@ static void analyze_smvd(core_t *core, lbac_t *sbac_best)
     cur_info->mvd[REFP_1][MV_X] = COM_CLIP3(COM_INT16_MIN, COM_INT16_MAX, -cur_info->mvd[REFP_0][MV_X]);
     cur_info->mvd[REFP_1][MV_Y] = COM_CLIP3(COM_INT16_MIN, COM_INT16_MAX, -cur_info->mvd[REFP_0][MV_Y]);
 
-    inter_rdcost(core, sbac_best, 0, 1);
+    inter_rdcost(core, lbac_best, 0, 1, NULL, NULL);
 }
 
 static void solve_equal(double(*equal_coeff)[7], int order, double *affine_para)
@@ -1349,10 +1272,8 @@ static u64 affine_me_gradient(inter_search_t *pi, int x, int y, int cu_width_log
     cu_height = 1 << cu_height_log2;
 
     for (vertex = 0; vertex < vertex_num; vertex++) {
-        mvt[vertex][MV_X] = mv[vertex][MV_X];
-        mvt[vertex][MV_Y] = mv[vertex][MV_Y];
-        mvd[vertex][MV_X] = 0;
-        mvd[vertex][MV_Y] = 0;
+        CP64(mvt[vertex], mv[vertex]);
+        M32(mvd[vertex]) = 0;
     }
 
     com_mc_blk_affine_luma(x, y, refp->width_luma, refp->height_luma, cu_width, cu_height, mvt, refp, pred, vertex_num, sub_w, sub_h, bit_depth);
@@ -1498,8 +1419,7 @@ static u64 affine_me_gradient(inter_search_t *pi, int x, int y, int cu_width_log
             cost_best = cost;
             best_bits = mv_bits;
             for (vertex = 0; vertex < vertex_num; vertex++) {
-                mv[vertex][MV_X] = mvt[vertex][MV_X];
-                mv[vertex][MV_Y] = mvt[vertex][MV_Y];
+                CP64(mv[vertex], mvt[vertex]);
             }
         }
     }
@@ -1552,7 +1472,7 @@ static void mv_clip(int x, int y, int pic_w, int pic_h, int w, int h, s8 refi[RE
     }
 }
 
-static void analyze_affine_uni(core_t *core, lbac_t *sbac_best, CPMV aff_mv_L0L1[REFP_NUM][VER_NUM][MV_D], s8 *refi_L0L1, double *cost_L0L1)
+static void analyze_affine_uni(core_t *core, lbac_t *lbac_best, CPMV aff_mv_L0L1[REFP_NUM][VER_NUM][MV_D], s8 *refi_L0L1, double *cost_L0L1)
 {
     com_info_t *info = core->info;
     com_mode_t *cur_info = &core->mod_info_curr;
@@ -1726,12 +1646,12 @@ static void analyze_affine_uni(core_t *core, lbac_t *sbac_best, CPMV aff_mv_L0L1
             allowed = 0;
         }
         if (allowed) {
-            cost_L0L1[lidx] = inter_rdcost(core, sbac_best, 0, 1);
+            cost_L0L1[lidx] = inter_rdcost(core, lbac_best, 0, 1, NULL, NULL);
         }
     }
 }
 
-static void analyze_affine_bi(core_t *core, lbac_t *sbac_best, CPMV aff_mv_L0L1[REFP_NUM][VER_NUM][MV_D], const s8 *refi_L0L1, const double *cost_L0L1)
+static void analyze_affine_bi(core_t *core, lbac_t *lbac_best, CPMV aff_mv_L0L1[REFP_NUM][VER_NUM][MV_D], const s8 *refi_L0L1, const double *cost_L0L1)
 {
     com_info_t *info = core->info;
     com_mode_t *cur_info = &core->mod_info_curr;
@@ -1870,7 +1790,7 @@ static void analyze_affine_bi(core_t *core, lbac_t *sbac_best, CPMV aff_mv_L0L1[
     if (memory_access[0] > mem || memory_access[1] > mem) {
         return;
     } else {
-        cost = inter_rdcost(core, sbac_best, 0, 1);
+        cost = inter_rdcost(core, lbac_best, 0, 1, NULL, NULL);
     }
 }
 
@@ -1901,18 +1821,20 @@ static int is_same_mv(core_t *core, com_motion_t hmvp_motion)
     return 0;
 }
 
-void analyze_inter_cu(core_t *core, lbac_t *sbac_best)
+void analyze_inter_cu(core_t *core, lbac_t *lbac_best)
 {
-    com_info_t *info = core->info;
-    inter_search_t *pi = &core->pinter;
-    com_mode_t *cur_info = &core->mod_info_curr;
-    com_mode_t *bst_info = &core->mod_info_best;
+    com_info_t *info      = core->info;
+    inter_search_t *pi    = &core->pinter;
+    com_mode_t *cur_info  = &core->mod_info_curr;
+    com_mode_t *bst_info  = &core->mod_info_best;
+    int cu_width_log2     = core->cu_width_log2;
+    int cu_height_log2    = core->cu_height_log2;
+    int cu_width          = 1 << cu_width_log2;
+    int cu_height         = 1 << cu_height_log2;
+
     int bit_depth = info->bit_depth_internal;
-    int cu_width_log2 = core->cu_width_log2;
-    int cu_height_log2 = core->cu_height_log2;
-    int cu_width = 1 << cu_width_log2;
-    int cu_height = 1 << cu_height_log2;
     enc_history_t *history = &core->history_data[cu_width_log2 - 2][cu_height_log2 - 2][core->cu_scup_in_lcu];
+
     init_pb_part(cur_info);
     init_tb_part(cur_info);
     get_part_info(info->i_scu, core->cu_scu_x << 2, core->cu_scu_y << 2, cu_width, cu_height, cur_info->pb_part, &cur_info->pb_info);
@@ -1942,7 +1864,7 @@ void analyze_inter_cu(core_t *core, lbac_t *sbac_best)
     }
 
     if (cu_width *cu_height >= 64) {
-        analyze_direct_skip(core, sbac_best);
+        analyze_direct_skip(core, lbac_best);
     }
 
     for (cur_info->hmvp_flag = 0; cur_info->hmvp_flag < num_iter_mvp; cur_info->hmvp_flag++) {
@@ -1954,7 +1876,6 @@ void analyze_inter_cu(core_t *core, lbac_t *sbac_best)
                 }
             }
         }
-
         for (cur_info->mvr_idx = 0; cur_info->mvr_idx < num_amvr; cur_info->mvr_idx++) {
             double cost_L0L1[2] = { MAX_D_COST, MAX_D_COST };
             s8 refi_L0L1[2] = { REFI_INVALID, REFI_INVALID };
@@ -1974,13 +1895,13 @@ void analyze_inter_cu(core_t *core, lbac_t *sbac_best)
             init_tb_part(cur_info);
             get_part_info(info->i_scu, core->cu_scu_x << 2, core->cu_scu_y << 2, cu_width, cu_height, cur_info->pb_part, &cur_info->pb_info);
             get_part_info(info->i_scu, core->cu_scu_x << 2, core->cu_scu_y << 2, cu_width, cu_height, cur_info->tb_part, &cur_info->tb_info);
-            analyze_uni_pred(core, sbac_best, cost_L0L1, mv_L0L1, refi_L0L1);
+            analyze_uni_pred(core, lbac_best, cost_L0L1, mv_L0L1, refi_L0L1);
 
             if (core->slice_type == SLICE_B && cu_width *cu_height >= 64) {
-                analyze_bi(core, sbac_best, mv_L0L1, refi_L0L1, cost_L0L1);
+                analyze_bi(core, lbac_best, mv_L0L1, refi_L0L1, cost_L0L1);
 
                 if (info->sqh.smvd_enable && core->ptr - core->refp[0][REFP_0].ptr == core->refp[0][REFP_1].ptr - core->ptr && !cur_info->hmvp_flag) {
-                    analyze_smvd(core, sbac_best);
+                    analyze_smvd(core, lbac_best);
                 }
             }
 
@@ -1996,23 +1917,20 @@ void analyze_inter_cu(core_t *core, lbac_t *sbac_best)
             }
         }
     }
-
-    double cost_L0L1[2] = { MAX_D_COST, MAX_D_COST };
-    s8 refi_L0L1[2] = { REFI_INVALID, REFI_INVALID };
-    CPMV aff_mv_L0L1[REFP_NUM][VER_NUM][MV_D];
-
     if (allow_affine && cu_width >= AFF_SIZE && cu_height >= AFF_SIZE) {
-        analyze_affine_merge(core, sbac_best);
-    }
+        analyze_affine_merge(core, lbac_best);
 
-    if (allow_affine && cu_width >= AFF_SIZE && cu_height >= AFF_SIZE) {
         if (!(bst_info->cu_mode == MODE_SKIP && !bst_info->affine_flag)) { 
+            double cost_L0L1[2] = { MAX_D_COST,   MAX_D_COST   };
+            s8     refi_L0L1[2] = { REFI_INVALID, REFI_INVALID };
+            CPMV   aff_mv_L0L1[REFP_NUM][VER_NUM][MV_D];
             int num_affine_amvr = info->sqh.amvr_enable ? MAX_NUM_AFFINE_MVR : 1;
+
             for (cur_info->mvr_idx = 0; cur_info->mvr_idx < num_affine_amvr; cur_info->mvr_idx++) {
                 pi->curr_mvr = cur_info->mvr_idx;
-                analyze_affine_uni(core, sbac_best, aff_mv_L0L1, refi_L0L1, cost_L0L1);
+                analyze_affine_uni(core, lbac_best, aff_mv_L0L1, refi_L0L1, cost_L0L1);
                 if (core->slice_type == SLICE_B) {
-                    analyze_affine_bi(core, sbac_best, aff_mv_L0L1, refi_L0L1, cost_L0L1);
+                    analyze_affine_bi(core, lbac_best, aff_mv_L0L1, refi_L0L1, cost_L0L1);
                 }
             }
         }

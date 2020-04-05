@@ -251,7 +251,7 @@ void com_mc_blk_affine_luma(int x, int y, int pic_w, int pic_h, int cu_width, in
     }
 }
 
-static void com_mc_blk_affine(int x, int y, int pic_w, int pic_h, int cu_width, int cu_height, CPMV ac_mv[VER_NUM][MV_D], com_pic_t *ref_pic, pel pred[N_C][MAX_CU_DIM], int cp_num, int sub_w, int sub_h, s16(*map_mv)[REFP_NUM][MV_D], int lidx, int bit_depth)
+static void com_mc_blk_affine(int x, int y, int pic_w, int pic_h, int cu_width, int cu_height, CPMV ac_mv[VER_NUM][MV_D], com_pic_t *ref_pic, pel pred[N_C][MAX_CU_DIM], int cp_num, int sub_w, int sub_h, int lidx, int bit_depth)
 {
     assert(com_tbl_log2[cu_width] >= 4);
     assert(com_tbl_log2[cu_height] >= 4);
@@ -356,7 +356,7 @@ static void com_mc_blk_affine(int x, int y, int pic_w, int pic_h, int cu_width, 
     }
 }
 
-void com_mc_cu_affine(int x, int y, int pic_w, int pic_h, int w, int h, s8 refi[REFP_NUM], CPMV mv[REFP_NUM][VER_NUM][MV_D], com_ref_pic_t(*refp)[REFP_NUM], pel pred_buf[N_C][MAX_CU_DIM], int vertex_num, com_pic_header_t *sh, s16(*map_mv)[REFP_NUM][MV_D], int bit_depth)
+void com_mc_cu_affine(int x, int y, int pic_w, int pic_h, int w, int h, s8 refi[REFP_NUM], CPMV mv[REFP_NUM][VER_NUM][MV_D], com_ref_pic_t(*refp)[REFP_NUM], pel pred_buf[N_C][MAX_CU_DIM], int vertex_num, com_pic_header_t *sh, int bit_depth)
 {
     com_pic_t *ref_pic;
     ALIGNED_32(pel pred_snd[N_C][MAX_CU_DIM]);
@@ -378,7 +378,7 @@ void com_mc_cu_affine(int x, int y, int pic_w, int pic_h, int w, int h, s8 refi[
     if (REFI_IS_VALID(refi[REFP_0])) {
         /* forward */
         ref_pic = refp[refi[REFP_0]][REFP_0].pic;
-        com_mc_blk_affine(x, y, pic_w, pic_h, w, h, mv[REFP_0], ref_pic, pred, vertex_num, sub_w, sub_h, map_mv, 0, bit_depth);
+        com_mc_blk_affine(x, y, pic_w, pic_h, w, h, mv[REFP_0], ref_pic, pred, vertex_num, sub_w, sub_h, 0, bit_depth);
         bidx++;
     }
 
@@ -388,7 +388,7 @@ void com_mc_cu_affine(int x, int y, int pic_w, int pic_h, int w, int h, s8 refi[
             pred = pred_snd;
         }
         ref_pic = refp[refi[REFP_1]][REFP_1].pic;
-        com_mc_blk_affine(x, y, pic_w, pic_h, w, h, mv[REFP_1], ref_pic, pred, vertex_num, sub_w, sub_h, map_mv, 1, bit_depth);
+        com_mc_blk_affine(x, y, pic_w, pic_h, w, h, mv[REFP_1], ref_pic, pred, vertex_num, sub_w, sub_h, 1, bit_depth);
         bidx++;
     }
 
