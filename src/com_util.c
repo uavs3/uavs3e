@@ -2050,22 +2050,18 @@ void com_get_affine_mvp_scaling(s64 ptr, int scup, int lidx, s8 cur_refi, \
     }
 }
 
-
 void com_lbac_ctx_init(com_lbac_all_ctx_t *lbac_ctx)
 {
-    int i, num;
-    lbac_ctx_model_t *p;
     com_mset(lbac_ctx, 0x00, sizeof(*lbac_ctx));
 
     /* Initialization of the context models */
-    num = sizeof(com_lbac_all_ctx_t) / sizeof(lbac_ctx_model_t);
-    p = (lbac_ctx_model_t *)lbac_ctx;
+    int num = sizeof(com_lbac_all_ctx_t) / sizeof(lbac_ctx_model_t);
+    lbac_ctx_model_t *p = (lbac_ctx_model_t *)lbac_ctx;
 
-    for (i = 0; i < num; i++) {
+    for (int i = 0; i < num; i++) {
         p[i] = PROB_INIT;
     }
 }
-
 
 int com_split_part_count(int split_mode)
 {

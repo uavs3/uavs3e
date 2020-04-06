@@ -132,40 +132,42 @@ void com_alf_copy_param(com_alf_pic_param_t *dst, com_alf_pic_param_t *src)
 
 void com_alf_copy_frm(com_pic_t *pic_dst, com_pic_t *pic_src)
 {
-    int i, j;
-    int src_Stride, dst_Stride;
-    pel *src;
-    pel *dst;
-    //assert(pic_src->stride_luma == pic_dst->stride_luma);
-    src_Stride = pic_src->stride_luma;
-    dst_Stride = pic_dst->stride_luma;
-    src = pic_src->y;
-    dst = pic_dst->y;
-    for (j = 0; j < pic_src->height_luma; j++) {
-        for (i = 0; i < pic_src->width_luma; i++) {
-            dst[i] = src[i];
-        }
+    int src_Stride = pic_src->stride_luma;
+    int dst_Stride = pic_dst->stride_luma;
+    pel *src = pic_src->y;
+    pel *dst = pic_dst->y;
+
+    for (int j = 0; j < pic_src->height_luma; j++) {
+        memcpy(dst, src, pic_src->width_luma * sizeof(pel));
+        pel *pl = dst, *pr = dst + pic_src->width_luma - 1;
+        pl[-3] = pl[-2] = pl[-1] = pl[0];
+        pr[ 3] = pr[ 2] = pr[ 1] = pr[0];
         dst += dst_Stride;
         src += src_Stride;
     }
-    //assert(pic_src->stride_luma == pic_dst->stride_luma);
+
     src_Stride = pic_src->stride_chroma;
     dst_Stride = pic_dst->stride_chroma;
     src = pic_src->u;
     dst = pic_dst->u;
-    for (j = 0; j < pic_src->height_chroma; j++) {
-        for (i = 0; i < pic_src->width_chroma; i++) {
-            dst[i] = src[i];
-        }
+
+    for (int j = 0; j < pic_src->height_chroma; j++) {
+        memcpy(dst, src, pic_src->width_chroma * sizeof(pel));
+        pel *pl = dst, *pr = dst + pic_src->width_chroma - 1;
+        pl[-3] = pl[-2] = pl[-1] = pl[0];
+        pr[ 3] = pr[ 2] = pr[ 1] = pr[0];
         dst += dst_Stride;
         src += src_Stride;
     }
+
     src = pic_src->v;
     dst = pic_dst->v;
-    for (j = 0; j < pic_src->height_chroma; j++) {
-        for (i = 0; i < pic_src->width_chroma; i++) {
-            dst[i] = src[i];
-        }
+
+    for (int j = 0; j < pic_src->height_chroma; j++) {
+        memcpy(dst, src, pic_src->width_chroma * sizeof(pel));
+        pel *pl = dst, *pr = dst + pic_src->width_chroma - 1;
+        pl[-3] = pl[-2] = pl[-1] = pl[0];
+        pr[ 3] = pr[ 2] = pr[ 1] = pr[0];
         dst += dst_Stride;
         src += src_Stride;
     }
@@ -229,7 +231,7 @@ static void alf_filter_block(pel *dst, int i_dst, pel *src, int i_src, int lcu_w
             int xLeft = j - 1;
             int xRight = j + 1;
 
-            pixelInt = coef[0] * (imgPad5[j] + imgPad6[j]);
+            pixelInt  = coef[0] * (imgPad5[j] + imgPad6[j]);
             pixelInt += coef[1] * (imgPad3[j] + imgPad4[j]);
             pixelInt += coef[2] * (imgPad1[xRight] + imgPad2[xLeft]);
             pixelInt += coef[3] * (imgPad1[j] + imgPad2[j]);

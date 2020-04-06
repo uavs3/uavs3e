@@ -76,10 +76,10 @@ static void rdoq_get_sym_bits(s32 *pbits, lbac_ctx_model_t *cm)
     u16 prob_lps = ((*cm) & PROB_MASK) >> 1;
 
     if ((*cm) & 1) {
-        pbits[0] = tbl_rdoq_prob_2_bits[prob_lps              >> ENTROPY_BITS_TABLE_BiTS_SHIFP];
+        pbits[0] = tbl_rdoq_prob_2_bits[            prob_lps  >> ENTROPY_BITS_TABLE_BiTS_SHIFP];
         pbits[1] = tbl_rdoq_prob_2_bits[(MAX_PROB - prob_lps) >> ENTROPY_BITS_TABLE_BiTS_SHIFP];
     } else {
-        pbits[1] = tbl_rdoq_prob_2_bits[prob_lps              >> ENTROPY_BITS_TABLE_BiTS_SHIFP];
+        pbits[1] = tbl_rdoq_prob_2_bits[            prob_lps  >> ENTROPY_BITS_TABLE_BiTS_SHIFP];
         pbits[0] = tbl_rdoq_prob_2_bits[(MAX_PROB - prob_lps) >> ENTROPY_BITS_TABLE_BiTS_SHIFP];
     }
 }
@@ -116,28 +116,21 @@ static void rdoq_get_sym_bitsW(s32 *pbits, lbac_ctx_model_t *cm1, lbac_ctx_model
 
 void rdoq_init_cu_est_bits(core_t *core, lbac_t *lbac)
 {
-    int h;
- 
     rdoq_get_sym_bits(core->rdoq_bin_est_ctp, lbac->h.ctp_zero_flag);
 
-    for (h = 0; h < LBAC_CTX_CBF; h++) {
+    for (int h = 0; h < LBAC_CTX_CBF; h++) {
         rdoq_get_sym_bits(core->rdoq_bin_est_cbf[h], lbac->h.cbf + h);
     }
-    for (h = 0; h < LBAC_CTX_RUN_RDOQ; h++) {
+    for (int h = 0; h < LBAC_CTX_RUN_RDOQ; h++) {
         rdoq_get_sym_bits(core->rdoq_bin_est_run[h], lbac->h.run_rdoq + h);
     }
-    for (h = 0; h < LBAC_CTX_LEVEL; h++) {
+    for (int h = 0; h < LBAC_CTX_LEVEL; h++) {
         rdoq_get_sym_bits(core->rdoq_bin_est_lvl[h], lbac->h.level + h);
     }
-    for (h = 0; h < 2; h++) { // luma / chroma
-        int i, j;
-        int chroma_offset1 = h * LBAC_CTX_LAST1;
-        int chroma_offset2 = h * LBAC_CTX_LAST2;
-
-        for (i = 0; i < LBAC_CTX_LAST1; i++) {
-            for (j = 0; j < LBAC_CTX_LAST2; j++) {
-                rdoq_get_sym_bitsW(core->rdoq_bin_est_lst[h][i][j], lbac->h.last1 + i + chroma_offset1, lbac->h.last2 + j + chroma_offset2);
-            }
+    for (int i = 0; i < LBAC_CTX_LAST1; i++) {
+        for (int j = 0; j < LBAC_CTX_LAST2; j++) {
+            rdoq_get_sym_bitsW(core->rdoq_bin_est_lst[0][i][j], lbac->h.last1 + i,                  lbac->h.last2 + j);
+            rdoq_get_sym_bitsW(core->rdoq_bin_est_lst[1][i][j], lbac->h.last1 + i + LBAC_CTX_LAST1, lbac->h.last2 + j + LBAC_CTX_LAST2);
         }
     }
 }

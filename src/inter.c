@@ -168,10 +168,8 @@ static void check_best_mode(core_t *core, lbac_t *lbac_best, lbac_t *lbac, const
                 int vertex_num = bst_info->affine_flag + 1;
                 for (lidx = 0; lidx < REFP_NUM; lidx++) {
                     for (vertex = 0; vertex < vertex_num; vertex++) {
-                        bst_info->affine_mv[lidx][vertex][MV_X] = cur_info->affine_mv[lidx][vertex][MV_X];
-                        bst_info->affine_mv[lidx][vertex][MV_Y] = cur_info->affine_mv[lidx][vertex][MV_Y];
-                        bst_info->affine_mvd[lidx][vertex][MV_X] = cur_info->affine_mvd[lidx][vertex][MV_X];
-                        bst_info->affine_mvd[lidx][vertex][MV_Y] = cur_info->affine_mvd[lidx][vertex][MV_Y];
+                        CP64(bst_info->affine_mv [lidx][vertex], cur_info->affine_mv [lidx][vertex]);
+                        CP32(bst_info->affine_mvd[lidx][vertex], cur_info->affine_mvd[lidx][vertex]);
                     }
                 }
             }
@@ -871,7 +869,6 @@ static void analyze_uni_pred(core_t *core, lbac_t *lbac_best, double *cost_L0L1,
     pi->fast_me = core->param->speed_level;
 
     cur_info->cu_mode = MODE_INTER;
-
 
     for (int lidx = 0; lidx <= ((core->slice_type == SLICE_P) ? PRED_L0 : PRED_L1); lidx++) {
         u64 best_mecost = COM_UINT64_MAX;

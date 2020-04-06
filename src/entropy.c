@@ -1087,12 +1087,12 @@ static avs3_always_inline int get_shift(int v)
 
 void lbac_reset(lbac_t *lbac)
 {
-    lbac->range = 0x1FF;
-    lbac->code = 0;
-    lbac->left_bits = 23;
-    lbac->pending_byte = 0;
+    lbac->range           = 0x1FF;
+    lbac->code            = 0;
+    lbac->left_bits       = 23;
+    lbac->pending_byte    = 0;
     lbac->is_pending_byte = 0;
-    lbac->stacked_ff = 0;
+    lbac->stacked_ff      = 0;
 }
 
 void lbac_finish(lbac_t *lbac, bs_t *bs)

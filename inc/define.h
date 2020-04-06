@@ -179,7 +179,6 @@ typedef struct uavs3e_enc_history_t {
 typedef struct uavs3e_enc_alf_corr_t {
     double ECorr[NO_VAR_BINS][ALF_MAX_NUM_COEF][ALF_MAX_NUM_COEF];  //!< auto-correlation matrix
     double yCorr[NO_VAR_BINS][ALF_MAX_NUM_COEF]; //!< cross-correlation
-    double pixAcc[NO_VAR_BINS];
     int componentID;
 } enc_alf_corr_t;
 
@@ -190,14 +189,11 @@ typedef struct uavs3e_enc_alf_var_t {
     double    m_y_merged[NO_VAR_BINS][ALF_MAX_NUM_COEF];
     double    m_E_merged[NO_VAR_BINS][ALF_MAX_NUM_COEF][ALF_MAX_NUM_COEF];
     double    m_y_temp[ALF_MAX_NUM_COEF];
-    double    m_pixAcc_merged[NO_VAR_BINS];
     double    m_E_temp[ALF_MAX_NUM_COEF][ALF_MAX_NUM_COEF];
-    com_alf_pic_param_t  m_alfPictureParam[N_C];
     int       m_coeffNoFilter[ALF_MAX_NUM_COEF];
     int       m_varIndTab[NO_VAR_BINS];
 
-    unsigned int m_uiBitIncrement;
-
+    com_alf_pic_param_t  m_alfPictureParam[N_C];
 } enc_alf_var_t;
 
 typedef struct uavs3e_enc_pic_param_t {
