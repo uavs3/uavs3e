@@ -1352,14 +1352,12 @@ static void lbac_encode_bins_msb(u32 value, int num_bin, lbac_t *lbac, lbac_ctx_
 {
     if (bs == NULL) {
         for (int i = num_bin - 1; i >= 0; i--, model++) {
-            u16 cmps = (*model) & 1;
             u32 rLPS = ((*model) & PROB_MASK) >> (LG_PMPS_SHIFTNO + 1);
             u32 rMPS = lbac->range - rLPS;
             int s_flag = rMPS < QUAR_HALF_PROB;
-            int bin = (value >> i) & 1;
             rMPS |= 0x100;
 
-            if (bin == cmps) { // MPS
+            if (!(((value >> i) ^ (*model)) & 1)) { // MPS
                 lbac->bitcounter += s_flag;
                 lbac->range = rMPS;
                 *model = tbl_plps[*model];

@@ -165,22 +165,27 @@ static double intra_pu_rdcost(core_t *core, lbac_t *lbac, pel rec[N_C][MAX_CU_DI
     return cost;
 }
 
-static void com_updata_cand_list(const int ipm, u64 cost_satd, double cost, int ipred_list_len, int *rmd_ipred_list, u64 *rmd_cand_satd, double *rmd_cand_cost)
+static void com_update_cand_list(const int ipm, u64 cost_satd, double cost, int ipred_list_len, int *rmd_ipred_list, u64 *rmd_cand_satd, double *rmd_cand_cost)
 {
 	int shift = 0;
+    double *pcand = rmd_cand_cost + ipred_list_len - 1;
 
-	while (shift < ipred_list_len && cost < rmd_cand_cost[ipred_list_len - 1 - shift]) {
+	while (shift < ipred_list_len && cost < *pcand--) {
 		shift++;
 	}
 	if (shift) {
+        rmd_ipred_list += ipred_list_len - 1;
+        rmd_cand_satd  += ipred_list_len - 1;
+        rmd_cand_cost  += ipred_list_len - 1;
+
 		for (int j = 1; j < shift; j++) {
-			rmd_ipred_list[ipred_list_len - j] = rmd_ipred_list[ipred_list_len - j - 1];
-			rmd_cand_satd [ipred_list_len - j] = rmd_cand_satd [ipred_list_len - j - 1];
-			rmd_cand_cost [ipred_list_len - j] = rmd_cand_cost [ipred_list_len - j - 1];
+			*rmd_ipred_list-- = rmd_ipred_list[-1];
+            *rmd_cand_satd -- = rmd_cand_satd [-1];
+            *rmd_cand_cost -- = rmd_cand_cost [-1];
 		}
-		rmd_ipred_list[ipred_list_len - shift] = ipm;
-		rmd_cand_satd [ipred_list_len - shift] = cost_satd;
-		rmd_cand_cost [ipred_list_len - shift] = cost;
+		*rmd_ipred_list = ipm;
+		*rmd_cand_satd  = cost_satd;
+		*rmd_cand_cost  = cost;
 	}
 }
 
@@ -201,7 +206,7 @@ static void check_one_mode(core_t *core, pel *org, int s_org, int ipm, int ipred
 	bit_cnt = lbac_get_bits(&lbac_temp) - bit_cnt;
 
 	double cost = satd + RATE_TO_COST_SQRT_LAMBDA(core->sqrt_lambda[0], bit_cnt);
-	com_updata_cand_list(ipm, satd, cost, ipred_list_len, rmd_ipred_list, rmd_cand_satd, rmd_cand_cost);
+	com_update_cand_list(ipm, satd, cost, ipred_list_len, rmd_ipred_list, rmd_cand_satd, rmd_cand_cost);
 }
 
 static int make_ipred_list(core_t *core, int pb_width, int pb_height, int cu_width_log2, int cu_height_log2, pel *org, int s_org, int *ipred_list, int part_idx, u16 avail_cu, int skip_ipd)
@@ -229,7 +234,7 @@ static int make_ipred_list(core_t *core, int pb_width, int pb_height, int cu_wid
 		    if (skip_ipd == 1 && (mode == IPD_PLN || mode == IPD_BI || mode == IPD_DC)) {
 			    continue;
 		    }
-		    check_one_mode(core, org, s_org, mode, COM_MAX(ipd_rdo_cnt, num_cand_4_out), ipred_list, rmd_cand_satd, rmd_cand_cost, part_idx, pb_width, pb_height, avail_cu);
+		    check_one_mode(core, org, s_org, mode, i + 1, ipred_list, rmd_cand_satd, rmd_cand_cost, part_idx, pb_width, pb_height, avail_cu);
 	    }
 
         int rmd_range_2[12] = { 0 };
