@@ -1262,7 +1262,7 @@ static u64 affine_me_gradient(inter_search_t *pi, int x, int y, int cu_width_log
     s64    equal_coeff_t[7][7];
     double equal_coeff[7][7];
     ALIGNED_32(s16 error[MAX_CU_DIM]);
-    ALIGNED_32(int derivate[2][MAX_CU_DIM]);
+    ALIGNED_32(s16 derivate[2][MAX_CU_DIM]);
     u32 lambda_mv = pi->lambda_mv;
 
     cu_width  = 1 << cu_width_log2;

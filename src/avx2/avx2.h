@@ -270,8 +270,8 @@ u32 uavs3e_had_8x8_avx2(pel *p_org, int i_org, pel *p_pred, int i_pred);
 u32 uavs3e_had_16x8_avx2(pel *p_org, int i_org, pel *p_pred, int i_pred);
 u32 uavs3e_had_8x16_avx2(pel *p_org, int i_org, pel *p_pred, int i_pred);
 
-void affine_sobel_flt_hor_avx2(pel *pred, int i_pred, int *deriv, int i_deriv, int width, int height);
-void affine_sobel_flt_ver_avx2(pel *pred, int i_pred, int *deriv, int i_deriv, int width, int height);
-void affine_coef_computer_avx2(s16 *resi, int i_resi, int(*deriv)[MAX_CU_DIM], int i_deriv, s64(*coef)[7], int width, int height, int vertex_num);
+void affine_sobel_flt_hor_avx2(pel *pred, int i_pred, s16 *deriv, int i_deriv, int width, int height);
+void affine_sobel_flt_ver_avx2(pel *pred, int i_pred, s16 *deriv, int i_deriv, int width, int height);
+void affine_coef_computer_avx2(s16 *resi, int i_resi, s16(*deriv)[MAX_CU_DIM], int i_deriv, s64(*coef)[7], int width, int height, int vertex_num);
 
 #endif

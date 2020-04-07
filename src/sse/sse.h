@@ -208,8 +208,8 @@ void uavs3e_pel_diff_32_sse(pel *p_org, int i_org, pel *p_pred, int i_pred, s16 
 void uavs3e_pel_diff_64_sse(pel *p_org, int i_org, pel *p_pred, int i_pred, s16 *p_resi, int i_resi, int height);
 void uavs3e_pel_diff_128_sse(pel *p_org, int i_org, pel *p_pred, int i_pred, s16 *p_resi, int i_resi, int height);
 
-void affine_sobel_flt_hor_sse(pel *pred, int i_pred, int *deriv, int i_deriv, int width, int height);
-void affine_sobel_flt_ver_sse(pel *pred, int i_pred, int *deriv, int i_deriv, int width, int height);
-void affine_coef_computer_sse(s16 *resi, int i_resi, int(*deriv)[MAX_CU_DIM], int i_deriv, s64(*coef)[7], int width, int height, int vertex_num);
+void affine_sobel_flt_hor_sse(pel *pred, int i_pred, s16 *deriv, int i_deriv, int width, int height);
+void affine_sobel_flt_ver_sse(pel *pred, int i_pred, s16 *deriv, int i_deriv, int width, int height);
+void affine_coef_computer_sse(s16 *resi, int i_resi, s16(*deriv)[MAX_CU_DIM], int i_deriv, s64(*coef)[7], int width, int height, int vertex_num);
 
 #endif // #ifndef __INTRINSIC_H__

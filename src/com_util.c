@@ -2971,7 +2971,7 @@ void init_pic_wq_matrix(u8 *pic_wq_matrix4x4, u8 *pic_wq_matrix8x8)
     }
 }
 
-static void affine_sobel_flt_hor(pel *pred, int i_pred, int *deriv, int i_deriv, int width, int height)
+static void affine_sobel_flt_hor(pel *pred, int i_pred, s16 *deriv, int i_deriv, int width, int height)
 {
     int j, k;
     for (j = 1; j < height - 1; j++) {
@@ -2998,7 +2998,7 @@ static void affine_sobel_flt_hor(pel *pred, int i_pred, int *deriv, int i_deriv,
     }
 }
 
-static void affine_sobel_flt_ver(pel *pred, int i_pred, int *deriv, int i_deriv, int width, int height)
+static void affine_sobel_flt_ver(pel *pred, int i_pred, s16 *deriv, int i_deriv, int width, int height)
 {
     int k, j;
     for (k = 1; k < width - 1; k++) {
@@ -3025,7 +3025,7 @@ static void affine_sobel_flt_ver(pel *pred, int i_pred, int *deriv, int i_deriv,
     }
 }
 
-static void affine_coef_computer(s16 *resi, int i_resi, int(*deriv)[MAX_CU_DIM], int i_deriv, s64(*coef)[7], int width, int height, int vertex_num)
+static void affine_coef_computer(s16 *resi, int i_resi, s16(*deriv)[MAX_CU_DIM], int i_deriv, s64(*coef)[7], int width, int height, int vertex_num)
 {
     int affine_param_num = (vertex_num << 1);
     int j, k, col, row;
