@@ -461,19 +461,19 @@ static int copy_cu_data(enc_cu_t *dst, enc_cu_t *src, int x, int y, int cu_width
 
 static int enc_mode_init_cu(core_t *core, int x, int y, int cu_width_log2, int cu_height_log2)
 {
-    com_info_t *info = core->info;
+    com_info_t *info     =  core->info;
     com_mode_t *bst_info = &core->mod_info_best;
     com_mode_t *cur_info = &core->mod_info_curr;
 
-    core->cu_pix_x = x;
-    core->cu_pix_y = y;
-    core->cu_width = 1 << cu_width_log2;
-    core->cu_height = 1 << cu_height_log2;
-    core->cu_width_log2 = cu_width_log2;
-    core->cu_height_log2 = cu_height_log2;
-    core->cu_scu_x = PEL2SCU(x);
-    core->cu_scu_y = PEL2SCU(y);
-    core->cu_scup_in_pic = ((u32)core->cu_scu_y * info->i_scu) + core->cu_scu_x;
+    core->cu_pix_x        = x;
+    core->cu_pix_y        = y;
+    core->cu_width        = 1 << cu_width_log2;
+    core->cu_height       = 1 << cu_height_log2;
+    core->cu_width_log2   = cu_width_log2;
+    core->cu_height_log2  = cu_height_log2;
+    core->cu_scu_x        = PEL2SCU(x);
+    core->cu_scu_y        = PEL2SCU(y);
+    core->cu_scup_in_pic  = ((u32)core->cu_scu_y * info->i_scu) + core->cu_scu_x;
     core->skip_mvps_check = 1;
 
     cu_nz_cln(cur_info->num_nz);
@@ -482,8 +482,6 @@ static int enc_mode_init_cu(core_t *core, int x, int y, int cu_width_log2, int c
     if (core->tree_status == TREE_C) {
         return COM_OK;
     }
-
-    bst_info->cu_mode = MODE_INTRA;
 
     //init the best cu info
     init_pb_part(bst_info);
@@ -496,20 +494,20 @@ static int enc_mode_init_cu(core_t *core, int x, int y, int cu_width_log2, int c
     com_mset(bst_info->mvd,  0, sizeof(s16) * REFP_NUM * MV_D);
     com_mset(bst_info->refi, 0, sizeof(s16) * REFP_NUM);
 
-    bst_info->mvr_idx = 0;
-    bst_info->skip_idx = 0;
-    bst_info->umve_flag = 0;
-    bst_info->umve_idx = -1;
-    bst_info->hmvp_flag = 0;
-    bst_info->ipf_flag = 0;
-    bst_info->affine_flag = 0;
-    bst_info->smvd_flag = 0;
+    bst_info->cu_mode     = MODE_INTRA;
+    bst_info->mvr_idx     =  0;
+    bst_info->skip_idx    =  0;
+    bst_info->umve_flag   =  0;
+    bst_info->umve_idx    = -1;
+    bst_info->hmvp_flag   =  0;
+    bst_info->ipf_flag    =  0;
+    bst_info->affine_flag =  0;
+    bst_info->smvd_flag   =  0;
+    cur_info->affine_flag =  0;
+    cur_info->smvd_flag   =  0;
 
     com_mset(bst_info->affine_mv,  0, sizeof(CPMV) * REFP_NUM * VER_NUM * MV_D);
     com_mset(bst_info->affine_mvd, 0, sizeof( s16) * REFP_NUM * VER_NUM * MV_D);
-
-    cur_info->affine_flag = 0;
-    cur_info->smvd_flag = 0;
 
     rdoq_init_cu_est_bits(core, &core->lbac_bakup);
 
@@ -680,7 +678,6 @@ static void set_affine_mvf(core_t *core, com_mode_t *mi, enc_cu_t *cu_data)
 
 static void copy_to_cu_data(core_t *core, com_mode_t *mi, enc_cu_t *cu_data)
 {
-    int i, j, idx, size;
     int cu_width_log2  = CONV_LOG2(core->cu_width);
     int cu_height_log2 = CONV_LOG2(core->cu_height);
 
@@ -689,7 +686,7 @@ static void copy_to_cu_data(core_t *core, com_mode_t *mi, enc_cu_t *cu_data)
         com_mcpy(cu_data->reco[Y_C], mi->rec [Y_C], core->cu_width * core->cu_height * sizeof(pel));
     }
     if (core->tree_status != TREE_L) {
-        size = (core->cu_width * core->cu_height * sizeof(s16)) >> 2;
+        int size = (core->cu_width * core->cu_height * sizeof(s16)) >> 2;
         com_mcpy(cu_data->coef[U_C], mi->coef[U_C], size);
         com_mcpy(cu_data->coef[V_C], mi->coef[V_C], size);
         size = (core->cu_width * core->cu_height * sizeof(pel)) >> 2;
@@ -699,26 +696,27 @@ static void copy_to_cu_data(core_t *core, com_mode_t *mi, enc_cu_t *cu_data)
 
     /* mode info */
     if (core->tree_status == TREE_C) {
-        idx = 0;
-        for (j = 0; j < core->cu_height >> MIN_CU_LOG2; j++) {
-            for (i = 0; i < core->cu_width >> MIN_CU_LOG2; i++) {
+        for (int j = 0; j < core->cu_height >> MIN_CU_LOG2; j++) {
+            int idx = j * (core->cu_width >> MIN_CU_LOG2);
+
+            for (int i = 0; i < core->cu_width >> MIN_CU_LOG2; i++, idx++) {
                 if (mi->cu_mode == MODE_INTRA) {
-                    cu_data->ipm_c[idx + i] = mi->ipm[PB0][1];
+                    cu_data->ipm_c[idx] = mi->ipm[PB0][1];
                 }
-                cu_data->num_nz_coef[1][idx + i] = mi->num_nz[TBUV0][1];
-                cu_data->num_nz_coef[2][idx + i] = mi->num_nz[TBUV0][2];
+                cu_data->num_nz_coef[1][idx] = mi->num_nz[TBUV0][1];
+                cu_data->num_nz_coef[2][idx] = mi->num_nz[TBUV0][2];
             }
-            idx += core->cu_width >> MIN_CU_LOG2;
         }
     } else {
-        idx = 0;
         int cu_cbf_flag;
+        com_scu_t scu;
+        u32 pos;
+
         if (core->tree_status == TREE_LC) {
             cu_cbf_flag = is_cu_nz(mi->num_nz);
         } else if (core->tree_status == TREE_L) {
             cu_cbf_flag = is_cu_plane_nz(mi->num_nz, Y_C);
         }
-        com_scu_t scu;
         scu.coded = 1;
         scu.intra = mi->cu_mode == MODE_INTRA;
         scu.cbf = cu_cbf_flag;
@@ -726,46 +724,46 @@ static void copy_to_cu_data(core_t *core, com_mode_t *mi, enc_cu_t *cu_data)
         scu.affine = mi->affine_flag;
         scu.tbpart = mi->tb_part;
 
-        u32 pos;
         MCU_SET_SCUP(pos, core->cu_scup_in_pic);
         MCU_SET_LOGW(pos, cu_width_log2);
         MCU_SET_LOGH(pos, cu_height_log2);
 
-        for (j = 0; j < core->cu_height >> MIN_CU_LOG2; j++) {
-            for (i = 0; i < core->cu_width >> MIN_CU_LOG2; i++) {
+        for (int j = 0; j < core->cu_height >> MIN_CU_LOG2; j++) {
+            int idx = j * (core->cu_width >> MIN_CU_LOG2);
+
+            for (int i = 0; i < core->cu_width >> MIN_CU_LOG2; i++, idx++) {
                 int tb_idx_y = get_part_idx(mi->tb_part, i << 2, j << 2, core->cu_width, core->cu_height);
 
-                cu_data->map_scu     [idx + i] = scu;
-                cu_data->map_pos     [idx + i] = pos;
-                cu_data->pred_mode   [idx + i] = (u8)mi->cu_mode;
-                cu_data->umve_flag   [idx + i] = mi->umve_flag;
-                cu_data->umve_idx    [idx + i] = mi->umve_idx;
-                cu_data->pb_part     [idx + i] = mi->pb_part;
-                cu_data->tb_part     [idx + i] = mi->tb_part;
-                cu_data->affine_flag [idx + i] = mi->affine_flag;
+                cu_data->map_scu     [idx] = scu;
+                cu_data->map_pos     [idx] = pos;
+                cu_data->pred_mode   [idx] = (u8)mi->cu_mode;
+                cu_data->umve_flag   [idx] = mi->umve_flag;
+                cu_data->umve_idx    [idx] = mi->umve_idx;
+                cu_data->pb_part     [idx] = mi->pb_part;
+                cu_data->tb_part     [idx] = mi->tb_part;
+                cu_data->affine_flag [idx] = mi->affine_flag;
 
-                cu_data->num_nz_coef[0][idx + i] = mi->num_nz[tb_idx_y][0];
-                cu_data->num_nz_coef[1][idx + i] = mi->num_nz[0][1];
-                cu_data->num_nz_coef[2][idx + i] = mi->num_nz[0][2];
+                cu_data->num_nz_coef[0][idx] = mi->num_nz[tb_idx_y][0];
+                cu_data->num_nz_coef[1][idx] = mi->num_nz[0][1];
+                cu_data->num_nz_coef[2][idx] = mi->num_nz[0][2];
 
                 if (mi->cu_mode == MODE_INTRA) {
                     int pb_idx_y = get_part_idx(mi->pb_part, i << 2, j << 2, core->cu_width, core->cu_height);
-                    M16 (cu_data->refi[idx + i]) = -1;
-                    CP16(cu_data->mpm [idx + i], mi->mpm[pb_idx_y]);
-                    cu_data->ipm_l[idx + i] = mi->ipm[pb_idx_y][0];
-                    cu_data->ipm_c[idx + i] = mi->ipm[0][1];
-                    cu_data->ipf_flag[idx + i] = mi->ipf_flag;
+                    M16 (cu_data->refi[idx]) = -1;
+                    CP16(cu_data->mpm [idx], mi->mpm[pb_idx_y]);
+                    cu_data->ipm_l    [idx] = mi->ipm[pb_idx_y][0];
+                    cu_data->ipm_c    [idx] = mi->ipm[0][1];
+                    cu_data->ipf_flag [idx] = mi->ipf_flag;
                 } else {
-                    CP16(cu_data->refi[idx + i], mi->refi);
-                    CP64(cu_data->mv  [idx + i], mi->mv);
-                    CP64(cu_data->mvd [idx + i], mi->mvd);
-                    cu_data->mvr_idx  [idx + i] = mi->mvr_idx;
-                    cu_data->hmvp_flag[idx + i] = mi->hmvp_flag;
-                    cu_data->smvd_flag[idx + i] = mi->smvd_flag;
-                    cu_data->skip_idx [idx + i] = mi->skip_idx;
+                    CP16(cu_data->refi[idx], mi->refi);
+                    CP64(cu_data->mv  [idx], mi->mv);
+                    CP64(cu_data->mvd [idx], mi->mvd);
+                    cu_data->mvr_idx  [idx] = mi->mvr_idx;
+                    cu_data->hmvp_flag[idx] = mi->hmvp_flag;
+                    cu_data->smvd_flag[idx] = mi->smvd_flag;
+                    cu_data->skip_idx [idx] = mi->skip_idx;
                 }
             }
-            idx += core->cu_width >> MIN_CU_LOG2;
         }
         if (mi->affine_flag) {
             set_affine_mvf(core, mi, cu_data);
@@ -841,16 +839,15 @@ static void clear_map_scu(core_t *core, int x, int y, int cu_width, int cu_heigh
 
 static double mode_coding_unit(core_t *core, lbac_t *lbac_best, int x, int y, int cu_width_log2, int cu_height_log2, int cud, enc_cu_t *cu_data)
 {
-    com_info_t *info = core->info;
+    com_info_t *info     = core->info;
     com_mode_t *bst_info = &core->mod_info_best;
     com_mode_t *cur_info = &core->mod_info_curr;
-    int bit_depth = info->bit_depth_internal;
-    u8 cons_pred_mode = NO_MODE_CONS;
-    int cu_width = 1 << cu_width_log2;
-    int cu_height = 1 << cu_height_log2;
-    s8 ipf_flag;
-    s8 ipf_passes_num = (info->sqh.ipf_enable_flag && (cu_width < MAX_CU_SIZE) && (cu_height < MAX_CU_SIZE)) ? 2 : 1;
-    com_pic_t *pic_org = core->pic_org;
+    int cu_width         = 1 << cu_width_log2;
+    int cu_height        = 1 << cu_height_log2;
+    int bit_depth        = info->bit_depth_internal;
+    u8 cons_pred_mode    = NO_MODE_CONS;
+    com_pic_t *pic_org   = core->pic_org;
+    s8 ipf_passes_num    = (info->sqh.ipf_enable_flag && (cu_width < MAX_CU_SIZE) && (cu_height < MAX_CU_SIZE)) ? 2 : 1;
 
     enc_mode_init_cu(core, x, y, cu_width_log2, cu_height_log2);
 
@@ -895,7 +892,7 @@ static double mode_coding_unit(core_t *core, lbac_t *lbac_best, int x, int y, in
                 core->inter_satd = COM_UINT64_MAX;
             }
 
-            for (ipf_flag = 0; ipf_flag < ipf_passes_num; ++ipf_flag) {
+            for (int ipf_flag = 0; ipf_flag < ipf_passes_num; ++ipf_flag) {
                 cur_info->ipf_flag = ipf_flag;
                 analyze_intra_cu(core, lbac_best);
 
@@ -1092,51 +1089,48 @@ s64 calc_dist_filter_boundary(core_t *core, com_pic_t *pic_rec, com_pic_t *pic_o
 static double mode_coding_tree(core_t *core, lbac_t *lbac_cur, int x0, int y0, int cup, int cu_width_log2, int cu_height_log2, int cud
                                , const int parent_split, int qt_depth, int bet_depth, u8 cons_pred_mode, u8 tree_status, double max_cost)
 {
-    com_info_t *info = core->info;
-    int cu_width = 1 << cu_width_log2;
-    int cu_height = 1 << cu_height_log2;
-    s8 best_split_mode = NO_SPLIT;
-    u8 best_cons_pred_mode = NO_MODE_CONS;
-    int bit_cnt;
-    double cost_best = MAX_D_COST;
-    int boundary = !(x0 + cu_width <= info->pic_width && y0 + cu_height <= info->pic_height);
-    int boundary_r = 0, boundary_b = 0;
-    int split_allow[SPLIT_QUAD + 1]; 
-    double best_curr_cost = MAX_D_COST;
-    int num_split_tried = 0;
-    int num_split_to_try = 0;
-    int next_split = 1; //early termination flag
-    enc_cu_t *cu_data_tmp = &core->cu_data_temp[cu_width_log2 - 2][cu_height_log2 - 2];       // stack structure 
-    enc_cu_t *cu_data_bst = &core->cu_data_best[cu_width_log2 - 2][cu_height_log2 - 2];       // stack structure 
+    enc_cu_t *cu_data_tmp  = &core->cu_data_temp[cu_width_log2 - 2][cu_height_log2 - 2];       // stack structure 
+    enc_cu_t *cu_data_bst  = &core->cu_data_best[cu_width_log2 - 2][cu_height_log2 - 2];       // stack structure 
     enc_history_t *history = &core->history_data[cu_width_log2 - 2][cu_height_log2 - 2][cup];  // stack structure 
-    com_motion_t motion_cands_curr[ALLOWED_HMVP_NUM];
+    com_mode_t *bst_info   = &core->mod_info_best;
+    int slice_type         =  core->pichdr->slice_type;
+    com_info_t *info       =  core->info;
+    int cu_width           = 1 << cu_width_log2;
+    int cu_height          = 1 << cu_height_log2;
+    int boundary           = !(x0 + cu_width <= info->pic_width && y0 + cu_height <= info->pic_height);
+
     s8 cnt_hmvp_cands_curr = 0;
-    com_motion_t motion_cands_last[ALLOWED_HMVP_NUM];
     s8 cnt_hmvp_cands_last = 0;
-    com_mode_t *bst_info = &core->mod_info_best;
+    int num_split_tried    = 0;
+    int num_split_to_try   = 0;
+    double cost_best       = MAX_D_COST;
+    double best_curr_cost  = MAX_D_COST;    
+    s8 best_split_mode     = NO_SPLIT;
+    u8 best_cons_pred_mode = NO_MODE_CONS;
+    int next_split         = 1; //early termination flag
+
+    int split_allow[SPLIT_QUAD + 1];
+    com_motion_t motion_cands_curr[ALLOWED_HMVP_NUM];
+    com_motion_t motion_cands_last[ALLOWED_HMVP_NUM];
     lbac_t lbac_cur_node;
-    int slice_type = core->pichdr->slice_type;
 
     if (info->sqh.num_of_hmvp) {
         copy_motion_table(motion_cands_last, &cnt_hmvp_cands_last, core->motion_cands, core->cnt_hmvp_cands);
     }
-
-    core->tree_status = tree_status;
+    core->tree_status    = tree_status;
     core->cons_pred_mode = cons_pred_mode;
 
     lbac_copy(&lbac_cur_node, lbac_cur);
 
     if (cu_width > MIN_CU_SIZE || cu_height > MIN_CU_SIZE) {
-
         // ******** 1. normatively split modes **********
-        boundary_b = boundary && (y0 + cu_height > info->pic_height) && !(x0 + cu_width > info->pic_width);
-        boundary_r = boundary && (x0 + cu_width > info->pic_width) && !(y0 + cu_height > info->pic_height);
-        com_check_split_mode(&info->sqh, split_allow, cu_width_log2, cu_height_log2, boundary, boundary_b, boundary_r, info->log2_max_cuwh,
-                             parent_split, qt_depth, bet_depth, slice_type);
+        int boundary_b = boundary && (y0 + cu_height > info->pic_height) && !(x0 + cu_width > info->pic_width);
+        int boundary_r = boundary && (x0 + cu_width > info->pic_width) && !(y0 + cu_height > info->pic_height);
+        com_check_split_mode(&info->sqh, split_allow, cu_width_log2, cu_height_log2, boundary, boundary_b, boundary_r, info->log2_max_cuwh, parent_split, qt_depth, bet_depth, slice_type);
+       
         for (int i = 1; i < NUM_SPLIT_MODE; i++) {
             num_split_to_try += split_allow[i];
         }
-
         // ******** 2. split constraints **********
         if (cu_width == 64 && cu_height == 128) {
             split_allow[SPLIT_BI_VER] = 0;
@@ -1147,7 +1141,6 @@ static double mode_coding_tree(core_t *core, lbac_t *lbac_cur, int x0, int y0, i
         if (core->slice_type == SLICE_I && cu_width == 128 && cu_height == 128) {
             split_allow[NO_SPLIT] = 0;
         }
-
         // ******** 2. fast algorithm to reduce modes **********
         check_run_split(core, cu_width_log2, cu_height_log2, cup, split_allow);
     } else {
@@ -1162,7 +1155,7 @@ static double mode_coding_tree(core_t *core, lbac_t *lbac_cur, int x0, int y0, i
 
         if (split_allow[NO_SPLIT]) {
             if (cu_width > MIN_CU_SIZE || cu_height > MIN_CU_SIZE) {
-                bit_cnt = lbac_get_bits(lbac_cur);
+                int bit_cnt = lbac_get_bits(lbac_cur);
                 com_set_split_mode(NO_SPLIT, cud, 0, cu_width, cu_height, cu_width, cu_data_tmp->split_mode);
                 lbac_enc_split_mode(lbac_cur, NULL, core, NO_SPLIT, cud, 0, cu_width, cu_height, cu_width, parent_split, qt_depth, bet_depth, x0, y0);
                 bit_cnt = lbac_get_bits(lbac_cur) - bit_cnt;
@@ -1284,9 +1277,6 @@ static double mode_coding_tree(core_t *core, lbac_t *lbac_cur, int x0, int y0, i
                 u8 num_cons_pred_mode_loop;
                 u8 cons_pred_mode_child = NO_MODE_CONS;
 
-                if (split_mode == SPLIT_EQT_VER && cu_width == 16 && cu_height== 16) {
-                    int a = 0;
-                }
                 num_split_tried++;
                 com_split_get_part_structure(split_mode, x0, y0, cu_width, cu_height, cup, cud, info->log2_lcuwh_in_scu, &split_struct);
 
@@ -1314,7 +1304,7 @@ static double mode_coding_tree(core_t *core, lbac_t *lbac_cur, int x0, int y0, i
                     lbac_copy(&lbac_split, &lbac_cur_node);
 
                     if (x0 + cu_width <= info->pic_width && y0 + cu_height <= info->pic_height) {
-                        bit_cnt = lbac_get_bits(&lbac_split);
+                        int bit_cnt = lbac_get_bits(&lbac_split);
                         com_set_split_mode(split_mode, cud, 0, cu_width, cu_height, cu_width, cu_data_tmp->split_mode);
                         lbac_enc_split_mode(&lbac_split, NULL, core, split_mode, cud, 0, cu_width, cu_height, cu_width, parent_split, qt_depth, bet_depth, x0, y0);
 
@@ -1338,10 +1328,10 @@ static double mode_coding_tree(core_t *core, lbac_t *lbac_cur, int x0, int y0, i
                         int cur_part_num = part_num;
                         int log2_sub_cuw = split_struct.log_cuw[cur_part_num];
                         int log2_sub_cuh = split_struct.log_cuh[cur_part_num];
-                        int x_pos = split_struct.x_pos[cur_part_num];
-                        int y_pos = split_struct.y_pos[cur_part_num];
-                        int cur_cuw = split_struct.width[cur_part_num];
-                        int cur_cuh = split_struct.height[cur_part_num];
+                        int x_pos        = split_struct.x_pos  [cur_part_num];
+                        int y_pos        = split_struct.y_pos  [cur_part_num];
+                        int cur_cuw      = split_struct.width  [cur_part_num];
+                        int cur_cuh      = split_struct.height [cur_part_num];
                         double part_max_cost = max_cost - cost_temp;
 
                         if (part_max_cost < 0) {

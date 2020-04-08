@@ -2258,8 +2258,8 @@ void com_split_get_split_rdo_order(int cu_width, int cu_height, split_mode_t spl
     splits[0] = NO_SPLIT;
     //qt must be tried first; otherwise, due to the split save & load fast algorithm, qt will be never tried in RDO (previous split decision is made base on bt/eqt)
     splits[1] = SPLIT_QUAD;
-    splits[2] = cu_width < cu_height ? SPLIT_BI_HOR : SPLIT_BI_VER;
-    splits[3] = cu_width < cu_height ? SPLIT_BI_VER : SPLIT_BI_HOR;
+    splits[2] = cu_width < cu_height ? SPLIT_BI_HOR  : SPLIT_BI_VER;
+    splits[3] = cu_width < cu_height ? SPLIT_BI_VER  : SPLIT_BI_HOR;
     splits[4] = cu_width < cu_height ? SPLIT_EQT_HOR : SPLIT_EQT_VER;
     splits[5] = cu_width < cu_height ? SPLIT_EQT_VER : SPLIT_EQT_HOR;
 }

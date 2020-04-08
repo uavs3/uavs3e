@@ -52,13 +52,12 @@ static double intra_pu_rdcost(core_t *core, lbac_t *lbac, pel rec[N_C][MAX_CU_DI
             int tb_x_scu        = PEL2SCU(tb_x);
             int tb_y_scu        = PEL2SCU(tb_y);
             int tb_scup         = tb_x_scu + (tb_y_scu * info->i_scu);
-            s8 intra_mode       = cur_info->ipm[pb_idx][0];
+            s8  intra_mode      = cur_info->ipm[pb_idx][0];
             int tb_width_log2   = com_tbl_log2[tb_w];
             int tb_height_log2  = com_tbl_log2[tb_h];
             int use_secTrans    = use_alt4x4Trans && (tb_width_log2 > 2 || tb_height_log2 > 2);
             int secT_Ver_Hor    = 0;
             u16 avail_tb        = com_get_avail_intra(tb_x_scu, tb_y_scu, info->i_scu, tb_scup, map->map_scu);
-            s16 *resi_tb        = resi + coef_offset_tb;
             pel *rec_tb         = rec[Y_C] + (tb_y - core->cu_pix_y) * cu_width + (tb_x - core->cu_pix_x);
             pel *pred_tb;
 
@@ -80,19 +79,17 @@ static double intra_pu_rdcost(core_t *core, lbac_t *lbac, pel rec[N_C][MAX_CU_DI
             pel *org_luma_tb = org_luma + (tb_x - pb_x) + (tb_y - pb_y) * s_org;
             s16 *coef_tb = cur_info->coef[Y_C] + coef_offset_tb;
 
-            block_pel_sub(tb_width_log2, tb_height_log2, org_luma_tb, pred_tb, s_org, tb_w, tb_w, resi);
-            cur_info->num_nz[tb_idx][Y_C] = enc_tq_nnz(core, cur_info, Y_C, 0, core->lcu_qp_y, core->lambda[0], coef_tb, resi, tb_width_log2, tb_height_log2, core->slice_type, 1, secT_Ver_Hor, use_alt4x4Trans);
+            block_pel_sub(tb_width_log2, tb_height_log2, org_luma_tb, pred_tb, s_org, tb_w, tb_w, coef_tb);
+            cur_info->num_nz[tb_idx][Y_C] = enc_tq_nnz(core, cur_info, Y_C, 0, core->lcu_qp_y, core->lambda[0], coef_tb, coef_tb, tb_width_log2, tb_height_log2, core->slice_type, 1, secT_Ver_Hor, use_alt4x4Trans);
 
             if (cur_info->num_nz[tb_idx][Y_C]) {
-                com_invqt(cur_info, Y_C, 0, coef_tb, resi_tb, core->wq, tb_width_log2, tb_height_log2, core->lcu_qp_y, bit_depth, secT_Ver_Hor, use_alt4x4Trans);
+                com_invqt(cur_info, Y_C, 0, coef_tb, resi, core->wq, tb_width_log2, tb_height_log2, core->lcu_qp_y, bit_depth, secT_Ver_Hor, use_alt4x4Trans);
             }
 
+            // call com_recon_plane() as a CU
             int num_nz_temp[MAX_NUM_TB][N_C];
-
-            for (int comp = 0; comp < N_C; comp++) {
-                num_nz_temp[TB0][comp] = cur_info->num_nz[tb_idx][comp];
-            }
-            com_recon_plane(SIZE_2Nx2N, resi_tb, pred_tb, num_nz_temp, Y_C, tb_w, tb_h, cu_width, rec_tb, bit_depth);
+            num_nz_temp[TB0][Y_C] = cur_info->num_nz[tb_idx][Y_C];
+            com_recon_plane(SIZE_2Nx2N, resi, pred_tb, num_nz_temp, Y_C, tb_w, tb_h, cu_width, rec_tb, bit_depth);
 
             if (cur_info->pb_part == SIZE_2Nx2N) {
                 cost += calc_dist_filter_boundary(core, pic, core->pic_org, cu_width, cu_height, rec[Y_C], cu_width, x, y, 1, cur_info->num_nz[TB0][Y_C] != 0, NULL, NULL, 0, 0);
@@ -123,7 +120,6 @@ static double intra_pu_rdcost(core_t *core, lbac_t *lbac, pel rec[N_C][MAX_CU_DI
         com_intra_pred_chroma(pred[U_C], cur_info->ipm[PB0][1], cur_info->ipm[PB0][0], cu_width >> 1, cu_height >> 1, bit_depth, avail_cu, U_C, piRecoY, i_rec_y, core->nb);
         block_pel_sub(cu_width_log2 - 1, cu_height_log2 - 1, org_cb, pred[U_C], s_org_c, cu_width >> 1, cu_width >> 1, resi);
         cur_info->num_nz[TB0][U_C] = enc_tq_nnz(core, cur_info, U_C, 0, core->lcu_qp_u, core->lambda[1], cur_info->coef[U_C], resi, cu_width_log2 - 1, cu_height_log2 - 1, core->slice_type, 1, 0, 0);
-   
         if (cur_info->num_nz[TB0][U_C]) {
             com_invqt(cur_info, U_C, 0, cur_info->coef[U_C], resi, core->wq, core->cu_width_log2 - 1, core->cu_height_log2 - 1, core->lcu_qp_u, bit_depth, 0, 0);
         }
@@ -133,13 +129,12 @@ static double intra_pu_rdcost(core_t *core, lbac_t *lbac, pel rec[N_C][MAX_CU_DI
         com_intra_pred_chroma(pred[V_C], cur_info->ipm[PB0][1], cur_info->ipm[PB0][0], cu_width >> 1, cu_height >> 1, bit_depth, avail_cu, V_C, piRecoY, i_rec_y, core->nb);
         block_pel_sub(cu_width_log2 - 1, cu_height_log2 - 1, org_cr, pred[V_C], s_org_c, cu_width >> 1, cu_width >> 1, resi);
         cur_info->num_nz[TB0][V_C] = enc_tq_nnz(core, cur_info, V_C, 0, core->lcu_qp_v, core->lambda[2], cur_info->coef[V_C], resi, cu_width_log2 - 1, cu_height_log2 - 1, core->slice_type, 1, 0, 0);
-
         if (cur_info->num_nz[TB0][V_C]) {
             com_invqt(cur_info, V_C, 0, cur_info->coef[V_C], resi, core->wq, core->cu_width_log2 - 1, core->cu_height_log2 - 1, core->lcu_qp_v, bit_depth, 0, 0);
         }
-
         com_recon_plane(SIZE_2Nx2N, resi, pred[V_C], cur_info->num_nz, V_C, cu_width >> 1, cu_height >> 1, cu_width >> 1, rec[V_C], bit_depth);
 
+        // calc rdcost
         lbac_copy(lbac, &core->lbac_intra_prev_pu);
         int bit_cnt = lbac_get_bits(lbac);
         enc_bits_intra_chroma(core, lbac, cur_info->coef);
@@ -164,12 +159,12 @@ static void com_update_cand_list(const int ipm, u64 cost_satd, double cost, int 
 	while (shift < ipred_list_len && cost < *pcand--) {
 		shift++;
 	}
-	if (shift) {
+	if (shift--) {
         rmd_ipred_list += ipred_list_len - 1;
         rmd_cand_satd  += ipred_list_len - 1;
         rmd_cand_cost  += ipred_list_len - 1;
 
-		for (int j = 1; j < shift; j++) {
+		while (shift--) {
 			*rmd_ipred_list = rmd_ipred_list[-1];
             *rmd_cand_satd  = rmd_cand_satd [-1];
             *rmd_cand_cost  = rmd_cand_cost [-1];
@@ -468,7 +463,6 @@ void analyze_intra_cu(core_t *core, lbac_t *lbac_best)
                 }
                 for (int j = 0; j < pred_cnt; j++) { /* Y */
                     s32 dist_t = 0;
-   
                     cur_info->ipm[pb_part_idx][0] = (s8)ipred_list[j];
                     cur_info->ipm[pb_part_idx][1] = IPD_INVALID;
                     cost_pb_temp = intra_pu_rdcost(core, lbac, rec, org, NULL, NULL, s_org, s_org_c, cu_width_log2, cu_height_log2, &dist_t, 0, pb_part_idx, x, y);
