@@ -170,9 +170,12 @@ static void com_update_cand_list(const int ipm, u64 cost_satd, double cost, int 
         rmd_cand_cost  += ipred_list_len - 1;
 
 		for (int j = 1; j < shift; j++) {
-			*rmd_ipred_list-- = rmd_ipred_list[-1];
-            *rmd_cand_satd -- = rmd_cand_satd [-1];
-            *rmd_cand_cost -- = rmd_cand_cost [-1];
+			*rmd_ipred_list = rmd_ipred_list[-1];
+            *rmd_cand_satd  = rmd_cand_satd [-1];
+            *rmd_cand_cost  = rmd_cand_cost [-1];
+            rmd_ipred_list--;
+            rmd_cand_satd --;
+            rmd_cand_cost --;
 		}
 		*rmd_ipred_list = ipm;
 		*rmd_cand_satd  = cost_satd;
@@ -465,6 +468,7 @@ void analyze_intra_cu(core_t *core, lbac_t *lbac_best)
                 }
                 for (int j = 0; j < pred_cnt; j++) { /* Y */
                     s32 dist_t = 0;
+   
                     cur_info->ipm[pb_part_idx][0] = (s8)ipred_list[j];
                     cur_info->ipm[pb_part_idx][1] = IPD_INVALID;
                     cost_pb_temp = intra_pu_rdcost(core, lbac, rec, org, NULL, NULL, s_org, s_org_c, cu_width_log2, cu_height_log2, &dist_t, 0, pb_part_idx, x, y);
