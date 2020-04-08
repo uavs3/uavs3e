@@ -154,173 +154,37 @@ void predictALFCoeff(int(*coeff)[ALF_MAX_NUM_COEF], int numCoef, int numFilters)
     }
 }
 
-void deriveBoundaryAvail(enc_pic_t *ep, int numLCUInPicWidth, int numLCUInPicHeight, int ctu, 
-    BOOL *isLeftAvail, BOOL *isRightAvail, BOOL *isAboveAvail, BOOL *isBelowAvail, BOOL *isAboveLeftAvail, BOOL *isAboveRightAvail)
+void deriveBoundaryAvail(enc_pic_t *ep, int numLCUInPicWidth, int numLCUInPicHeight, int ctu, BOOL *isAboveAvail, BOOL *isBelowAvail)
 {
-    int  numLCUsInFrame = numLCUInPicHeight * numLCUInPicWidth;
-    int  lcuHeight = 1 << ep->info.log2_max_cuwh;
-    int  lcuWidth = lcuHeight;
-    int  NumCUInFrame;
-    int  pic_x;
-    int  pic_y;
-    int  mb_x;
-    int  mb_y;
-    int  mb_nr;
-    int  i_scu = ep->info.i_scu;
-    int  cuCurrNum;
-    int  cuCurr;
-    int  cuLeft;
-    int  cuRight;
-    int  cuAbove;
-    int  cuAboveLeft;
-    int  cuAboveRight;
-    int curSliceNr, neighorSliceNr;
-    int cross_patch_flag = ep->info.sqh.filter_cross_patch;
-    NumCUInFrame = numLCUInPicHeight * numLCUInPicWidth;
-    pic_x = (ctu % numLCUInPicWidth) * lcuWidth;
-    pic_y = (ctu / numLCUInPicWidth) * lcuHeight;
-
-    mb_x = pic_x / MIN_CU_SIZE;
-    mb_y = pic_y / MIN_CU_SIZE;
-    mb_nr = mb_y * i_scu + mb_x;
-    cuCurrNum = mb_nr;
-    *isLeftAvail = (ctu % numLCUInPicWidth != 0);
-    *isRightAvail = (ctu % numLCUInPicWidth != numLCUInPicWidth - 1);
+    int numLCUsInFrame = numLCUInPicHeight * numLCUInPicWidth;
+    int lcuHeight = 1 << ep->info.log2_max_cuwh;
+    int lcuWidth = lcuHeight;
+    int i_scu = ep->info.i_scu;
+    int pic_x = (ctu % numLCUInPicWidth) * lcuWidth;
+    int pic_y = (ctu / numLCUInPicWidth) * lcuHeight;
+    int mb_x = pic_x / MIN_CU_SIZE;
+    int mb_y = pic_y / MIN_CU_SIZE;
+    int mb_nr = mb_y * i_scu + mb_x;
+ 
     *isAboveAvail = (ctu >= numLCUInPicWidth);
     *isBelowAvail = (ctu < numLCUsInFrame - numLCUInPicWidth);
-    *isAboveLeftAvail = *isAboveAvail && *isLeftAvail;
-    *isAboveRightAvail = *isAboveAvail && *isRightAvail;
+
     s8 *map_patch = ep->map.map_patch;
-    cuCurr = (cuCurrNum);
-    cuLeft = *isLeftAvail ? (cuCurrNum - 1) : -1;
-    cuRight = *isRightAvail ? (cuCurrNum + (lcuWidth >> MIN_CU_LOG2)) : -1;
-    cuAbove = *isAboveAvail ? (cuCurrNum - i_scu) : -1;
-    cuAboveLeft = *isAboveLeftAvail ? (cuCurrNum - i_scu - 1) : -1;
-    cuAboveRight = *isAboveRightAvail ? (cuCurrNum - i_scu + (lcuWidth >> MIN_CU_LOG2)) : -1;
-    if (!cross_patch_flag) {
-        *isLeftAvail = *isRightAvail = *isAboveAvail = FALSE;
-        *isAboveLeftAvail = *isAboveRightAvail = FALSE;
-        curSliceNr = map_patch[cuCurr];
-        if (cuLeft != -1) {
-            neighorSliceNr = map_patch[cuLeft];
-            if (curSliceNr == neighorSliceNr) {
-                *isLeftAvail = TRUE;
-            }
-        }
-        if (cuRight != -1) {
-            neighorSliceNr = map_patch[cuRight];
-            if (curSliceNr == neighorSliceNr) {
-                *isRightAvail = TRUE;
-            }
-        }
+    int cuCurr = (mb_nr);
+    int cuAbove = *isAboveAvail ? (mb_nr - i_scu) : -1;
+
+    if (!ep->info.sqh.filter_cross_patch) {
+        *isAboveAvail = FALSE;
+
+        int curSliceNr = map_patch[cuCurr];
+
         if (cuAbove != -1) {
-            neighorSliceNr = map_patch[cuAbove];
+            int neighorSliceNr = map_patch[cuAbove];
             if (curSliceNr == neighorSliceNr) {
                 *isAboveAvail = TRUE;
             }
         }
-        if (cuAboveLeft != -1) {
-            neighorSliceNr = map_patch[cuAboveLeft];
-            if (curSliceNr == neighorSliceNr) {
-                *isAboveLeftAvail = TRUE;
-            }
-        }
-        if (cuAboveRight != -1) {
-            neighorSliceNr = map_patch[cuAboveRight];
-            if (curSliceNr == neighorSliceNr) {
-                *isAboveRightAvail = TRUE;
-            }
-        }
     }
-}
-
-
-
-
-/*
-*************************************************************************
-* Function: Calculate the correlation matrix for Luma
-*************************************************************************
-*/
-static void calcCorrOneCompRegion(pel *imgOrg, int i_org, pel *imgPad, int stride, int yPos, int xPos, int height, int width
-                               , double eCorr[ALF_MAX_NUM_COEF][ALF_MAX_NUM_COEF], double yCorr[ALF_MAX_NUM_COEF],
-                               int isLeftAvail, int isRightAvail, int isAboveAvail, int isBelowAvail, int isAboveLeftAvail, int isAboveRightAvail)
-{
-    int xPosEnd = xPos + width;
-    int N = ALF_MAX_NUM_COEF;
-    int startPosLuma = isAboveAvail ? (yPos - 4) : yPos;
-    int endPosLuma = isBelowAvail ? (yPos + height - 4) : (yPos + height);
-
-    int yUp, yBottom;
-    int xLeft, xRight;
-    int ELocal[ALF_MAX_NUM_COEF];
-    pel *imgPad1, *imgPad2, *imgPad3, *imgPad4, *imgPad5, *imgPad6;
-    int i, j, k, l, yLocal;
-
-    imgPad += startPosLuma * stride;
-    imgOrg += startPosLuma * i_org;
-
-    for (i = startPosLuma; i < endPosLuma; i++) {
-        yUp     = COM_CLIP3(startPosLuma, endPosLuma - 1, i - 1);
-        yBottom = COM_CLIP3(startPosLuma, endPosLuma - 1, i + 1);
-        imgPad1 = imgPad + (yBottom - i) * stride;
-        imgPad2 = imgPad + (yUp - i) * stride;
-
-        yUp     = COM_CLIP3(startPosLuma, endPosLuma - 1, i - 2);
-        yBottom = COM_CLIP3(startPosLuma, endPosLuma - 1, i + 2);
-        imgPad3 = imgPad + (yBottom - i) * stride;
-        imgPad4 = imgPad + (yUp - i) * stride;
-
-        yUp     = COM_CLIP3(startPosLuma, endPosLuma - 1, i - 3);
-        yBottom = COM_CLIP3(startPosLuma, endPosLuma - 1, i + 3);
-        imgPad5 = imgPad + (yBottom - i) * stride;
-        imgPad6 = imgPad + (yUp - i) * stride;
-  
-        for (j = xPos; j < xPosEnd; j++) {
-            ELocal[0] = (imgPad5[j] + imgPad6[j]);
-            ELocal[1] = (imgPad3[j] + imgPad4[j]);
-            ELocal[3] = (imgPad1[j] + imgPad2[j]);
-            // upper left c2
-            xLeft = com_alf_check_boundary(j - 1, i - 1, xPos, yPos, xPos, startPosLuma, xPosEnd - 1,
-                    endPosLuma - 1, isAboveLeftAvail, isLeftAvail, isAboveRightAvail, isRightAvail);
-            ELocal[2] = imgPad2[xLeft];
-            // upper right c4
-            xRight = com_alf_check_boundary(j + 1, i - 1, xPos, yPos, xPos, startPosLuma, xPosEnd - 1,
-                     endPosLuma - 1, isAboveLeftAvail, isLeftAvail, isAboveRightAvail, isRightAvail);
-            ELocal[4] = imgPad2[xRight];
-            // lower left c4
-            xLeft = com_alf_check_boundary(j - 1, i + 1, xPos, yPos, xPos, startPosLuma, xPosEnd - 1,
-                    endPosLuma - 1, isAboveLeftAvail, isLeftAvail, isAboveRightAvail, isRightAvail);
-            ELocal[4] += imgPad1[xLeft];
-            // lower right c2
-            xRight = com_alf_check_boundary(j + 1, i + 1, xPos, yPos, xPos, startPosLuma, xPosEnd - 1,
-                     endPosLuma - 1, isAboveLeftAvail, isLeftAvail, isAboveRightAvail, isRightAvail);
-
-            ELocal[2] += imgPad1[xRight];
-            ELocal[7] = (imgPad[j + 1] + imgPad[j - 1]);
-            ELocal[6] = (imgPad[j + 2] + imgPad[j - 2]);
-            ELocal[5] = (imgPad[j + 3] + imgPad[j - 3]);
-            ELocal[8] = (imgPad[j]);
-
-            yLocal = imgOrg[j];
-
-            for (k = 0; k < N; k++) {
-                for (l = k; l < N; l++) {
-                    eCorr[k][l] += (double)(ELocal[k] * ELocal[l]);
-                }
-                yCorr[k] += (double)(ELocal[k] * yLocal);
-            }
-        }
-        imgPad += stride;
-        imgOrg += i_org;
-    }
-
-    for (k = 1; k < N; k++) {
-        for (l = 0; l < k; l++) {
-            eCorr[k][l] = eCorr[l][k];
-        }
-    }
-
 }
 
 /*
@@ -339,14 +203,11 @@ static void calcCorrOneCompRegion(pel *imgOrg, int i_org, pel *imgPad, int strid
 * Return:
 *************************************************************************
 */
-void getStatisticsOneLCU(int varInd
-    , int ctuYPos, int ctuXPos, int ctuHeight, int ctuWidth
-    , BOOL isAboveAvail, BOOL isBelowAvail, BOOL isLeftAvail, BOOL isRightAvail
-    , BOOL isAboveLeftAvail, BOOL isAboveRightAvail, enc_alf_corr_t *lcu_alfCorr, com_pic_t *pic_org, com_pic_t *pic_rec)
+void getStatisticsOneLCU(int varInd, int ctuYPos, int ctuXPos, int ctuHeight, int ctuWidth
+    , BOOL isAboveAvail, BOOL isBelowAvail, enc_alf_corr_t *lcu_alfCorr, com_pic_t *pic_org, com_pic_t *pic_rec)
 {
     enc_alf_corr_t *alfCorr = lcu_alfCorr;
-    calcCorrOneCompRegion(pic_org->y, pic_org->stride_luma, pic_rec->y, pic_rec->stride_luma, ctuYPos, ctuXPos, ctuHeight, ctuWidth, alfCorr->ECorr[varInd], alfCorr->yCorr[varInd], 
-        isLeftAvail, isRightAvail, isAboveAvail, isBelowAvail, isAboveLeftAvail, isAboveRightAvail);
+    uavs3e_funs_handle.alf_calc(pic_org->y, pic_org->stride_luma, pic_rec->y, pic_rec->stride_luma, ctuXPos, ctuYPos, ctuWidth, ctuHeight, alfCorr->ECorr[varInd], alfCorr->yCorr[varInd], isAboveAvail, isBelowAvail);
 
     ctuYPos   >>= 1;
     ctuXPos   >>= 1;
@@ -354,12 +215,10 @@ void getStatisticsOneLCU(int varInd
     ctuWidth  >>= 1;
 
     alfCorr = lcu_alfCorr + 1;
-    calcCorrOneCompRegion(pic_org->u, pic_org->stride_chroma, pic_rec->u, pic_rec->stride_chroma, ctuYPos, ctuXPos, ctuHeight, ctuWidth, alfCorr->ECorr[0], alfCorr->yCorr[0],
-        isLeftAvail, isRightAvail, isAboveAvail, isBelowAvail, isAboveLeftAvail, isAboveRightAvail);
+    uavs3e_funs_handle.alf_calc(pic_org->u, pic_org->stride_chroma, pic_rec->u, pic_rec->stride_chroma, ctuXPos, ctuYPos, ctuWidth, ctuHeight, alfCorr->ECorr[0], alfCorr->yCorr[0], isAboveAvail, isBelowAvail);
 
     alfCorr = lcu_alfCorr + 2;
-    calcCorrOneCompRegion(pic_org->v, pic_org->stride_chroma, pic_rec->v, pic_rec->stride_chroma, ctuYPos, ctuXPos, ctuHeight, ctuWidth, alfCorr->ECorr[0], alfCorr->yCorr[0],
-        isLeftAvail, isRightAvail, isAboveAvail, isBelowAvail, isAboveLeftAvail, isAboveRightAvail);
+    uavs3e_funs_handle.alf_calc(pic_org->v, pic_org->stride_chroma, pic_rec->v, pic_rec->stride_chroma, ctuXPos, ctuYPos, ctuWidth, ctuHeight, alfCorr->ECorr[0], alfCorr->yCorr[0], isAboveAvail, isBelowAvail);
 }
 
 
@@ -393,16 +252,13 @@ void alf_get_statistics(enc_pic_t *ep, com_pic_t *pic_org, com_pic_t *pic_rec)
         int ctuXPos   = (ctu % numLCUInPicWidth) * lcu_size;
         int ctuHeight = (ctuYPos + lcu_size > img_height) ? (img_height - ctuYPos) : lcu_size;
         int ctuWidth  = (ctuXPos + lcu_size > img_width ) ? (img_width  - ctuXPos) : lcu_size;
-        BOOL  isLeftAvail, isRightAvail, isAboveAvail, isBelowAvail;
-        BOOL  isAboveLeftAvail, isAboveRightAvail;
+        BOOL  isAboveAvail, isBelowAvail;
 
         memset(&Enc_ALF->m_alfCorr[ctu], 0, sizeof(enc_alf_corr_t) * N_C);
 
-        deriveBoundaryAvail(ep, numLCUInPicWidth, numLCUInPicHeight, ctu, &isLeftAvail, &isRightAvail, &isAboveAvail, &isBelowAvail, &isAboveLeftAvail, &isAboveRightAvail);
+        deriveBoundaryAvail(ep, numLCUInPicWidth, numLCUInPicHeight, ctu, &isAboveAvail, &isBelowAvail);
 
-        getStatisticsOneLCU(varIdx, ctuYPos, ctuXPos, ctuHeight, ctuWidth, 
-            isAboveAvail, isBelowAvail, isLeftAvail, isRightAvail , isAboveLeftAvail, isAboveRightAvail, 
-            Enc_ALF->m_alfCorr[ctu], pic_org, pic_rec);
+        getStatisticsOneLCU(varIdx, ctuYPos, ctuXPos, ctuHeight, ctuWidth, isAboveAvail, isBelowAvail, Enc_ALF->m_alfCorr[ctu], pic_org, pic_rec);
     }
 }
 
@@ -537,7 +393,7 @@ double alf_decision_all_lcu(enc_pic_t *ep, lbac_t *lbac, com_alf_pic_param_t *al
                             , int stride)
 {
     enc_alf_var_t *Enc_ALF = &ep->Enc_ALF;
-    BOOL isLeftAvail, isRightAvail, isAboveAvail, isBelowAvail, isAboveLeftAvail, isAboveRightAvail;
+    BOOL isAboveAvail, isBelowAvail;
 
     long long  distBestPic[N_C] = { 0 };
     double     rateBestPic[N_C] = { 0 };
@@ -590,7 +446,7 @@ double alf_decision_all_lcu(enc_pic_t *ep, lbac_t *lbac, com_alf_pic_param_t *al
             }
         }
 
-        deriveBoundaryAvail(ep, numLCUInPicWidth, numLCUInPicHeight, ctu, &isLeftAvail, &isRightAvail, &isAboveAvail, &isBelowAvail, &isAboveLeftAvail, &isAboveRightAvail);
+        deriveBoundaryAvail(ep, numLCUInPicWidth, numLCUInPicHeight, ctu, &isAboveAvail, &isBelowAvail);
 
         for (int compIdx = 0; compIdx < N_C; compIdx++) {
             pel *org = NULL, *pDec = NULL, *pRest = NULL;

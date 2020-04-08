@@ -61,8 +61,7 @@ void uavs3e_sao_on_lcu_chroma_avx2(pel *src, int i_src, pel *dst, int i_dst, com
                                    int smb_available_left, int smb_available_right, int smb_available_up, int smb_available_down, int sample_bit_depth);
 
 void uavs3e_alf_one_lcu_avx2(pel *dst, int i_dst, pel *src, int stride, int lcu_width, int lcu_height, int *coef, int sample_bit_depth);
-void uavs3e_alf_one_lcu_chroma_avx2(pel *dst, int i_dst, pel *src, int stride, int lcu_width, int lcu_height, int *coef, int sample_bit_depth);
-void uavs3e_alf_one_lcu_one_chroma_avx2(pel *dst, int i_dst, pel *src, int stride, int lcu_width, int lcu_height, int *coef, int sample_bit_depth);
+void uavs3e_alf_calc_corr_avx2(pel *p_org, int i_org, pel *p_alf, int i_alf, int xPos, int yPos, int width, int height, double eCorr[9][9], double yCorr[9], int isAboveAvail, int isBelowAvail);
 
 void uavs3e_if_cpy_w16_avx2(const pel *src, int i_src, pel *dst, int i_dst, int width, int height);
 void uavs3e_if_cpy_w32_avx2(const pel *src, int i_src, pel *dst, int i_dst, int width, int height);

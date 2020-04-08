@@ -238,6 +238,237 @@ void uavs3e_alf_one_lcu_avx2(pel *dst, int i_dst, pel *src, int i_src, int lcu_w
     }
 }
 
+void uavs3e_alf_calc_corr_avx2(pel *p_org, int i_org, pel *p_alf, int i_alf, int xPos, int yPos, int width, int height, double eCorr[9][9], double yCorr[9], int isAboveAvail, int isBelowAvail)
+{
+    __m256i E00, E10, E20, E30, E40, E50, E60, E70, E80;
+    __m256i C0;
+    __m256i S0, S1, S2, S3;
+    __m256i R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, R11, R12, R13, R14;
+    __m256i mZero = _mm256_set1_epi16(0);
+
+    int xPosEnd = xPos + width;
+    int startPos = isAboveAvail ? (yPos - 4) : yPos;
+    int endPos = isBelowAvail ? (yPos + height - 4) : (yPos + height);
+
+    int yUp, yBottom;
+
+    pel *imgPad1, *imgPad2, *imgPad3, *imgPad4, *imgPad5, *imgPad6;
+    int i, j, k, l;
+
+    pel *imgPad = p_alf + startPos * i_alf;
+    pel *imgOrg = p_org + startPos * i_org;
+
+    R1 = R2 = R3 = R4 = R5 = R6 = R7 = R8 = R9 = R10 = R11 = R12 = R13 = R14 = mZero;
+
+    for (i = startPos; i < endPos; i++) {
+        yUp = COM_CLIP3(startPos, endPos - 1, i - 1);
+        yBottom = COM_CLIP3(startPos, endPos - 1, i + 1);
+        imgPad1 = imgPad + (yBottom - i) * i_alf;
+        imgPad2 = imgPad + (yUp - i) * i_alf;
+
+        yUp = COM_CLIP3(startPos, endPos - 1, i - 2);
+        yBottom = COM_CLIP3(startPos, endPos - 1, i + 2);
+        imgPad3 = imgPad + (yBottom - i) * i_alf;
+        imgPad4 = imgPad + (yUp - i) * i_alf;
+
+        yUp = COM_CLIP3(startPos, endPos - 1, i - 3);
+        yBottom = COM_CLIP3(startPos, endPos - 1, i + 3);
+        imgPad5 = imgPad + (yBottom - i) * i_alf;
+        imgPad6 = imgPad + (yUp - i) * i_alf;
+
+        for (j = xPos; j < xPosEnd; j += 16) {
+            E00 = _mm256_add_epi16(_mm256_cvtepu8_epi16(_mm_loadu_si128((__m128i*)&imgPad6[j])), _mm256_cvtepu8_epi16(_mm_loadu_si128((__m128i*)&imgPad5[j])));
+            E10 = _mm256_add_epi16(_mm256_cvtepu8_epi16(_mm_loadu_si128((__m128i*)&imgPad4[j])), _mm256_cvtepu8_epi16(_mm_loadu_si128((__m128i*)&imgPad3[j])));
+            E20 = _mm256_add_epi16(_mm256_cvtepu8_epi16(_mm_loadu_si128((__m128i*)&imgPad2[j - 1])), _mm256_cvtepu8_epi16(_mm_loadu_si128((__m128i*)&imgPad1[j + 1])));
+            E30 = _mm256_add_epi16(_mm256_cvtepu8_epi16(_mm_loadu_si128((__m128i*)&imgPad2[j])), _mm256_cvtepu8_epi16(_mm_loadu_si128((__m128i*)&imgPad1[j])));
+            E40 = _mm256_add_epi16(_mm256_cvtepu8_epi16(_mm_loadu_si128((__m128i*)&imgPad2[j + 1])), _mm256_cvtepu8_epi16(_mm_loadu_si128((__m128i*)&imgPad1[j - 1])));
+            E50 = _mm256_add_epi16(_mm256_cvtepu8_epi16(_mm_loadu_si128((__m128i*)&imgPad[j - 3])), _mm256_cvtepu8_epi16(_mm_loadu_si128((__m128i*)&imgPad[j + 3])));
+            E60 = _mm256_add_epi16(_mm256_cvtepu8_epi16(_mm_loadu_si128((__m128i*)&imgPad[j - 2])), _mm256_cvtepu8_epi16(_mm_loadu_si128((__m128i*)&imgPad[j + 2])));
+            E70 = _mm256_add_epi16(_mm256_cvtepu8_epi16(_mm_loadu_si128((__m128i*)&imgPad[j - 1])), _mm256_cvtepu8_epi16(_mm_loadu_si128((__m128i*)&imgPad[j + 1])));
+            E80 = _mm256_cvtepu8_epi16(_mm_loadu_si128((__m128i*)&imgPad[j]));
+            C0 = _mm256_cvtepu8_epi16(_mm_loadu_si128((__m128i*)&imgOrg[j]));
+
+            S0 = _mm256_madd_epi16(E00, E00);
+            S1 = _mm256_madd_epi16(E00, E10);
+            S2 = _mm256_madd_epi16(E00, E20);
+            S3 = _mm256_madd_epi16(E00, E30);
+            R1 = _mm256_add_epi32(R1, _mm256_hadd_epi32(_mm256_hadd_epi32(S0, S1), _mm256_hadd_epi32(S2, S3)));
+
+            S0 = _mm256_madd_epi16(E00, E40);
+            S1 = _mm256_madd_epi16(E00, E50);
+            S2 = _mm256_madd_epi16(E00, E60);
+            S3 = _mm256_madd_epi16(E00, E70);
+            R2 = _mm256_add_epi32(R2, _mm256_hadd_epi32(_mm256_hadd_epi32(S0, S1), _mm256_hadd_epi32(S2, S3)));
+
+            S0 = _mm256_madd_epi16(E00, E80);
+            S1 = _mm256_madd_epi16(E10, E10);
+            S2 = _mm256_madd_epi16(E10, E20);
+            S3 = _mm256_madd_epi16(E10, E30);
+            R3 = _mm256_add_epi32(R3, _mm256_hadd_epi32(_mm256_hadd_epi32(S0, S1), _mm256_hadd_epi32(S2, S3)));
+
+            S0 = _mm256_madd_epi16(E10, E40);
+            S1 = _mm256_madd_epi16(E10, E50);
+            S2 = _mm256_madd_epi16(E10, E60);
+            S3 = _mm256_madd_epi16(E10, E70);
+            R4 = _mm256_add_epi32(R4, _mm256_hadd_epi32(_mm256_hadd_epi32(S0, S1), _mm256_hadd_epi32(S2, S3)));
+
+            S0 = _mm256_madd_epi16(E10, E80);
+            S1 = _mm256_madd_epi16(E20, E20);
+            S2 = _mm256_madd_epi16(E20, E30);
+            S3 = _mm256_madd_epi16(E20, E40);
+            R5 = _mm256_add_epi32(R5, _mm256_hadd_epi32(_mm256_hadd_epi32(S0, S1), _mm256_hadd_epi32(S2, S3)));
+
+            S0 = _mm256_madd_epi16(E20, E50);
+            S1 = _mm256_madd_epi16(E20, E60);
+            S2 = _mm256_madd_epi16(E20, E70);
+            S3 = _mm256_madd_epi16(E20, E80);
+            R6 = _mm256_add_epi32(R6, _mm256_hadd_epi32(_mm256_hadd_epi32(S0, S1), _mm256_hadd_epi32(S2, S3)));
+
+            S0 = _mm256_madd_epi16(E30, E30);
+            S1 = _mm256_madd_epi16(E30, E40);
+            S2 = _mm256_madd_epi16(E30, E50);
+            S3 = _mm256_madd_epi16(E30, E60);
+            R7 = _mm256_add_epi32(R7, _mm256_hadd_epi32(_mm256_hadd_epi32(S0, S1), _mm256_hadd_epi32(S2, S3)));
+
+            S0 = _mm256_madd_epi16(E30, E70);
+            S1 = _mm256_madd_epi16(E30, E80);
+            S2 = _mm256_madd_epi16(E40, E40);
+            S3 = _mm256_madd_epi16(E40, E50);
+            R8 = _mm256_add_epi32(R8, _mm256_hadd_epi32(_mm256_hadd_epi32(S0, S1), _mm256_hadd_epi32(S2, S3)));
+
+            S0 = _mm256_madd_epi16(E40, E60);
+            S1 = _mm256_madd_epi16(E40, E70);
+            S2 = _mm256_madd_epi16(E40, E80);
+            S3 = _mm256_madd_epi16(E50, E50);
+            R9 = _mm256_add_epi32(R9, _mm256_hadd_epi32(_mm256_hadd_epi32(S0, S1), _mm256_hadd_epi32(S2, S3)));
+
+            S0 = _mm256_madd_epi16(E50, E60);
+            S1 = _mm256_madd_epi16(E50, E70);
+            S2 = _mm256_madd_epi16(E50, E80);
+            S3 = _mm256_madd_epi16(E60, E60);
+            R10 = _mm256_add_epi32(R10, _mm256_hadd_epi32(_mm256_hadd_epi32(S0, S1), _mm256_hadd_epi32(S2, S3)));
+
+            S0 = _mm256_madd_epi16(E60, E70);
+            S1 = _mm256_madd_epi16(E60, E80);
+            S2 = _mm256_madd_epi16(E70, E70);
+            S3 = _mm256_madd_epi16(E70, E80);
+            R11 = _mm256_add_epi32(R11, _mm256_hadd_epi32(_mm256_hadd_epi32(S0, S1), _mm256_hadd_epi32(S2, S3)));
+
+            S0 = _mm256_madd_epi16(E80, E80);
+            S1 = _mm256_madd_epi16(E00, C0);
+            S2 = _mm256_madd_epi16(E10, C0);
+            S3 = _mm256_madd_epi16(E20, C0);
+            R12 = _mm256_add_epi32(R12, _mm256_hadd_epi32(_mm256_hadd_epi32(S0, S1), _mm256_hadd_epi32(S2, S3)));
+
+            S0 = _mm256_madd_epi16(E30, C0);
+            S1 = _mm256_madd_epi16(E40, C0);
+            S2 = _mm256_madd_epi16(E50, C0);
+            S3 = _mm256_madd_epi16(E60, C0);
+            R13 = _mm256_add_epi32(R13, _mm256_hadd_epi32(_mm256_hadd_epi32(S0, S1), _mm256_hadd_epi32(S2, S3)));
+
+            S0 = _mm256_madd_epi16(E70, C0);
+            S1 = _mm256_madd_epi16(E80, C0);
+
+            S0 = _mm256_hadd_epi32(S0, S1);
+            R14 = _mm256_add_epi32(R14, S0);
+        }
+
+        imgPad += i_alf;
+        imgOrg += i_org;
+    }
+
+    R1 = _mm256_add_epi32(R1, _mm256_castsi128_si256(_mm256_extracti128_si256(R1, 1)));
+    R2 = _mm256_add_epi32(R2, _mm256_castsi128_si256(_mm256_extracti128_si256(R2, 1)));
+    R3 = _mm256_add_epi32(R3, _mm256_castsi128_si256(_mm256_extracti128_si256(R3, 1)));
+    R4 = _mm256_add_epi32(R4, _mm256_castsi128_si256(_mm256_extracti128_si256(R4, 1)));
+    R5 = _mm256_add_epi32(R5, _mm256_castsi128_si256(_mm256_extracti128_si256(R5, 1)));
+    R6 = _mm256_add_epi32(R6, _mm256_castsi128_si256(_mm256_extracti128_si256(R6, 1)));
+    R7 = _mm256_add_epi32(R7, _mm256_castsi128_si256(_mm256_extracti128_si256(R7, 1)));
+    R8 = _mm256_add_epi32(R8, _mm256_castsi128_si256(_mm256_extracti128_si256(R8, 1)));
+    R9 = _mm256_add_epi32(R9, _mm256_castsi128_si256(_mm256_extracti128_si256(R9, 1)));
+    R10 = _mm256_add_epi32(R10, _mm256_castsi128_si256(_mm256_extracti128_si256(R10, 1)));
+    R11 = _mm256_add_epi32(R11, _mm256_castsi128_si256(_mm256_extracti128_si256(R11, 1)));
+    R12 = _mm256_add_epi32(R12, _mm256_castsi128_si256(_mm256_extracti128_si256(R12, 1)));
+    R13 = _mm256_add_epi32(R13, _mm256_castsi128_si256(_mm256_extracti128_si256(R13, 1)));
+    R14 = _mm256_add_epi32(R14, _mm256_castsi128_si256(_mm256_extracti128_si256(R14, 1)));
+
+    eCorr[0][0] = (u32)_mm256_extract_epi32(R1, 0);
+    eCorr[0][1] = (u32)_mm256_extract_epi32(R1, 1);
+    eCorr[0][2] = (u32)_mm256_extract_epi32(R1, 2);
+    eCorr[0][3] = (u32)_mm256_extract_epi32(R1, 3);
+
+    eCorr[0][4] = (u32)_mm256_extract_epi32(R2, 0);
+    eCorr[0][5] = (u32)_mm256_extract_epi32(R2, 1);
+    eCorr[0][6] = (u32)_mm256_extract_epi32(R2, 2);
+    eCorr[0][7] = (u32)_mm256_extract_epi32(R2, 3);
+
+    eCorr[0][8] = (u32)_mm256_extract_epi32(R3, 0);
+    eCorr[1][1] = (u32)_mm256_extract_epi32(R3, 1);
+    eCorr[1][2] = (u32)_mm256_extract_epi32(R3, 2);
+    eCorr[1][3] = (u32)_mm256_extract_epi32(R3, 3);
+
+    eCorr[1][4] = (u32)_mm256_extract_epi32(R4, 0);
+    eCorr[1][5] = (u32)_mm256_extract_epi32(R4, 1);
+    eCorr[1][6] = (u32)_mm256_extract_epi32(R4, 2);
+    eCorr[1][7] = (u32)_mm256_extract_epi32(R4, 3);
+
+    eCorr[1][8] = (u32)_mm256_extract_epi32(R5, 0);
+    eCorr[2][2] = (u32)_mm256_extract_epi32(R5, 1);
+    eCorr[2][3] = (u32)_mm256_extract_epi32(R5, 2);
+    eCorr[2][4] = (u32)_mm256_extract_epi32(R5, 3);
+
+    eCorr[2][5] = (u32)_mm256_extract_epi32(R6, 0);
+    eCorr[2][6] = (u32)_mm256_extract_epi32(R6, 1);
+    eCorr[2][7] = (u32)_mm256_extract_epi32(R6, 2);
+    eCorr[2][8] = (u32)_mm256_extract_epi32(R6, 3);
+
+    eCorr[3][3] = (u32)_mm256_extract_epi32(R7, 0);
+    eCorr[3][4] = (u32)_mm256_extract_epi32(R7, 1);
+    eCorr[3][5] = (u32)_mm256_extract_epi32(R7, 2);
+    eCorr[3][6] = (u32)_mm256_extract_epi32(R7, 3);
+
+    eCorr[3][7] = (u32)_mm256_extract_epi32(R8, 0);
+    eCorr[3][8] = (u32)_mm256_extract_epi32(R8, 1);
+    eCorr[4][4] = (u32)_mm256_extract_epi32(R8, 2);
+    eCorr[4][5] = (u32)_mm256_extract_epi32(R8, 3);
+
+    eCorr[4][6] = (u32)_mm256_extract_epi32(R9, 0);
+    eCorr[4][7] = (u32)_mm256_extract_epi32(R9, 1);
+    eCorr[4][8] = (u32)_mm256_extract_epi32(R9, 2);
+    eCorr[5][5] = (u32)_mm256_extract_epi32(R9, 3);
+
+    eCorr[5][6] = (u32)_mm256_extract_epi32(R10, 0);
+    eCorr[5][7] = (u32)_mm256_extract_epi32(R10, 1);
+    eCorr[5][8] = (u32)_mm256_extract_epi32(R10, 2);
+    eCorr[6][6] = (u32)_mm256_extract_epi32(R10, 3);
+
+    eCorr[6][7] = (u32)_mm256_extract_epi32(R11, 0);
+    eCorr[6][8] = (u32)_mm256_extract_epi32(R11, 1);
+    eCorr[7][7] = (u32)_mm256_extract_epi32(R11, 2);
+    eCorr[7][8] = (u32)_mm256_extract_epi32(R11, 3);
+
+    eCorr[8][8] = (u32)_mm256_extract_epi32(R12, 0);
+    yCorr[0] = (u32)_mm256_extract_epi32(R12, 1);
+    yCorr[1] = (u32)_mm256_extract_epi32(R12, 2);
+    yCorr[2] = (u32)_mm256_extract_epi32(R12, 3);
+
+    yCorr[3] = (u32)_mm256_extract_epi32(R13, 0);
+    yCorr[4] = (u32)_mm256_extract_epi32(R13, 1);
+    yCorr[5] = (u32)_mm256_extract_epi32(R13, 2);
+    yCorr[6] = (u32)_mm256_extract_epi32(R13, 3);
+
+    R14 = _mm256_hadd_epi32(R14, R14);
+
+    yCorr[7] = (u32)_mm256_extract_epi32(R14, 0);
+    yCorr[8] = (u32)_mm256_extract_epi32(R14, 1);
+
+    for (k = 1; k < ALF_MAX_NUM_COEF; k++) {
+        for (l = 0; l < k; l++) {
+            eCorr[k][l] = eCorr[l][k];
+        }
+    }
+}
+
 #else
 
 void uavs3e_alf_one_lcu_avx2(pel *dst, int i_dst, pel *src, int i_src, int lcu_width, int lcu_height, int *coef, int bit_depth)
@@ -390,5 +621,303 @@ void uavs3e_alf_one_lcu_avx2(pel *dst, int i_dst, pel *src, int i_src, int lcu_w
         dst += i_dst;
     }
 }
+
+void uavs3e_alf_calc_corr_avx2(pel *p_org, int i_org, pel *p_alf, int i_alf, int xPos, int yPos, int width, int height, double eCorr[9][9], double yCorr[9], int isAboveAvail, int isBelowAvail)
+{
+    __m256i E00, E10, E20, E30, E40, E50, E60, E70, E80;
+    __m256i C0, C1, C2;
+    __m256i S0, S1, S2, S3;
+    __m256i R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, R11, R12, R13, R14;
+    __m256i M1, M2, M3, M4, M5, M6, M7, M8, M9, M10, M11, M12, M13, M14;
+    __m256i mZero = _mm256_set1_epi16(0);
+
+    int xPosEnd = xPos + width;
+    int startPos = isAboveAvail ? (yPos - 4) : yPos;
+    int endPos = isBelowAvail ? (yPos + height - 4) : (yPos + height);
+
+    int yUp, yBottom;
+
+    pel *imgPad1, *imgPad2, *imgPad3, *imgPad4, *imgPad5, *imgPad6;
+    int i, j, k, l;
+
+    pel *imgPad = p_alf + startPos * i_alf;
+    pel *imgOrg = p_org + startPos * i_org;
+
+    R1 = R2 = R3 = R4 = R5 = R6 = R7 = R8 = R9 = R10 = R11 = R12 = R13 = R14 = mZero;
+    M1 = M2 = M3 = M4 = M5 = M6 = M7 = M8 = M9 = M10 = M11 = M12 = M13 = M14 = mZero;
+
+    for (i = startPos; i < endPos; i++) {
+        yUp = COM_CLIP3(startPos, endPos - 1, i - 1);
+        yBottom = COM_CLIP3(startPos, endPos - 1, i + 1);
+        imgPad1 = imgPad + (yBottom - i) * i_alf;
+        imgPad2 = imgPad + (yUp - i) * i_alf;
+
+        yUp = COM_CLIP3(startPos, endPos - 1, i - 2);
+        yBottom = COM_CLIP3(startPos, endPos - 1, i + 2);
+        imgPad3 = imgPad + (yBottom - i) * i_alf;
+        imgPad4 = imgPad + (yUp - i) * i_alf;
+
+        yUp = COM_CLIP3(startPos, endPos - 1, i - 3);
+        yBottom = COM_CLIP3(startPos, endPos - 1, i + 3);
+        imgPad5 = imgPad + (yBottom - i) * i_alf;
+        imgPad6 = imgPad + (yUp - i) * i_alf;
+
+        for (j = xPos; j < xPosEnd; j += 16) {
+            E00 = _mm256_add_epi16(_mm256_loadu_si256((__m256i*)&imgPad6[j]), _mm256_loadu_si256((__m256i*)&imgPad5[j]));
+            E10 = _mm256_add_epi16(_mm256_loadu_si256((__m256i*)&imgPad4[j]), _mm256_loadu_si256((__m256i*)&imgPad3[j]));
+            E20 = _mm256_add_epi16(_mm256_loadu_si256((__m256i*)&imgPad2[j - 1]), _mm256_loadu_si256((__m256i*)&imgPad1[j + 1]));
+            E30 = _mm256_add_epi16(_mm256_loadu_si256((__m256i*)&imgPad2[j]), _mm256_loadu_si256((__m256i*)&imgPad1[j]));
+            E40 = _mm256_add_epi16(_mm256_loadu_si256((__m256i*)&imgPad2[j + 1]), _mm256_loadu_si256((__m256i*)&imgPad1[j - 1]));
+            E50 = _mm256_add_epi16(_mm256_loadu_si256((__m256i*)&imgPad[j - 3]), _mm256_loadu_si256((__m256i*)&imgPad[j + 3]));
+            E60 = _mm256_add_epi16(_mm256_loadu_si256((__m256i*)&imgPad[j - 2]), _mm256_loadu_si256((__m256i*)&imgPad[j + 2]));
+            E70 = _mm256_add_epi16(_mm256_loadu_si256((__m256i*)&imgPad[j - 1]), _mm256_loadu_si256((__m256i*)&imgPad[j + 1]));
+            E80 = _mm256_loadu_si256((__m256i*)&imgPad[j]);
+            C0 = _mm256_loadu_si256((__m256i*)&imgOrg[j]);
+
+            S0 = _mm256_madd_epi16(E00, E00);
+            S1 = _mm256_madd_epi16(E00, E10);
+            S2 = _mm256_madd_epi16(E00, E20);
+            S3 = _mm256_madd_epi16(E00, E30);
+            S0 = _mm256_hadd_epi32(S0, S1);
+            S2 = _mm256_hadd_epi32(S2, S3);
+            S0 = _mm256_hadd_epi32(S0, S2);
+            C1 = _mm256_unpacklo_epi32(S0, mZero);
+            C2 = _mm256_unpackhi_epi32(S0, mZero);
+            R1 = _mm256_add_epi64(R1, C1);
+            M1 = _mm256_add_epi64(M1, C2);
+
+            S0 = _mm256_madd_epi16(E00, E40);
+            S1 = _mm256_madd_epi16(E00, E50);
+            S2 = _mm256_madd_epi16(E00, E60);
+            S3 = _mm256_madd_epi16(E00, E70);
+            S0 = _mm256_hadd_epi32(S0, S1);
+            S2 = _mm256_hadd_epi32(S2, S3);
+            S0 = _mm256_hadd_epi32(S0, S2);
+            C1 = _mm256_unpacklo_epi32(S0, mZero);
+            C2 = _mm256_unpackhi_epi32(S0, mZero);
+            R2 = _mm256_add_epi64(R2, C1);
+            M2 = _mm256_add_epi64(M2, C2);
+
+            S0 = _mm256_madd_epi16(E00, E80);
+            S1 = _mm256_madd_epi16(E10, E10);
+            S2 = _mm256_madd_epi16(E10, E20);
+            S3 = _mm256_madd_epi16(E10, E30);
+            S0 = _mm256_hadd_epi32(S0, S1);
+            S2 = _mm256_hadd_epi32(S2, S3);
+            S0 = _mm256_hadd_epi32(S0, S2);
+            C1 = _mm256_unpacklo_epi32(S0, mZero);
+            C2 = _mm256_unpackhi_epi32(S0, mZero);
+            R3 = _mm256_add_epi64(R3, C1);
+            M3 = _mm256_add_epi64(M3, C2);
+
+            S0 = _mm256_madd_epi16(E10, E40);
+            S1 = _mm256_madd_epi16(E10, E50);
+            S2 = _mm256_madd_epi16(E10, E60);
+            S3 = _mm256_madd_epi16(E10, E70);
+            S0 = _mm256_hadd_epi32(S0, S1);
+            S2 = _mm256_hadd_epi32(S2, S3);
+            S0 = _mm256_hadd_epi32(S0, S2);
+            C1 = _mm256_unpacklo_epi32(S0, mZero);
+            C2 = _mm256_unpackhi_epi32(S0, mZero);
+            R4 = _mm256_add_epi64(R4, C1);
+            M4 = _mm256_add_epi64(M4, C2);
+
+            S0 = _mm256_madd_epi16(E10, E80);
+            S1 = _mm256_madd_epi16(E20, E20);
+            S2 = _mm256_madd_epi16(E20, E30);
+            S3 = _mm256_madd_epi16(E20, E40);
+            S0 = _mm256_hadd_epi32(S0, S1);
+            S2 = _mm256_hadd_epi32(S2, S3);
+            S0 = _mm256_hadd_epi32(S0, S2);
+            C1 = _mm256_unpacklo_epi32(S0, mZero);
+            C2 = _mm256_unpackhi_epi32(S0, mZero);
+            R5 = _mm256_add_epi64(R5, C1);
+            M5 = _mm256_add_epi64(M5, C2);
+
+            S0 = _mm256_madd_epi16(E20, E50);
+            S1 = _mm256_madd_epi16(E20, E60);
+            S2 = _mm256_madd_epi16(E20, E70);
+            S3 = _mm256_madd_epi16(E20, E80);
+            S0 = _mm256_hadd_epi32(S0, S1);
+            S2 = _mm256_hadd_epi32(S2, S3);
+            S0 = _mm256_hadd_epi32(S0, S2);
+            C1 = _mm256_unpacklo_epi32(S0, mZero);
+            C2 = _mm256_unpackhi_epi32(S0, mZero);
+            R6 = _mm256_add_epi64(R6, C1);
+            M6 = _mm256_add_epi64(M6, C2);
+
+            S0 = _mm256_madd_epi16(E30, E30);
+            S1 = _mm256_madd_epi16(E30, E40);
+            S2 = _mm256_madd_epi16(E30, E50);
+            S3 = _mm256_madd_epi16(E30, E60);
+            S0 = _mm256_hadd_epi32(S0, S1);
+            S2 = _mm256_hadd_epi32(S2, S3);
+            S0 = _mm256_hadd_epi32(S0, S2);
+            C1 = _mm256_unpacklo_epi32(S0, mZero);
+            C2 = _mm256_unpackhi_epi32(S0, mZero);
+            R7 = _mm256_add_epi64(R7, C1);
+            M7 = _mm256_add_epi64(M7, C2);
+
+            S0 = _mm256_madd_epi16(E30, E70);
+            S1 = _mm256_madd_epi16(E30, E80);
+            S2 = _mm256_madd_epi16(E40, E40);
+            S3 = _mm256_madd_epi16(E40, E50);
+            S0 = _mm256_hadd_epi32(S0, S1);
+            S2 = _mm256_hadd_epi32(S2, S3);
+            S0 = _mm256_hadd_epi32(S0, S2);
+            C1 = _mm256_unpacklo_epi32(S0, mZero);
+            C2 = _mm256_unpackhi_epi32(S0, mZero);
+            R8 = _mm256_add_epi64(R8, C1);
+            M8 = _mm256_add_epi64(M8, C2);
+
+            S0 = _mm256_madd_epi16(E40, E60);
+            S1 = _mm256_madd_epi16(E40, E70);
+            S2 = _mm256_madd_epi16(E40, E80);
+            S3 = _mm256_madd_epi16(E50, E50);
+            S0 = _mm256_hadd_epi32(S0, S1);
+            S2 = _mm256_hadd_epi32(S2, S3);
+            S0 = _mm256_hadd_epi32(S0, S2);
+            C1 = _mm256_unpacklo_epi32(S0, mZero);
+            C2 = _mm256_unpackhi_epi32(S0, mZero);
+            R9 = _mm256_add_epi64(R9, C1);
+            M9 = _mm256_add_epi64(M9, C2);
+
+            S0 = _mm256_madd_epi16(E50, E60);
+            S1 = _mm256_madd_epi16(E50, E70);
+            S2 = _mm256_madd_epi16(E50, E80);
+            S3 = _mm256_madd_epi16(E60, E60);
+            S0 = _mm256_hadd_epi32(S0, S1);
+            S2 = _mm256_hadd_epi32(S2, S3);
+            S0 = _mm256_hadd_epi32(S0, S2);
+            C1 = _mm256_unpacklo_epi32(S0, mZero);
+            C2 = _mm256_unpackhi_epi32(S0, mZero);
+            R10 = _mm256_add_epi64(R10, C1);
+            M10 = _mm256_add_epi64(M10, C2);
+
+            S0 = _mm256_madd_epi16(E60, E70);
+            S1 = _mm256_madd_epi16(E60, E80);
+            S2 = _mm256_madd_epi16(E70, E70);
+            S3 = _mm256_madd_epi16(E70, E80);
+            S0 = _mm256_hadd_epi32(S0, S1);
+            S2 = _mm256_hadd_epi32(S2, S3);
+            S0 = _mm256_hadd_epi32(S0, S2);
+            C1 = _mm256_unpacklo_epi32(S0, mZero);
+            C2 = _mm256_unpackhi_epi32(S0, mZero);
+            R11 = _mm256_add_epi64(R11, C1);
+            M11 = _mm256_add_epi64(M11, C2);
+
+            S0 = _mm256_madd_epi16(E80, E80);
+            S1 = _mm256_madd_epi16(E00, C0);
+            S2 = _mm256_madd_epi16(E10, C0);
+            S3 = _mm256_madd_epi16(E20, C0);
+            S0 = _mm256_hadd_epi32(S0, S1);
+            S2 = _mm256_hadd_epi32(S2, S3);
+            S0 = _mm256_hadd_epi32(S0, S2);
+            C1 = _mm256_unpacklo_epi32(S0, mZero);
+            C2 = _mm256_unpackhi_epi32(S0, mZero);
+            R12 = _mm256_add_epi64(R12, C1);
+            M12 = _mm256_add_epi64(M12, C2);
+
+            S0 = _mm256_madd_epi16(E30, C0);
+            S1 = _mm256_madd_epi16(E40, C0);
+            S2 = _mm256_madd_epi16(E50, C0);
+            S3 = _mm256_madd_epi16(E60, C0);
+            S0 = _mm256_hadd_epi32(S0, S1);
+            S2 = _mm256_hadd_epi32(S2, S3);
+            S0 = _mm256_hadd_epi32(S0, S2);
+            C1 = _mm256_unpacklo_epi32(S0, mZero);
+            C2 = _mm256_unpackhi_epi32(S0, mZero);
+            R13 = _mm256_add_epi64(R13, C1);
+            M13 = _mm256_add_epi64(M13, C2);
+
+            S0 = _mm256_madd_epi16(E70, C0);
+            S1 = _mm256_madd_epi16(E80, C0);
+
+            S0 = _mm256_hadd_epi32(S0, S1);
+            C1 = _mm256_unpacklo_epi32(S0, mZero);
+            C2 = _mm256_unpackhi_epi32(S0, mZero);
+            R14 = _mm256_add_epi64(R14, C1);
+            M14 = _mm256_add_epi64(M14, C2);
+        }
+
+        imgPad += i_alf;
+        imgOrg += i_org;
+    }
+
+    eCorr[0][0] = (double)(_mm256_extract_epi64(R1, 0) + _mm256_extract_epi64(R1, 2));
+    eCorr[0][1] = (double)(_mm256_extract_epi64(R1, 1) + _mm256_extract_epi64(R1, 3));
+    eCorr[0][2] = (double)(_mm256_extract_epi64(M1, 0) + _mm256_extract_epi64(M1, 2));
+    eCorr[0][3] = (double)(_mm256_extract_epi64(M1, 1) + _mm256_extract_epi64(M1, 3));
+
+    eCorr[0][4] = (double)(_mm256_extract_epi64(R2, 0) + _mm256_extract_epi64(R2, 2));
+    eCorr[0][5] = (double)(_mm256_extract_epi64(R2, 1) + _mm256_extract_epi64(R2, 3));
+    eCorr[0][6] = (double)(_mm256_extract_epi64(M2, 0) + _mm256_extract_epi64(M2, 2));
+    eCorr[0][7] = (double)(_mm256_extract_epi64(M2, 1) + _mm256_extract_epi64(M2, 3));
+
+    eCorr[0][8] = (double)(_mm256_extract_epi64(R3, 0) + _mm256_extract_epi64(R3, 2));
+    eCorr[1][1] = (double)(_mm256_extract_epi64(R3, 1) + _mm256_extract_epi64(R3, 3));
+    eCorr[1][2] = (double)(_mm256_extract_epi64(M3, 0) + _mm256_extract_epi64(M3, 2));
+    eCorr[1][3] = (double)(_mm256_extract_epi64(M3, 1) + _mm256_extract_epi64(M3, 3));
+
+    eCorr[1][4] = (double)(_mm256_extract_epi64(R4, 0) + _mm256_extract_epi64(R4, 2));
+    eCorr[1][5] = (double)(_mm256_extract_epi64(R4, 1) + _mm256_extract_epi64(R4, 3));
+    eCorr[1][6] = (double)(_mm256_extract_epi64(M4, 0) + _mm256_extract_epi64(M4, 2));
+    eCorr[1][7] = (double)(_mm256_extract_epi64(M4, 1) + _mm256_extract_epi64(M4, 3));
+
+    eCorr[1][8] = (double)(_mm256_extract_epi64(R5, 0) + _mm256_extract_epi64(R5, 2));
+    eCorr[2][2] = (double)(_mm256_extract_epi64(R5, 1) + _mm256_extract_epi64(R5, 3));
+    eCorr[2][3] = (double)(_mm256_extract_epi64(M5, 0) + _mm256_extract_epi64(M5, 2));
+    eCorr[2][4] = (double)(_mm256_extract_epi64(M5, 1) + _mm256_extract_epi64(M5, 3));
+
+    eCorr[2][5] = (double)(_mm256_extract_epi64(R6, 0) + _mm256_extract_epi64(R6, 2));
+    eCorr[2][6] = (double)(_mm256_extract_epi64(R6, 1) + _mm256_extract_epi64(R6, 3));
+    eCorr[2][7] = (double)(_mm256_extract_epi64(M6, 0) + _mm256_extract_epi64(M6, 2));
+    eCorr[2][8] = (double)(_mm256_extract_epi64(M6, 1) + _mm256_extract_epi64(M6, 3));
+
+    eCorr[3][3] = (double)(_mm256_extract_epi64(R7, 0) + _mm256_extract_epi64(R7, 2));
+    eCorr[3][4] = (double)(_mm256_extract_epi64(R7, 1) + _mm256_extract_epi64(R7, 3));
+    eCorr[3][5] = (double)(_mm256_extract_epi64(M7, 0) + _mm256_extract_epi64(M7, 2));
+    eCorr[3][6] = (double)(_mm256_extract_epi64(M7, 1) + _mm256_extract_epi64(M7, 3));
+
+    eCorr[3][7] = (double)(_mm256_extract_epi64(R8, 0) + _mm256_extract_epi64(R8, 2));
+    eCorr[3][8] = (double)(_mm256_extract_epi64(R8, 1) + _mm256_extract_epi64(R8, 3));
+    eCorr[4][4] = (double)(_mm256_extract_epi64(M8, 0) + _mm256_extract_epi64(M8, 2));
+    eCorr[4][5] = (double)(_mm256_extract_epi64(M8, 1) + _mm256_extract_epi64(M8, 3));
+
+    eCorr[4][6] = (double)(_mm256_extract_epi64(R9, 0) + _mm256_extract_epi64(R9, 2));
+    eCorr[4][7] = (double)(_mm256_extract_epi64(R9, 1) + _mm256_extract_epi64(R9, 3));
+    eCorr[4][8] = (double)(_mm256_extract_epi64(M9, 0) + _mm256_extract_epi64(M9, 2));
+    eCorr[5][5] = (double)(_mm256_extract_epi64(M9, 1) + _mm256_extract_epi64(M9, 3));
+
+    eCorr[5][6] = (double)(_mm256_extract_epi64(R10, 0) + _mm256_extract_epi64(R10, 2));
+    eCorr[5][7] = (double)(_mm256_extract_epi64(R10, 1) + _mm256_extract_epi64(R10, 3));
+    eCorr[5][8] = (double)(_mm256_extract_epi64(M10, 0) + _mm256_extract_epi64(M10, 2));
+    eCorr[6][6] = (double)(_mm256_extract_epi64(M10, 1) + _mm256_extract_epi64(M10, 3));
+
+    eCorr[6][7] = (double)(_mm256_extract_epi64(R11, 0) + _mm256_extract_epi64(R11, 2));
+    eCorr[6][8] = (double)(_mm256_extract_epi64(R11, 1) + _mm256_extract_epi64(R11, 3));
+    eCorr[7][7] = (double)(_mm256_extract_epi64(M11, 0) + _mm256_extract_epi64(M11, 2));
+    eCorr[7][8] = (double)(_mm256_extract_epi64(M11, 1) + _mm256_extract_epi64(M11, 3));
+
+    eCorr[8][8] = (double)(_mm256_extract_epi64(R12, 0) + _mm256_extract_epi64(R12, 2));
+    yCorr[0] = (double)(_mm256_extract_epi64(R12, 1) + _mm256_extract_epi64(R12, 3));
+    yCorr[1] = (double)(_mm256_extract_epi64(M12, 0) + _mm256_extract_epi64(M12, 2));
+    yCorr[2] = (double)(_mm256_extract_epi64(M12, 1) + _mm256_extract_epi64(M12, 3));
+
+    yCorr[3] = (double)(_mm256_extract_epi64(R13, 0) + _mm256_extract_epi64(R13, 2));
+    yCorr[4] = (double)(_mm256_extract_epi64(R13, 1) + _mm256_extract_epi64(R13, 3));
+    yCorr[5] = (double)(_mm256_extract_epi64(M13, 0) + _mm256_extract_epi64(M13, 2));
+    yCorr[6] = (double)(_mm256_extract_epi64(M13, 1) + _mm256_extract_epi64(M13, 3));
+
+    yCorr[7] = (double)(_mm256_extract_epi64(R14, 0) + _mm256_extract_epi64(R14, 1) + _mm256_extract_epi64(R14, 2) + _mm256_extract_epi64(R14, 3));
+    yCorr[8] = (double)(_mm256_extract_epi64(M14, 0) + _mm256_extract_epi64(M14, 1) + _mm256_extract_epi64(M14, 2) + _mm256_extract_epi64(M14, 3));
+
+    for (k = 1; k < ALF_MAX_NUM_COEF; k++) {
+        for (l = 0; l < k; l++) {
+            eCorr[k][l] = eCorr[l][k];
+        }
+    }
+}
+
 
 #endif

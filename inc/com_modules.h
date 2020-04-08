@@ -25,7 +25,6 @@
 void com_alf_recon_coef(com_alf_pic_param_t *alfParam, int(*filterCoeff)[ALF_MAX_NUM_COEF]);
 void com_alf_check_coef(int *filter, int filterLength);
 void com_alf_copy_param(com_alf_pic_param_t *dst, com_alf_pic_param_t *src);
-int  com_alf_check_boundary(int x, int y, int lcuPosX, int lcuPosY, int startX, int startY, int endX, int endY, int isAboveLeftAvail, int isLeftAvail, int isAboveRightAvail, int isRightAvail);
 void com_alf_copy_frm(com_pic_t *pic_dst, com_pic_t *pic_src);
 void com_alf_buf_init(com_info_t *info, u8 *alf_var_map);
 

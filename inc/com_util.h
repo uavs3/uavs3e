@@ -282,6 +282,7 @@ typedef struct uavs3e_funs_handle_t {
 
     void(*alf)(pel *dst, int i_dst, pel *src, int i_src, int lcu_width, int lcu_height, int *coef, int sample_bit_depth);
     void(*alf_fix)(pel *dst, int i_dst, pel *src, int i_src, int lcu_width, int lcu_height, int *coef, int sample_bit_depth);
+    void(*alf_calc)(pel *p_org, int i_org, pel *p_alf, int i_alf, int xPos, int yPos, int width, int height, double eCorr[9][9], double yCorr[9], int isAboveAvail, int isBelowAvail);
 
     void(*ipcpy                      [CU_SIZE_NUM])(const pel *src, int i_src, pel *dst, int i_dst, int width, int height);
     void(*ipflt    [NUM_IPFILTER    ][CU_SIZE_NUM])(const pel *src, int i_src, pel *dst, int i_dst, int width, int height, const s8 *coeff, int max_val);

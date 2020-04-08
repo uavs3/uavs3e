@@ -278,6 +278,7 @@ void uavs3e_funs_init_sse()
 
     uavs3e_funs_handle.sao = uavs3e_sao_on_lcu_sse;
     //uavs3e_funs_handle.alf = uavs3e_alf_one_lcu_sse; // ERROR
+    uavs3e_funs_handle.alf_calc = uavs3e_alf_calc_corr_sse;
 
     uavs3e_funs_handle.cost_sad[0] = uavs3e_get_sad_4_sse;
     uavs3e_funs_handle.cost_sad[1] = uavs3e_get_sad_8_sse;
@@ -426,6 +427,7 @@ void uavs3e_funs_init_sse()
 
     uavs3e_funs_handle.sao = uavs3e_sao_on_lcu_sse;
     //uavs3e_funs_handle.alf = uavs3e_alf_one_lcu_sse; // ERROR
+    uavs3e_funs_handle.alf_calc = uavs3e_alf_calc_corr_sse;
 
     uavs3e_funs_handle.cost_satd[0][0] = uavs3e_had_4x4_sse;
 

@@ -157,6 +157,7 @@ void uavs3e_funs_init_avx2()
 
     uavs3e_funs_handle.sao = uavs3e_sao_on_lcu_avx2;
     uavs3e_funs_handle.alf = uavs3e_alf_one_lcu_avx2;
+    uavs3e_funs_handle.alf_calc = uavs3e_alf_calc_corr_avx2;
 
     uavs3e_funs_handle.cost_sad[2] = uavs3e_get_sad_16_avx2;
     uavs3e_funs_handle.cost_sad[3] = uavs3e_get_sad_32_avx2;
@@ -363,6 +364,7 @@ void uavs3e_funs_init_avx2()
 
     uavs3e_funs_handle.sao = uavs3e_sao_on_lcu_avx2;
     uavs3e_funs_handle.alf = uavs3e_alf_one_lcu_avx2;
+    uavs3e_funs_handle.alf_calc = uavs3e_alf_calc_corr_avx2;
 
     uavs3e_funs_handle.cost_sad[0] = uavs3e_get_sad_4_avx2;
     uavs3e_funs_handle.cost_sad[1] = uavs3e_get_sad_8_avx2;
