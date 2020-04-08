@@ -47,8 +47,14 @@ void inter_search_free(u8 *tab_mvbits, int tab_mvbits_offset);
 
 void analyze_intra_cu(core_t *core, lbac_t *lbac_best_ret);
 
-int enc_tq_nnz(core_t *core, com_mode_t *mode, int plane, int blk_idx, int qp, double lambda, s16 *coef, s16 *resi, int cu_width_log2, int cu_height_log2, int slice_type, int ch_type, int is_intra, int secT_Ver_Hor, int use_alt4x4Trans);
 int enc_tq_itdq_yuv_nnz(core_t *core, lbac_t *lbac, com_mode_t *cur_mode, s16 coef[N_C][MAX_CU_DIM], s16 resi[N_C][MAX_CU_DIM], pel pred[N_C][MAX_CU_DIM], pel rec[N_C][MAX_CU_DIM], s8 refi[REFP_NUM], s16 mv[REFP_NUM][MV_D]);
+
+static avs3_always_inline int enc_tq_nnz(core_t *core, com_mode_t *mode, int plane, int blk_idx, int qp, double lambda, s16 *coef, s16 *resi, int cu_width_log2, int cu_height_log2, int slice_type, int is_intra, int secT_Ver_Hor, int use_alt4x4Trans)
+{
+    transform(mode, plane, blk_idx, coef, resi, cu_width_log2, cu_height_log2, core->info->bit_depth_internal, secT_Ver_Hor, use_alt4x4Trans);
+    return quant_non_zero(core, qp, lambda, is_intra, coef, cu_width_log2, cu_height_log2, plane, slice_type);
+}
+
 
 static avs3_always_inline double get_bits_cost(core_t *core, lbac_t* lbac, int slice_type, double lambda)
 {

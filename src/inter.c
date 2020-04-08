@@ -325,8 +325,7 @@ static double inter_rdcost(core_t *core, lbac_t *lbac_best_ret, int bForceAllZer
             assert(core->tree_status == TREE_L);
             cost_best = (double)dist[0][Y_C];
         }
-        cost_best += get_bits_cost(core, lbac, slice_type, core->lambda[0]);
-        lbac_copy(&lbac_best, lbac);
+        cost_best += get_bits_cost(core, &lbac_best, slice_type, core->lambda[0]);
     }
 
     /* transform and quantization */
@@ -391,15 +390,13 @@ static double inter_rdcost(core_t *core, lbac_t *lbac_best_ret, int bForceAllZer
             com_mcpy(nnz_store, num_nz_coef, sizeof(int) * MAX_NUM_TB * N_C);
             int tb_part_store = cur_info->tb_part;
 
-            lbac_t lbac_cur_comp_best;
-            lbac_copy(&lbac_cur_comp_best, &core->lbac_bakup);
+            if (core->tree_status == TREE_LC) {
+                lbac_t lbac_cur_comp_best;
+                lbac_copy(&lbac_cur_comp_best, &core->lbac_bakup);
 
-            if (core->tree_status == TREE_LC) { 
                 for (int i = 0; i < N_C; i++) {
                     if (is_cu_plane_nz(nnz_store, i) > 0) {
                         double cost_comp_best = MAX_D_COST;
-                        lbac_t lbac_cur_comp;
-                        lbac_copy(&lbac_cur_comp, &lbac_cur_comp_best);
 
                         for (int j = 0; j < 2; j++) {
                             cost = dist[j][i] * (i == 0 ? 1 : core->dist_chroma_weight[i - 1]);
@@ -414,7 +411,7 @@ static double inter_rdcost(core_t *core, lbac_t *lbac_best_ret, int bForceAllZer
                                     cur_info->tb_part = SIZE_2Nx2N;
                                 }
                             }
-                            cost += get_bits_cost_comp(core, lbac, &lbac_cur_comp, coef[i], core->lambda[i], i);
+                            cost += get_bits_cost_comp(core, lbac, &lbac_cur_comp_best, coef[i], core->lambda[i], i);
 
                             if (cost < cost_comp_best) {
                                 cost_comp_best = cost;

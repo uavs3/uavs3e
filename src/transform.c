@@ -744,45 +744,35 @@ static void xTr2nd_8_1d_Vert(s16 *src, int i_src)
     }
 }
 
-
 static int com_get_forward_trans_shift(int log2_size, int type, int bit_depth)
 {
     assert(log2_size <= 6);
     return (type == 0) ? (log2_size + bit_depth - 10) : (log2_size + 5);
 }
 
-void transform(com_mode_t *mode, int plane, int blk_idx, s16 *coef, s16 *resi, int cu_width_log2, int cu_height_log2, int bIntra, int ch_type, int bit_depth, int secT_Ver_Hor, int use_alt4x4Trans)
+void transform(com_mode_t *mode, int plane, int blk_idx, s16 *coef, s16 *resi, int cu_width_log2, int cu_height_log2, int bit_depth, int secT_Ver_Hor, int use_alt4x4Trans)
 {
-    ALIGNED_32(s16 coef_temp[MAX_TR_DIM]);
-
-    if ((cu_width_log2 > MAX_TR_LOG2) || (cu_height_log2 > MAX_TR_LOG2)) {
-        assert(0);
-    } else {
+    if (use_alt4x4Trans && cu_width_log2 == 2 && cu_height_log2 == 2) {
+        s16 coef_temp2[16];
         int shift1 = com_get_forward_trans_shift(cu_width_log2, 0, bit_depth);
         int shift2 = com_get_forward_trans_shift(cu_height_log2, 1, bit_depth);
-        int stride_tu = (1 << cu_width_log2);
-        if (use_alt4x4Trans && cu_width_log2 == 2 && cu_height_log2 == 2) {
-            s16 coef_temp2[16];
-            assert(bIntra);
-            xCTr_4_1d_Hor(resi, 4, coef_temp2, 4, shift1 + 1);
-            xCTr_4_1d_Vert(coef_temp2, 4, coef, 4, shift2 + 1);
-        } else {
-            if (plane == Y_C && mode->tb_part == SIZE_NxN) {
-                uavs3e_funs_handle.trans_dct8_dst7[blk_idx & 1][cu_width_log2 - 1](resi, coef_temp, shift1, 1 << cu_height_log2);
-                uavs3e_funs_handle.trans_dct8_dst7[blk_idx >> 1][cu_height_log2 - 1](coef_temp, coef, shift2, 1 << cu_width_log2);
-            }
-            else{
-                uavs3e_funs_handle.trans_dct2[cu_width_log2 - 1][cu_height_log2 - 1](resi, coef, bit_depth);
-            } 
-            
-            if (secT_Ver_Hor >> 1) {
-                assert(bIntra);
-                xTr2nd_8_1d_Vert(coef, stride_tu);
-            }
-            if (secT_Ver_Hor & 1) {
-                assert(bIntra);
-                xTr2nd_8_1d_Hor(coef, stride_tu);
-            }
+        xCTr_4_1d_Hor(resi, 4, coef_temp2, 4, shift1 + 1);
+        xCTr_4_1d_Vert(coef_temp2, 4, coef, 4, shift2 + 1);
+    } else {
+        if (plane == Y_C && mode->tb_part == SIZE_NxN) {
+            ALIGNED_32(s16 coef_temp[MAX_TR_DIM]);
+            int shift1 = com_get_forward_trans_shift(cu_width_log2, 0, bit_depth);
+            int shift2 = com_get_forward_trans_shift(cu_height_log2, 1, bit_depth);
+            uavs3e_funs_handle.trans_dct8_dst7[blk_idx &  1][cu_width_log2  - 1](resi, coef_temp, shift1, 1 << cu_height_log2);
+            uavs3e_funs_handle.trans_dct8_dst7[blk_idx >> 1][cu_height_log2 - 1](coef_temp, coef, shift2, 1 << cu_width_log2 );
+        } else{
+            uavs3e_funs_handle.trans_dct2[cu_width_log2 - 1][cu_height_log2 - 1](resi, coef, bit_depth);
+        } 
+        if (secT_Ver_Hor >> 1) {
+            xTr2nd_8_1d_Vert(coef, 1 << cu_width_log2);
+        }
+        if (secT_Ver_Hor & 1) {
+            xTr2nd_8_1d_Hor(coef, 1 << cu_width_log2);
         }
     }
 }

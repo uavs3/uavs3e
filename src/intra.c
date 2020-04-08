@@ -21,23 +21,16 @@
 
 static double intra_pu_rdcost(core_t *core, lbac_t *lbac, pel rec[N_C][MAX_CU_DIM], pel *org_luma, pel *org_cb, pel *org_cr, int s_org, int s_org_c, int cu_width_log2, int cu_height_log2, s32 *dist, int bChroma, int pb_idx, int x, int y)
 {
-    com_info_t *info = core->info;
     com_mode_t *cur_info = &core->mod_info_curr;
-    int bit_depth = info->bit_depth_internal;
-    ALIGNED_32(s16 coef_tmp[N_C][MAX_CU_DIM]);
-    ALIGNED_32(s16 resi[MAX_CU_DIM]);
-    int cu_width, cu_height, bit_cnt;
-    double cost = 0;
-    u16 avail_tb;
-    com_pic_t *pic = core->pic_rec;
-    int i_rec_y = pic->stride_luma;
-    pel *rec_y = pic->y;
-    pel *mod;
-    int num_nz_temp[MAX_NUM_TB][N_C];
-    com_map_t *map = core->map;
+    com_info_t *info     = core->info;
+    com_pic_t *pic       = core->pic_rec;
+    com_map_t *map       = core->map;
+    int cu_width         = 1 << cu_width_log2;
+    int cu_height        = 1 << cu_height_log2;
+    int bit_depth        = info->bit_depth_internal;
 
-    cu_width  = 1 << cu_width_log2;
-    cu_height = 1 << cu_height_log2;
+    ALIGNED_32(s16 resi[MAX_CU_DIM]);
+    double cost = 0;
 
     if (!bChroma) {
         int pb_part_size = cur_info->pb_part;
@@ -46,60 +39,55 @@ static double intra_pu_rdcost(core_t *core, lbac_t *lbac, pel rec[N_C][MAX_CU_DI
         int pb_h = cur_info->pb_info.sub_h[pb_idx];
         int pb_x = cur_info->pb_info.sub_x[pb_idx];
         int pb_y = cur_info->pb_info.sub_y[pb_idx];
-        int tb_w, tb_h, tb_x, tb_y, tb_scup, tb_x_scu, tb_y_scu, coef_offset_tb;
-        pel *pred_tb;
-        cu_plane_nz_cln(cur_info->num_nz, Y_C);
+        int tb_w, tb_h, tb_x, tb_y;
+        int use_alt4x4Trans = info->sqh.sectrans_enable;
 
+        cu_plane_nz_cln(cur_info->num_nz, Y_C);
         get_tb_width_height_in_pb(pb_w, pb_h, pb_part_size, pb_idx, &tb_w, &tb_h);
+
         for (int tb_idx = 0; tb_idx < num_tb_in_pb; tb_idx++) {
             get_tb_pos_in_pb(pb_x, pb_y, pb_part_size, tb_w, tb_h, tb_idx, &tb_x, &tb_y);
-            coef_offset_tb = tb_idx * tb_w * tb_h;
-            tb_x_scu = PEL2SCU(tb_x);
-            tb_y_scu = PEL2SCU(tb_y);
-            tb_scup = tb_x_scu + (tb_y_scu * info->i_scu);
 
-            s16 *resi_tb = resi + coef_offset_tb;
-            pel *rec_tb = rec[Y_C] + (tb_y - core->cu_pix_y) * cu_width + (tb_x - core->cu_pix_x);
+            int coef_offset_tb  = tb_idx * tb_w * tb_h;
+            int tb_x_scu        = PEL2SCU(tb_x);
+            int tb_y_scu        = PEL2SCU(tb_y);
+            int tb_scup         = tb_x_scu + (tb_y_scu * info->i_scu);
+            s8 intra_mode       = cur_info->ipm[pb_idx][0];
+            int tb_width_log2   = com_tbl_log2[tb_w];
+            int tb_height_log2  = com_tbl_log2[tb_h];
+            int use_secTrans    = use_alt4x4Trans && (tb_width_log2 > 2 || tb_height_log2 > 2);
+            int secT_Ver_Hor    = 0;
+            u16 avail_tb        = com_get_avail_intra(tb_x_scu, tb_y_scu, info->i_scu, tb_scup, map->map_scu);
+            s16 *resi_tb        = resi + coef_offset_tb;
+            pel *rec_tb         = rec[Y_C] + (tb_y - core->cu_pix_y) * cu_width + (tb_x - core->cu_pix_x);
+            pel *pred_tb;
 
-            avail_tb = com_get_avail_intra(tb_x_scu, tb_y_scu, info->i_scu, tb_scup, map->map_scu);
-
-            s8 intra_mode = cur_info->ipm[pb_idx][0];
-            int tb_width_log2 = com_tbl_log2[tb_w];
-            int tb_height_log2 = com_tbl_log2[tb_h];
-            assert(tb_width_log2 > 0 && tb_height_log2 > 0);
-            int use_secTrans = info->sqh.sectrans_enable && (tb_width_log2 > 2 || tb_height_log2 > 2);
-            int use_alt4x4Trans = info->sqh.sectrans_enable;
-            int secT_Ver_Hor = 0;
             if (use_secTrans) {
-                int vt, ht;
-                int block_available_up = IS_AVAIL(avail_tb, AVAIL_UP);
-                int block_available_left = IS_AVAIL(avail_tb, AVAIL_LE);
-                vt = intra_mode < IPD_HOR;
-                ht = (intra_mode > IPD_VER && intra_mode < IPD_CNT) || intra_mode <= IPD_BI;
-                vt = vt && block_available_up;
-                ht = ht && block_available_left;
+                int vt = IS_AVAIL(avail_tb, AVAIL_UP) && (intra_mode < IPD_HOR);
+                int ht = IS_AVAIL(avail_tb, AVAIL_LE) && ((intra_mode > IPD_VER && intra_mode < IPD_CNT) || intra_mode <= IPD_BI);
                 secT_Ver_Hor = (vt << 1) | ht;
             }
-
             if (num_tb_in_pb == 1) {
                 pred_tb = core->intra_pred_all[intra_mode];
             } else {
-                mod = rec_y + (tb_y * i_rec_y) + tb_x;
+                int i_rec_y = pic->stride_luma;
+                pel *mod = pic->y + (tb_y * i_rec_y) + tb_x;
                 pred_tb = cur_info->pred[Y_C];
                 com_intra_get_nbr(tb_x, tb_y, tb_w, tb_h, mod, i_rec_y, core->linebuf_intra[1][0] + tb_x, info->max_cuwh, avail_tb, core->nb, tb_scup, map->map_scu, info->i_scu, bit_depth, Y_C);
                 com_intra_pred(core->nb[Y_C] + INTRA_NEIB_MID, pred_tb, intra_mode, tb_w, tb_h, bit_depth, avail_tb, cur_info->ipf_flag);
             }
 
             pel *org_luma_tb = org_luma + (tb_x - pb_x) + (tb_y - pb_y) * s_org;
-  
-            block_pel_sub(tb_width_log2, tb_height_log2, org_luma_tb, pred_tb, s_org, tb_w, tb_w, coef_tmp[Y_C]);
-            cur_info->num_nz[tb_idx][Y_C] = enc_tq_nnz(core, cur_info, Y_C, 0, core->lcu_qp_y, core->lambda[0], coef_tmp[Y_C], coef_tmp[Y_C], tb_width_log2, tb_height_log2, core->slice_type, Y_C, 1, secT_Ver_Hor, use_alt4x4Trans);
-
             s16 *coef_tb = cur_info->coef[Y_C] + coef_offset_tb;
-            com_mcpy(coef_tb, coef_tmp[Y_C], sizeof(s16) *(tb_w * tb_h));
+
+            block_pel_sub(tb_width_log2, tb_height_log2, org_luma_tb, pred_tb, s_org, tb_w, tb_w, resi);
+            cur_info->num_nz[tb_idx][Y_C] = enc_tq_nnz(core, cur_info, Y_C, 0, core->lcu_qp_y, core->lambda[0], coef_tb, resi, tb_width_log2, tb_height_log2, core->slice_type, 1, secT_Ver_Hor, use_alt4x4Trans);
+
             if (cur_info->num_nz[tb_idx][Y_C]) {
-                com_invqt(cur_info, Y_C, 0, coef_tmp[Y_C], resi_tb, core->wq, tb_width_log2, tb_height_log2, core->lcu_qp_y, bit_depth, secT_Ver_Hor, use_alt4x4Trans);
+                com_invqt(cur_info, Y_C, 0, coef_tb, resi_tb, core->wq, tb_width_log2, tb_height_log2, core->lcu_qp_y, bit_depth, secT_Ver_Hor, use_alt4x4Trans);
             }
+
+            int num_nz_temp[MAX_NUM_TB][N_C];
 
             for (int comp = 0; comp < N_C; comp++) {
                 num_nz_temp[TB0][comp] = cur_info->num_nz[tb_idx][comp];
@@ -121,39 +109,42 @@ static double intra_pu_rdcost(core_t *core, lbac_t *lbac, pel rec[N_C][MAX_CU_DI
         } else {
             lbac_copy(lbac, &core->lbac_intra_prev_pu);
         }
-        bit_cnt = lbac_get_bits(lbac);
+        int bit_cnt = lbac_get_bits(lbac);
         enc_bits_intra_pu(core, lbac, core->pichdr->slice_type, cur_info->coef, pb_idx);
         bit_cnt = lbac_get_bits(lbac) - bit_cnt;
         cost += RATE_TO_COST_LAMBDA(core->lambda[0], bit_cnt);
     } else {
-        pel *piRecoY = rec_y + (y * i_rec_y) + x; 
+        int i_rec_y = pic->stride_luma;
+        pel *piRecoY = pic->y + (y * pic->stride_luma) + x;
         ALIGNED_32(pel pred[N_C][MAX_CU_DIM]);
         u16 avail_cu = com_get_avail_intra(core->cu_scu_x, core->cu_scu_y, info->i_scu, core->cu_scup_in_pic, map->map_scu);
+
+        // U plane
         com_intra_pred_chroma(pred[U_C], cur_info->ipm[PB0][1], cur_info->ipm[PB0][0], cu_width >> 1, cu_height >> 1, bit_depth, avail_cu, U_C, piRecoY, i_rec_y, core->nb);
-        block_pel_sub(cu_width_log2 - 1, cu_height_log2 - 1, org_cb, pred[U_C], s_org_c, cu_width >> 1, cu_width >> 1, coef_tmp[U_C]);
-        cur_info->num_nz[TB0][U_C] = enc_tq_nnz(core, cur_info, U_C, 0, core->lcu_qp_u, core->lambda[1], coef_tmp[U_C], coef_tmp[U_C], cu_width_log2 - 1, cu_height_log2 - 1, core->slice_type, U_C, 1, 0, 0);
-        com_mcpy(cur_info->coef[U_C], coef_tmp[U_C], sizeof(u16) *(cu_width * cu_height));
-
+        block_pel_sub(cu_width_log2 - 1, cu_height_log2 - 1, org_cb, pred[U_C], s_org_c, cu_width >> 1, cu_width >> 1, resi);
+        cur_info->num_nz[TB0][U_C] = enc_tq_nnz(core, cur_info, U_C, 0, core->lcu_qp_u, core->lambda[1], cur_info->coef[U_C], resi, cu_width_log2 - 1, cu_height_log2 - 1, core->slice_type, 1, 0, 0);
+   
         if (cur_info->num_nz[TB0][U_C]) {
-            com_invqt(cur_info, U_C, 0, coef_tmp[U_C], resi, core->wq, core->cu_width_log2 - 1, core->cu_height_log2 - 1, core->lcu_qp_u, bit_depth, 0, 0);
+            com_invqt(cur_info, U_C, 0, cur_info->coef[U_C], resi, core->wq, core->cu_width_log2 - 1, core->cu_height_log2 - 1, core->lcu_qp_u, bit_depth, 0, 0);
         }
-
         com_recon_plane(SIZE_2Nx2N, resi, pred[U_C], cur_info->num_nz, U_C, cu_width >> 1, cu_height >> 1, cu_width >> 1, rec[U_C], bit_depth);
+        
+        // V plane
         com_intra_pred_chroma(pred[V_C], cur_info->ipm[PB0][1], cur_info->ipm[PB0][0], cu_width >> 1, cu_height >> 1, bit_depth, avail_cu, V_C, piRecoY, i_rec_y, core->nb);
-        block_pel_sub(cu_width_log2 - 1, cu_height_log2 - 1, org_cr, pred[V_C], s_org_c, cu_width >> 1, cu_width >> 1, coef_tmp[V_C]);
-        cur_info->num_nz[TB0][V_C] = enc_tq_nnz(core, cur_info, V_C, 0, core->lcu_qp_v, core->lambda[2], coef_tmp[V_C], coef_tmp[V_C], cu_width_log2 - 1, cu_height_log2 - 1, core->slice_type, V_C, 1, 0, 0);
-        com_mcpy(cur_info->coef[V_C], coef_tmp[V_C], sizeof(u16) *(cu_width * cu_height));
+        block_pel_sub(cu_width_log2 - 1, cu_height_log2 - 1, org_cr, pred[V_C], s_org_c, cu_width >> 1, cu_width >> 1, resi);
+        cur_info->num_nz[TB0][V_C] = enc_tq_nnz(core, cur_info, V_C, 0, core->lcu_qp_v, core->lambda[2], cur_info->coef[V_C], resi, cu_width_log2 - 1, cu_height_log2 - 1, core->slice_type, 1, 0, 0);
 
-        lbac_copy(lbac, &core->lbac_intra_prev_pu);
-        bit_cnt = lbac_get_bits(lbac);
-        enc_bits_intra_chroma(core, lbac, cur_info->coef);
-        bit_cnt = lbac_get_bits(lbac) - bit_cnt;
-        cost += core->dist_chroma_weight[0] * block_pel_ssd(cu_width_log2 - 1, cu_height >> 1, rec[U_C], org_cb, cu_width >> 1, s_org_c, bit_depth);
         if (cur_info->num_nz[TB0][V_C]) {
-            com_invqt(cur_info, V_C, 0, coef_tmp[V_C], resi, core->wq, core->cu_width_log2 - 1, core->cu_height_log2 - 1, core->lcu_qp_v, bit_depth, 0, 0);
+            com_invqt(cur_info, V_C, 0, cur_info->coef[V_C], resi, core->wq, core->cu_width_log2 - 1, core->cu_height_log2 - 1, core->lcu_qp_v, bit_depth, 0, 0);
         }
 
         com_recon_plane(SIZE_2Nx2N, resi, pred[V_C], cur_info->num_nz, V_C, cu_width >> 1, cu_height >> 1, cu_width >> 1, rec[V_C], bit_depth);
+
+        lbac_copy(lbac, &core->lbac_intra_prev_pu);
+        int bit_cnt = lbac_get_bits(lbac);
+        enc_bits_intra_chroma(core, lbac, cur_info->coef);
+        bit_cnt = lbac_get_bits(lbac) - bit_cnt;
+        cost += core->dist_chroma_weight[0] * block_pel_ssd(cu_width_log2 - 1, cu_height >> 1, rec[U_C], org_cb, cu_width >> 1, s_org_c, bit_depth);
         cost += core->dist_chroma_weight[1] * block_pel_ssd(cu_width_log2 - 1, cu_height >> 1, rec[V_C], org_cr, cu_width >> 1, s_org_c, bit_depth);
         *dist = (s32)cost;
 

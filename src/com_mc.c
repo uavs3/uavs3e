@@ -120,20 +120,18 @@ static void com_mc_blk_chroma(com_pic_t *pic, int uv_flag, pel *dst, int dst_str
 
 void com_mc_cu(int x, int y, int pic_w, int pic_h, int w, int h, s8 refi[REFP_NUM], s16 mv[REFP_NUM][MV_D], com_ref_pic_t(*refp)[REFP_NUM], pel pred_buf[N_C][MAX_CU_DIM], int pred_stride, channel_type_t channel, int bit_depth)
 {
-    com_pic_t    *ref_pic;
     ALIGNED_32(pel pred_snd[N_C][MAX_CU_DIM]);
     pel(*pred)[MAX_CU_DIM] = pred_buf;
-    int qpel_gmv_x, qpel_gmv_y;
-    int bidx = 0;
     int max_posx = pic_w + 4;
     int max_posy = pic_h + 4;
     int widx = CONV_LOG2(w) - MIN_CU_LOG2;
+    int bidx = 0;
 
     if (REFI_IS_VALID(refi[REFP_0])) {
         /* forward */
-        ref_pic = refp[refi[REFP_0]][REFP_0].pic;
-        qpel_gmv_x = (x << 2) + mv[REFP_0][MV_X];
-        qpel_gmv_y = (y << 2) + mv[REFP_0][MV_Y];
+        com_pic_t *ref_pic = refp[refi[REFP_0]][REFP_0].pic;
+        int qpel_gmv_x = (x << 2) + mv[REFP_0][MV_X];
+        int qpel_gmv_y = (y << 2) + mv[REFP_0][MV_Y];
 
         if (channel != CHANNEL_C) {
             com_mc_blk_luma(ref_pic, pred[Y_C], pred_stride, qpel_gmv_x, qpel_gmv_y, w, h, widx, max_posx, max_posy, (1 << bit_depth) - 1, 0);
@@ -155,9 +153,9 @@ void com_mc_cu(int x, int y, int pic_w, int pic_h, int w, int h, s8 refi[REFP_NU
         if (bidx) {
             pred = pred_snd;
         }
-        ref_pic = refp[refi[REFP_1]][REFP_1].pic;
-        qpel_gmv_x = (x << 2) + mv[REFP_1][MV_X];
-        qpel_gmv_y = (y << 2) + mv[REFP_1][MV_Y];
+        com_pic_t *ref_pic = refp[refi[REFP_1]][REFP_1].pic;
+        int qpel_gmv_x = (x << 2) + mv[REFP_1][MV_X];
+        int qpel_gmv_y = (y << 2) + mv[REFP_1][MV_Y];
 
         if (channel != CHANNEL_C) {
             com_mc_blk_luma(ref_pic, pred[Y_C], pred_stride, qpel_gmv_x, qpel_gmv_y, w, h, widx, max_posx, max_posy, (1 << bit_depth) - 1, 0);
@@ -184,26 +182,19 @@ void com_mc_cu(int x, int y, int pic_w, int pic_h, int w, int h, s8 refi[REFP_NU
 
 void com_mc_blk_affine_luma(int x, int y, int pic_w, int pic_h, int cu_width, int cu_height, CPMV ac_mv[VER_NUM][MV_D], com_pic_t *ref_pic, pel pred[MAX_CU_DIM], int cp_num, int sub_w, int sub_h, int bit_depth)
 {
-    assert(com_tbl_log2[cu_width] >= 4);
+    assert(com_tbl_log2[cu_width ] >= 4);
     assert(com_tbl_log2[cu_height] >= 4);
 
-    int qpel_gmv_x, qpel_gmv_y;
-    pel *pred_y = pred;
-    int w, h;
-    int half_w, half_h;
-
-    s32 dmv_hor_x, dmv_ver_x, dmv_hor_y, dmv_ver_y;
+    int half_w = sub_w >> 1;
+    int half_h = sub_h >> 1;
     s32 mv_scale_hor = (s32)ac_mv[0][MV_X] << 7;
     s32 mv_scale_ver = (s32)ac_mv[0][MV_Y] << 7;
     s32 mv_scale_tmp_hor, mv_scale_tmp_ver;
 
-    // get sub block size
-    half_w = sub_w >> 1;
-    half_h = sub_h >> 1;
-
     // convert to 2^(storeBit + bit) precision
-    dmv_hor_x = (((s32)ac_mv[1][MV_X] - (s32)ac_mv[0][MV_X]) << 7) >> com_tbl_log2[cu_width];      // deltaMvHor
-    dmv_hor_y = (((s32)ac_mv[1][MV_Y] - (s32)ac_mv[0][MV_Y]) << 7) >> com_tbl_log2[cu_width];
+    s32 dmv_hor_x = (((s32)ac_mv[1][MV_X] - (s32)ac_mv[0][MV_X]) << 7) >> com_tbl_log2[cu_width];      // deltaMvHor
+    s32 dmv_hor_y = (((s32)ac_mv[1][MV_Y] - (s32)ac_mv[0][MV_Y]) << 7) >> com_tbl_log2[cu_width];
+    s32 dmv_ver_x, dmv_ver_y;
 
     if (cp_num == 3) {
         dmv_ver_x = (((s32)ac_mv[2][MV_X] - (s32)ac_mv[0][MV_X]) << 7) >> com_tbl_log2[cu_height]; // deltaMvVer
@@ -218,8 +209,8 @@ void com_mc_blk_affine_luma(int x, int y, int pic_w, int pic_h, int cu_width, in
     int max_posy = pic_h + 4;
 
     // get prediction block by block
-    for (h = 0; h < cu_height; h += sub_h) {
-        for (w = 0; w < cu_width; w += sub_w) {
+    for (int h = 0; h < cu_height; h += sub_h) {
+        for (int w = 0; w < cu_width; w += sub_w) {
             int pos_x = w + half_w;
             int pos_y = h + half_h;
 
@@ -242,12 +233,12 @@ void com_mc_blk_affine_luma(int x, int y, int pic_w, int pic_h, int cu_width, in
             mv_scale_tmp_hor = COM_CLIP3(COM_INT18_MIN, COM_INT18_MAX, mv_scale_tmp_hor);
             mv_scale_tmp_ver = COM_CLIP3(COM_INT18_MIN, COM_INT18_MAX, mv_scale_tmp_ver);
 
-            qpel_gmv_x = ((x + w) << 4) + mv_scale_tmp_hor;
-            qpel_gmv_y = ((y + h) << 4) + mv_scale_tmp_ver;
+            int qpel_gmv_x = ((x + w) << 4) + mv_scale_tmp_hor;
+            int qpel_gmv_y = ((y + h) << 4) + mv_scale_tmp_ver;
 
-            com_mc_blk_luma(ref_pic, pred_y + w, cu_width, qpel_gmv_x, qpel_gmv_y, sub_w, sub_h, widx, max_posx, max_posy, (1 << bit_depth) - 1, 1);
+            com_mc_blk_luma(ref_pic, pred + w, cu_width, qpel_gmv_x, qpel_gmv_y, sub_w, sub_h, widx, max_posx, max_posy, (1 << bit_depth) - 1, 1);
         }
-        pred_y += (cu_width * sub_h);
+        pred += (cu_width * sub_h);
     }
 }
 

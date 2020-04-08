@@ -974,84 +974,98 @@ static void check_run_split(core_t *core, int cu_width_log2, int cu_height_log2,
 s64 calc_dist_filter_boundary(core_t *core, com_pic_t *pic_rec, com_pic_t *pic_org, int cu_width, int cu_height,
                                     pel *src, int s_src, int x, int y, u8 intra_flag, u8 cu_cbf, s8 *refi, s16(*mv)[MV_D], u8 is_mv_from_mvf, int only_delta)
 {
-    com_info_t *info = core->info;
-
     if (core->pichdr->loop_filter_disable_flag) {
         return 0;
     }
-    com_map_t *map = core->map;
+    pel df_buf[(MAX_CU_SIZE + 4) *(MAX_CU_SIZE + 4)];
+
+    com_info_t *info     =  core->info;
+    com_map_t  *map      =  core->map;
     com_mode_t *cur_info = &core->mod_info_curr;
-    int bit_depth = info->bit_depth_internal;
-    int i, j;
-    int cu_width_log2 = CONV_LOG2(cu_width);
-    assert(cu_width >= 4 && cu_height >= 4);
-    const int x_offset = 8;
-    const int y_offset = 8;
-    const int x_tm = 4;
-    const int y_tm = 4; 
-    const int log2_x_tm = CONV_LOG2(x_tm);
-    int s_l_org = pic_org->stride_luma;
-    int s_l_rec = pic_rec->stride_luma;
-    int s_l_dbk = cu_width + x_offset;
+    int bit_depth        = info->bit_depth_internal;
+    int cu_width_log2    = CONV_LOG2(cu_width);
+    const int pad        = 4;
+    const int log2_pad   = CONV_LOG2(pad);
+    int s_l_org          = pic_org->stride_luma;
+    int s_l_rec          = pic_rec->stride_luma;
+    int s_l_dbk          = cu_width + pad;
+    pel *dst_y           = df_buf + pad * s_l_dbk + pad;
+    pel *org_y           = pic_org->y + y * s_l_org + x;
+    int x_scu            = x >> MIN_CU_LOG2;
+    int y_scu            = y >> MIN_CU_LOG2;
+    s64 dist_nofilt      = 0;
+    s64 dist_filter      = 0;
+    pel *d, *s;
 
-    pel df_buf[(MAX_CU_SIZE + 8) *(MAX_CU_SIZE + 8)];
-    pel *dst_y = df_buf + y_offset * s_l_dbk + x_offset;
-    pel *org_y = pic_org->y + y * s_l_org + x;
-    int x_scu = x >> MIN_CU_LOG2;
-    int y_scu = y >> MIN_CU_LOG2;
-    int t = x_scu + y_scu * info->i_scu;
-    s64 dist_nofilt = 0, dist_filter = 0;
-
-    for (i = 0; i < cu_height; i++) { //copy curr block
-        com_mcpy(dst_y + i * s_l_dbk, src + i * s_src, cu_width * sizeof(pel));
+    d = dst_y;
+    s = src;
+    for (int i = 0; i < cu_height; i++) { //copy curr block
+        com_mcpy(d, s, cu_width * sizeof(pel));
+        d += s_l_dbk, s += s_src;
     }
     if (y != 0) { //copy top
-        for (i = 0; i < y_offset; i++) {
-            com_mcpy(dst_y + (-y_offset + i)*s_l_dbk, pic_rec->y + (y - y_offset + i)*s_l_rec + x, cu_width * sizeof(pel));
+        d = dst_y - pad * s_l_dbk;
+        s = pic_rec->y + (y - pad) * s_l_rec + x;
+        for (int i = 0; i < pad; i++) {
+            com_mcpy(d, s, cu_width * sizeof(pel));
+            d += s_l_dbk;
+            s += s_l_rec;
         }
     }
     if (x != 0) { //copy left
-        for (i = 0; i < cu_height; i++) {
-            com_mcpy(dst_y + i * s_l_dbk - x_offset, pic_rec->y + (y + i)*s_l_rec + (x - x_offset), x_offset * sizeof(pel));
+        d = dst_y - pad;
+        s = pic_rec->y + y * s_l_rec + x - pad;
+        for (int i = 0; i < cu_height; i++) {
+            com_mcpy(d, s, pad * sizeof(pel));
+            d += s_l_dbk;
+            s += s_l_rec;
+
         }
     }
-
     //******** no filter ****************************
     if (only_delta) {
         if (y != 0) {
-            dist_nofilt += block_pel_ssd(cu_width_log2, cu_height + y_tm, dst_y - y_tm * s_l_dbk, org_y - y_tm * s_l_org, s_l_dbk, s_l_org, bit_depth);
+            dist_nofilt += block_pel_ssd(cu_width_log2, cu_height + pad, dst_y - pad * s_l_dbk, org_y - pad * s_l_org, s_l_dbk, s_l_org, bit_depth);
         } else {
             dist_nofilt += block_pel_ssd(cu_width_log2, cu_height, dst_y, org_y, s_l_dbk, s_l_org, bit_depth);
         }
     } else if (y != 0) {
-        dist_nofilt += block_pel_ssd(cu_width_log2, y_tm, dst_y - y_tm * s_l_dbk, org_y - y_tm * s_l_org, s_l_dbk, s_l_org, bit_depth);
+        dist_nofilt += block_pel_ssd(cu_width_log2, pad, dst_y - pad * s_l_dbk, org_y - pad * s_l_org, s_l_dbk, s_l_org, bit_depth);
     }
     if (x != 0) {
-        dist_nofilt += block_pel_ssd(log2_x_tm, cu_height, dst_y - x_tm, org_y - x_tm, s_l_dbk, s_l_org, bit_depth);
+        dist_nofilt += block_pel_ssd(log2_pad, cu_height, dst_y - pad, org_y - pad, s_l_dbk, s_l_org, bit_depth);
     }
 
     //*********** filter ****************************
-
-    int w_scu = cu_width >> MIN_CU_LOG2;
+    int w_scu = cu_width  >> MIN_CU_LOG2;
     int h_scu = cu_height >> MIN_CU_LOG2;
-    com_scu_t scu = map->map_scu[t];
-    scu.intra = intra_flag;
-    scu.cbf = cu_cbf;
-    scu.tbpart = cur_info->tb_part;
-    scu.coded = 0; //clear coded (necessary)
+    int idx = y_scu * info->i_scu + x_scu;
+    com_scu_t scu = map->map_scu[idx];
 
-    for (j = 0; j < h_scu; j++) {
-        int idx = (y_scu + j) * info->i_scu + x_scu;
+    scu.intra  = intra_flag;
+    scu.cbf    = cu_cbf;
+    scu.tbpart = cur_info->tb_part;
+    scu.coded  = 0; //clear coded (necessary)
+
+    com_scu_t*pscu               = map->map_scu  + idx;
+    s8(*map_refi)[REFP_NUM]      = map->map_refi + idx;
+    s16(*map_mv)[REFP_NUM][MV_D] = map->map_mv   + idx;
+
+    for (int j = 0; j < h_scu; j++) {
         if (refi != NULL && !is_mv_from_mvf) {
-            for (i = 0; i < w_scu; i++, idx++) {
-                map->map_scu[idx] = scu;
-                CP16(map->map_refi[idx], refi);
-                CP64(map->map_mv[idx], mv);
+            for (int i = 0; i < w_scu; i++) {
+                pscu[i] = scu;
+                CP16(map_refi[i], refi);
+                CP64(map_mv[i], mv);
             }
+            pscu     += info->i_scu;
+            map_refi += info->i_scu;
+            map_mv   += info->i_scu;
         } else {
-            for (i = 0; i < w_scu; i++, idx++) {
-                map->map_scu[idx] = scu;
+            for (int i = 0; i < w_scu; i++) {
+                pscu[i] = scu;
             }
+            pscu += info->i_scu;
         }
     }
 
@@ -1062,12 +1076,12 @@ s64 calc_dist_filter_boundary(core_t *core, com_pic_t *pic_rec, com_pic_t *pic_o
     com_df_rdo_luma(info, core->pichdr, map, df_rdo_edge, w_scu, dst_y, s_l_dbk, x, y, cu_width, cu_height);
 
     if (y != 0) {
-        dist_filter += block_pel_ssd(cu_width_log2, cu_height + y_tm, dst_y - y_tm * s_l_dbk, org_y - y_tm * s_l_org, s_l_dbk, s_l_org, bit_depth);
+        dist_filter += block_pel_ssd(cu_width_log2, cu_height + pad, dst_y - pad * s_l_dbk, org_y - pad * s_l_org, s_l_dbk, s_l_org, bit_depth);
     } else {
         dist_filter += block_pel_ssd(cu_width_log2, cu_height, dst_y, org_y, s_l_dbk, s_l_org, bit_depth);
     }
     if (x != 0) {
-        dist_filter += block_pel_ssd(log2_x_tm, cu_height, dst_y - x_tm, org_y - x_tm, s_l_dbk, s_l_org, bit_depth);
+        dist_filter += block_pel_ssd(log2_pad, cu_height, dst_y - pad, org_y - pad, s_l_dbk, s_l_org, bit_depth);
     }
 
     return dist_filter - dist_nofilt;
@@ -1480,13 +1494,6 @@ int enc_mode_analyze_lcu(core_t *core, const lbac_t *lbac)
     return COM_OK;
 }
 
-
-int enc_tq_nnz(core_t *core, com_mode_t *mode, int plane, int blk_idx, int qp, double lambda, s16 *coef, s16 *resi, int cu_width_log2, int cu_height_log2, int slice_type, int ch_type, int is_intra, int secT_Ver_Hor, int use_alt4x4Trans)
-{
-    transform(mode, plane, blk_idx, coef, resi, cu_width_log2, cu_height_log2, is_intra, ch_type, core->info->bit_depth_internal, secT_Ver_Hor, use_alt4x4Trans);
-    return quant_non_zero(core, qp, lambda, is_intra, coef, cu_width_log2, cu_height_log2, ch_type, slice_type);
-}
-
 #if TR_EARLY_TERMINATE
 int est_pred_info_bits(core_t *core)
 {
@@ -1528,7 +1535,7 @@ int enc_tq_itdq_yuv_nnz(core_t *core, lbac_t *lbac, com_mode_t *cur_mode, s16 co
             int plane_height_log2 = cu_height_log2 - (i != Y_C);
             int qp = (i == Y_C ? core->lcu_qp_y : (i == U_C ? core->lcu_qp_u : core->lcu_qp_v));
 
-            cur_mode->num_nz[TB0][i] = enc_tq_nnz(core, cur_mode, i, 0, qp, core->lambda[i], coef[i], resi[i], plane_width_log2, plane_height_log2, slice_type, i, 0, 0, 0);
+            cur_mode->num_nz[TB0][i] = enc_tq_nnz(core, cur_mode, i, 0, qp, core->lambda[i], coef[i], resi[i], plane_width_log2, plane_height_log2, slice_type, 0, 0, 0);
 
             if (cur_mode->num_nz[TB0][i]) {
                 ALIGNED_32(s16 resi_it[MAX_CU_DIM]);
@@ -1606,7 +1613,7 @@ int enc_tq_itdq_yuv_nnz(core_t *core, lbac_t *lbac, com_mode_t *cur_mode, s16 co
                 }
                 tb_resi = resi_buf;
             }
-            cur_mode->num_nz[i][Y_C] = enc_tq_nnz(core, cur_mode, Y_C, i, core->lcu_qp_y, core->lambda[Y_C], coef_NxN + i * tb_size, tb_resi, log2_tb_w, log2_tb_h, slice_type, Y_C, 0, 0, 0);
+            cur_mode->num_nz[i][Y_C] = enc_tq_nnz(core, cur_mode, Y_C, i, core->lcu_qp_y, core->lambda[Y_C], coef_NxN + i * tb_size, tb_resi, log2_tb_w, log2_tb_h, slice_type, 0, 0, 0);
         }
 
         if (bak_2Nx2N_num_nz && is_cu_plane_nz(cur_mode->num_nz, Y_C)) {
