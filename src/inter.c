@@ -375,7 +375,6 @@ static double inter_rdcost(core_t *core, lbac_t *lbac_best_ret, int bForceAllZer
             if (core->tree_status == TREE_LC) {
                 cost += (double)dist[cbf_y][Y_C] + ((dist[cbf_u][U_C] + dist[cbf_v][V_C]) * core->dist_chroma_weight[0]);
             } else {
-                assert(core->tree_status == TREE_L);
                 cost += (double)dist[cbf_y][Y_C];
             }
             if (cost < cost_best) {
@@ -388,21 +387,48 @@ static double inter_rdcost(core_t *core, lbac_t *lbac_best_ret, int bForceAllZer
 
             int nnz_store[MAX_NUM_TB][N_C];
             com_mcpy(nnz_store, num_nz_coef, sizeof(int) * MAX_NUM_TB * N_C);
-            int tb_part_store = cur_info->tb_part;
 
-            if (core->tree_status == TREE_LC) {
-                lbac_t lbac_cur_comp_best;
-                lbac_copy(&lbac_cur_comp_best, &core->lbac_bakup);
+            if (cbf_y + cbf_u + cbf_v > 1) {
+                if (core->tree_status == TREE_LC) {
+                    int tb_part_store = cur_info->tb_part;
+                    lbac_t lbac_cur_comp_best;
+                    lbac_copy(&lbac_cur_comp_best, &core->lbac_bakup);
 
-                for (int i = 0; i < N_C; i++) {
-                    if (is_cu_plane_nz(nnz_store, i) > 0) {
-                        double cost_comp_best = MAX_D_COST;
-                        lbac_t lbac_cur_comp;
-                        lbac_copy(&lbac_cur_comp, &lbac_cur_comp_best);
+                    for (int i = 0; i < N_C; i++) {
+                        if (is_cu_plane_nz(nnz_store, i)) {
+                            double cost_comp_best = MAX_D_COST;
+                            lbac_t lbac_cur_comp;
+                            lbac_copy(&lbac_cur_comp, &lbac_cur_comp_best);
 
-                        for (int j = 0; j < 2; j++) {
-                            cost = dist[j][i] * (i == 0 ? 1 : core->dist_chroma_weight[i - 1]);
-                            if (j) {
+                            for (int j = 0; j < 2; j++) {
+                                cost = dist[j][i] * (i == 0 ? 1 : core->dist_chroma_weight[i - 1]);
+                                if (j) {
+                                    cu_plane_nz_cpy(num_nz_coef, nnz_store, i);
+                                    if (i == 0) {
+                                        cur_info->tb_part = tb_part_store;
+                                    }
+                                } else {
+                                    cu_plane_nz_cln(num_nz_coef, i);
+                                    if (i == 0) {
+                                        cur_info->tb_part = SIZE_2Nx2N;
+                                    }
+                                }
+                                cost += get_bits_cost_comp(core, lbac, &lbac_cur_comp, coef[i], core->lambda[i], i);
+
+                                if (cost < cost_comp_best) {
+                                    cost_comp_best = cost;
+                                    cbf_comps[i] = j;
+                                    lbac_copy(&lbac_cur_comp_best, lbac);
+                                }
+                            }
+                        } else {
+                            cbf_comps[i] = 0;
+                        }
+                    }
+                
+                    if (cbf_comps[Y_C] || cbf_comps[U_C] || cbf_comps[V_C]) {
+                        for (int i = 0; i < N_C; i++) {
+                            if (cbf_comps[i]) {
                                 cu_plane_nz_cpy(num_nz_coef, nnz_store, i);
                                 if (i == 0) {
                                     cur_info->tb_part = tb_part_store;
@@ -413,45 +439,21 @@ static double inter_rdcost(core_t *core, lbac_t *lbac_best_ret, int bForceAllZer
                                     cur_info->tb_part = SIZE_2Nx2N;
                                 }
                             }
-                            cost += get_bits_cost_comp(core, lbac, &lbac_cur_comp, coef[i], core->lambda[i], i);
-
-                            if (cost < cost_comp_best) {
-                                cost_comp_best = cost;
-                                cbf_comps[i] = j;
-                                lbac_copy(&lbac_cur_comp_best, lbac);
-                            }
                         }
-                    } else {
-                        cbf_comps[i] = 0;
-                    }
-                }
-                if (cbf_comps[Y_C] != 0 || cbf_comps[U_C] != 0 || cbf_comps[V_C] != 0) {
-                    for (int i = 0; i < N_C; i++) {
-                        if (cbf_comps[i]) {
-                            cu_plane_nz_cpy(num_nz_coef, nnz_store, i);
-                            if (i == 0) {
-                                cur_info->tb_part = tb_part_store;
-                            }
-                        } else {
-                            cu_plane_nz_cln(num_nz_coef, i);
-                            if (i == 0) {
-                                cur_info->tb_part = SIZE_2Nx2N;
-                            }
-                        }
-                    }
-                    if (!is_cu_nz_equ(num_nz_coef, nnz_store)) {
-                        cbf_y = cbf_comps[Y_C];
-                        cbf_u = cbf_comps[U_C];
-                        cbf_v = cbf_comps[V_C];
-                        cost = dist[cbf_y][Y_C] + ((dist[cbf_u][U_C] + dist[cbf_v][V_C]) * core->dist_chroma_weight[0]);
-                        cost += get_bits_cost(core, lbac, slice_type, core->lambda[0]);
+                        if (!is_cu_nz_equ(num_nz_coef, nnz_store)) {
+                            cbf_y = cbf_comps[Y_C];
+                            cbf_u = cbf_comps[U_C];
+                            cbf_v = cbf_comps[V_C];
+                            cost = dist[cbf_y][Y_C] + ((dist[cbf_u][U_C] + dist[cbf_v][V_C]) * core->dist_chroma_weight[0]);
+                            cost += get_bits_cost(core, lbac, slice_type, core->lambda[0]);
 
-                        if (cost < cost_best) {
-                            cost_best = cost;
-                            cbf_best[Y_C] = cbf_y;
-                            cbf_best[U_C] = cbf_u;
-                            cbf_best[V_C] = cbf_v;
-                            lbac_copy(&lbac_best, lbac);
+                            if (cost < cost_best) {
+                                cost_best = cost;
+                                cbf_best[Y_C] = cbf_y;
+                                cbf_best[U_C] = cbf_u;
+                                cbf_best[V_C] = cbf_v;
+                                lbac_copy(&lbac_best, lbac);
+                            }
                         }
                     }
                 }
@@ -459,15 +461,12 @@ static double inter_rdcost(core_t *core, lbac_t *lbac_best_ret, int bForceAllZer
             for (int i = 0; i < num_n_c; i++) {
                 if (cbf_best[i]) {
                     cu_plane_nz_cpy(num_nz_coef, nnz_store, i);
-                    if (i == 0) {
-                        cur_info->tb_part = tb_part_store;
-                    }
                 } else {
                     cu_plane_nz_cln(num_nz_coef, i);
-                    if (i == 0) {
-                        cur_info->tb_part = SIZE_2Nx2N;
-                    }
                 }
+            }
+            if (!is_cu_plane_nz(num_nz_coef, Y_C)) {
+                cur_info->tb_part = SIZE_2Nx2N;
             }
         }
 #if TR_SAVE_LOAD 
@@ -476,9 +475,7 @@ static double inter_rdcost(core_t *core, lbac_t *lbac_best_ret, int bForceAllZer
         }
 #endif
     }
-    if (!is_cu_plane_nz(num_nz_coef, Y_C)) {
-        cur_info->tb_part = SIZE_2Nx2N; 
-    }
+
     check_best_mode(core, lbac_best_ret, &lbac_best, cost_best, pred);
 
     return cost_best;
