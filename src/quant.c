@@ -185,14 +185,10 @@ static int rdoq_quant_block(core_t *core, int slice_type, int qp, double d_lambd
     const int ns_offset = ((cu_width_log2 + cu_height_log2) & 1) ? (1 << (ns_shift - 1)) : 0;
     const int q_value = (scale * ns_scale + ns_offset) >> ns_shift;
     const int max_num_coef = 1 << (cu_width_log2 + cu_height_log2);
-
-#define FAST_RDOQ_INTRA_RND_OFST  201
-#define FAST_RDOQ_INTER_RND_OFST  153 
-
-    int offset = ((slice_type == SLICE_I) ? FAST_RDOQ_INTRA_RND_OFST : FAST_RDOQ_INTER_RND_OFST) << (q_bits - 9);
-    int nz_threshold = ((((1 << q_bits) - offset) << 10) / q_value - 1) >> 10;
-
     const int max_used_coef = 1 << (cu_width_log2 + COM_MIN(5, cu_height_log2));
+
+    int offset = ((slice_type == SLICE_I) ? 201 : 153) << (q_bits - 9);
+    int nz_threshold = ((((1 << q_bits) - offset) << 10) / q_value - 1) >> 10;
 
     if (uavs3e_funs_handle.quant_check(coef, max_used_coef, nz_threshold)) {
         return 0;
@@ -313,6 +309,9 @@ int quant_non_zero(core_t *core, int qp, double lambda, int is_intra, s16 *coef,
             p += width;
         }
     }
+    if (height > 32) {
+        memset(coef + width * height / 2, 0, width * height / 2 * sizeof(s16));
+    }
 
     if (!core->pichdr->pic_wq_enable) {
         num_nz_coef = rdoq_quant_block(core, slice_type, qp, lambda, is_intra, coef, cu_width_log2, cu_height_log2, ch_type, bit_depth);
@@ -330,10 +329,6 @@ int quant_non_zero(core_t *core, int qp, double lambda, int is_intra, s16 *coef,
         int idx_shift;
         int idx_step;
         u8 *wq;
-
-        if (height > 32) {
-            memset(coef + 32 * width, 0, sizeof(s16) * width * height - 32 * width);
-        }
 
         tr_shift = COM_GET_TRANS_SHIFT(bit_depth, log2_size - ns_shift);
         shift = QUANT_SHIFT + tr_shift;

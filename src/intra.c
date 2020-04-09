@@ -118,8 +118,8 @@ static double intra_pu_rdcost(core_t *core, lbac_t *lbac, pel rec[N_C][MAX_CU_DI
 
         // U plane
         com_intra_pred_chroma(pred[U_C], cur_info->ipm[PB0][1], cur_info->ipm[PB0][0], cu_width >> 1, cu_height >> 1, bit_depth, avail_cu, U_C, piRecoY, i_rec_y, core->nb);
-        block_pel_sub(cu_width_log2 - 1, cu_height_log2 - 1, org_cb, pred[U_C], s_org_c, cu_width >> 1, cu_width >> 1, resi);
-        cur_info->num_nz[TB0][U_C] = enc_tq_nnz(core, cur_info, U_C, 0, core->lcu_qp_u, core->lambda[1], cur_info->coef[U_C], resi, cu_width_log2 - 1, cu_height_log2 - 1, core->slice_type, 1, 0, 0);
+        block_pel_sub(cu_width_log2 - 1, cu_height_log2 - 1, org_cb, pred[U_C], s_org_c, cu_width >> 1, cu_width >> 1, cur_info->coef[U_C]);
+        cur_info->num_nz[TB0][U_C] = enc_tq_nnz(core, cur_info, U_C, 0, core->lcu_qp_u, core->lambda[1], cur_info->coef[U_C], cur_info->coef[U_C], cu_width_log2 - 1, cu_height_log2 - 1, core->slice_type, 1, 0, 0);
         if (cur_info->num_nz[TB0][U_C]) {
             com_invqt(cur_info, U_C, 0, cur_info->coef[U_C], resi, core->wq, core->cu_width_log2 - 1, core->cu_height_log2 - 1, core->lcu_qp_u, bit_depth, 0, 0);
         }
@@ -127,8 +127,8 @@ static double intra_pu_rdcost(core_t *core, lbac_t *lbac, pel rec[N_C][MAX_CU_DI
         
         // V plane
         com_intra_pred_chroma(pred[V_C], cur_info->ipm[PB0][1], cur_info->ipm[PB0][0], cu_width >> 1, cu_height >> 1, bit_depth, avail_cu, V_C, piRecoY, i_rec_y, core->nb);
-        block_pel_sub(cu_width_log2 - 1, cu_height_log2 - 1, org_cr, pred[V_C], s_org_c, cu_width >> 1, cu_width >> 1, resi);
-        cur_info->num_nz[TB0][V_C] = enc_tq_nnz(core, cur_info, V_C, 0, core->lcu_qp_v, core->lambda[2], cur_info->coef[V_C], resi, cu_width_log2 - 1, cu_height_log2 - 1, core->slice_type, 1, 0, 0);
+        block_pel_sub(cu_width_log2 - 1, cu_height_log2 - 1, org_cr, pred[V_C], s_org_c, cu_width >> 1, cu_width >> 1, cur_info->coef[V_C]);
+        cur_info->num_nz[TB0][V_C] = enc_tq_nnz(core, cur_info, V_C, 0, core->lcu_qp_v, core->lambda[2], cur_info->coef[V_C], cur_info->coef[V_C], cu_width_log2 - 1, cu_height_log2 - 1, core->slice_type, 1, 0, 0);
         if (cur_info->num_nz[TB0][V_C]) {
             com_invqt(cur_info, V_C, 0, cur_info->coef[V_C], resi, core->wq, core->cu_width_log2 - 1, core->cu_height_log2 - 1, core->lcu_qp_v, bit_depth, 0, 0);
         }
