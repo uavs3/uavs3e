@@ -304,12 +304,10 @@ static double sao_rdcost_new(core_t *core, lbac_t *sao_sbac, int MergeLeftAvail,
     return normmodecost;
 }
 
-static void sao_get_lcu_param(core_t *core, const lbac_t *lbac, int lcu_pos, int mb_y, int mb_x,
+static void sao_get_lcu_param(core_t *core, const lbac_t *lbac, int lcu_pos, int pix_x, int pix_y,
                        com_sao_stat_t saostatData[N_C][NUM_SAO_NEW_TYPES], com_sao_param_t(*saoBlkParam_map)[N_C], double *sao_labmda)
 {
     com_patch_header_t *pathdr = core->pathdr;
-    int pix_x = mb_x << MIN_CU_LOG2;
-    int pix_y = mb_y << MIN_CU_LOG2;
     com_sao_param_t *saoBlkParam = saoBlkParam_map[lcu_pos];
     int MergeLeftAvail = 0;
     int MergeUpAvail = 0;
@@ -336,275 +334,49 @@ static void sao_get_lcu_param(core_t *core, const lbac_t *lbac, int lcu_pos, int
     }
 }
 
-static void sao_get_stat(com_pic_t  *pic_org, com_pic_t  *pic_rec, com_sao_stat_t *saostatsData, int bit_depth, int compIdx, int pix_x, int pix_y, int lcu_pix_width, int lcu_pix_height,
-                int lcu_available_left, int lcu_available_right, int lcu_available_up, int lcu_available_down)
-{
-    int type;
-    int start_x, end_x, start_y, end_y;
-    int start_x_r0, end_x_r0, start_x_r, end_x_r, start_x_rn, end_x_rn;
-    int x, y;
-    pel *Rec, *Org;
-    char leftsign, rightsign, upsign, downsign;
-    long diff;
-    com_sao_stat_t *statsDate;
-    char signupline[MAX_CU_SIZE * 2], *signupline1;
-    int reg = 0;
-    int edgetype, bandtype;
-
-    Rec = Org = NULL;
-    int SrcStride, OrgStride;
-
-    if (lcu_pix_height <= 0 || lcu_pix_width <= 0) {
-        return;
-    }
-
-    switch (compIdx) {
-    case Y_C:
-        SrcStride = pic_rec->stride_luma;
-        OrgStride = pic_org->stride_luma;
-        Rec = pic_rec->y;
-        Org = pic_org->y;
-        break;
-    case U_C:
-        SrcStride = pic_rec->stride_chroma;
-        OrgStride = pic_org->stride_chroma;
-        Rec = pic_rec->u;
-        Org = pic_org->u;
-        break;
-    case V_C:
-        SrcStride = pic_rec->stride_chroma;
-        OrgStride = pic_org->stride_chroma;
-        Rec = pic_rec->v;
-        Org = pic_org->v;
-        break;
-    default:
-        SrcStride = 0;
-        OrgStride = 0;
-        Rec = NULL;
-        Org = NULL;
-        assert(0);
-    }
-
-    for (type = 0; type < NUM_SAO_NEW_TYPES; type++) {
-        statsDate = &(saostatsData[type]);
-        switch (type) {
-        case SAO_TYPE_EO_0: {
-            start_y = 0;
-            end_y = lcu_pix_height;
-            start_x = lcu_available_left ? 0 : 1;
-            end_x = lcu_available_right ? lcu_pix_width : (lcu_pix_width - 1);
-            for (y = start_y; y < end_y; y++) {
-                diff = Rec[(pix_y + y) * SrcStride + pix_x + start_x] - Rec[(pix_y + y) * SrcStride + pix_x + start_x - 1];
-                leftsign = diff > 0 ? 1 : (diff < 0 ? -1 : 0);
-                for (x = start_x; x < end_x; x++) {
-                    diff = Rec[(pix_y + y) * SrcStride + pix_x + x] - Rec[(pix_y + y) * SrcStride + pix_x + x + 1];
-                    rightsign = diff > 0 ? 1 : (diff < 0 ? -1 : 0);
-                    edgetype = leftsign + rightsign;
-                    leftsign = -rightsign;
-                    statsDate->diff[edgetype + 2] += (Org[(pix_y + y) * OrgStride + pix_x + x] - Rec[(pix_y + y) * SrcStride + pix_x + x]);
-                    statsDate->count[edgetype + 2]++;
-                }
-            }
-        }
-        break;
-        case SAO_TYPE_EO_90: {
-            start_x = 0;
-            end_x = lcu_pix_width;
-            start_y = lcu_available_up ? 0 : 1;
-            end_y = lcu_available_down ? lcu_pix_height : (lcu_pix_height - 1);
-            for (x = start_x; x < end_x; x++) {
-                diff = Rec[(pix_y + start_y) * SrcStride + pix_x + x] - Rec[(pix_y + start_y - 1) * SrcStride + pix_x + x];
-                upsign = diff > 0 ? 1 : (diff < 0 ? -1 : 0);
-                for (y = start_y; y < end_y; y++) {
-                    diff = Rec[(pix_y + y) * SrcStride + pix_x + x] - Rec[(pix_y + y + 1) * SrcStride + pix_x + x];
-                    downsign = diff > 0 ? 1 : (diff < 0 ? -1 : 0);
-                    edgetype = downsign + upsign;
-                    upsign = -downsign;
-                    statsDate->diff[edgetype + 2] += (Org[(pix_y + y) * OrgStride + pix_x + x] - Rec[(pix_y + y) * SrcStride + pix_x + x]);
-                    statsDate->count[edgetype + 2]++;
-                }
-            }
-        }
-        break;
-        case SAO_TYPE_EO_135: {
-            start_x_r0 = lcu_available_up && lcu_available_left ? 0 : 1;
-            end_x_r0 = lcu_available_up ? (lcu_available_right ? lcu_pix_width : (lcu_pix_width - 1)) : 1;
-            start_x_r = lcu_available_left ? 0 : 1;
-            end_x_r = lcu_available_right ? lcu_pix_width : (lcu_pix_width - 1);
-            start_x_rn = lcu_available_down ? (lcu_available_left ? 0 : 1) : (lcu_pix_width - 1);
-            end_x_rn = lcu_available_right && lcu_available_down ? lcu_pix_width : (lcu_pix_width - 1);
-            for (x = start_x_r + 1; x < end_x_r + 1; x++) {
-                diff = Rec[(pix_y + 1) * SrcStride + pix_x + x] - Rec[pix_y * SrcStride + pix_x + x - 1];
-                upsign = diff > 0 ? 1 : (diff < 0 ? -1 : 0);
-                signupline[x] = upsign;
-            }
-            //first row
-            for (x = start_x_r0; x < end_x_r0; x++) {
-                diff = Rec[pix_y * SrcStride + pix_x + x] - Rec[(pix_y - 1) * SrcStride + pix_x + x - 1];
-                upsign = diff > 0 ? 1 : (diff < 0 ? -1 : 0);
-                edgetype = upsign - signupline[x + 1];
-                statsDate->diff[edgetype + 2] += (Org[pix_y * OrgStride + pix_x + x] - Rec[pix_y * SrcStride + pix_x + x]);
-                statsDate->count[edgetype + 2]++;
-            }
-            //middle rows
-            for (y = 1; y < lcu_pix_height - 1; y++) {
-                for (x = start_x_r; x < end_x_r; x++) {
-                    if (x == start_x_r) {
-                        diff = Rec[(pix_y + y) * SrcStride + pix_x + x] - Rec[(pix_y + y - 1) * SrcStride + pix_x + x - 1];
-                        upsign = diff > 0 ? 1 : (diff < 0 ? -1 : 0);
-                        signupline[x] = upsign;
-                    }
-                    diff = Rec[(pix_y + y) * SrcStride + pix_x + x] - Rec[(pix_y + y + 1) * SrcStride + pix_x + x + 1];
-                    downsign = diff > 0 ? 1 : (diff < 0 ? -1 : 0);
-                    edgetype = downsign + signupline[x];
-                    statsDate->diff[edgetype + 2] += (Org[(pix_y + y) * OrgStride + pix_x + x] - Rec[(pix_y + y) * SrcStride + pix_x + x]);
-                    statsDate->count[edgetype + 2]++;
-                    signupline[x] = (char)reg;
-                    reg = -downsign;
-                }
-            }
-            //last row
-            for (x = start_x_rn; x < end_x_rn; x++) {
-                if (x == start_x_r) {
-                    diff = Rec[(pix_y + lcu_pix_height - 1) * SrcStride + pix_x + x] - Rec[(pix_y + lcu_pix_height - 2) * SrcStride + pix_x + x - 1];
-                    upsign = diff > 0 ? 1 : (diff < 0 ? -1 : 0);
-                    signupline[x] = upsign;
-                }
-                diff = Rec[(pix_y + lcu_pix_height - 1) * SrcStride + pix_x + x] - Rec[(pix_y + lcu_pix_height) * SrcStride + pix_x + x + 1];
-                downsign = diff > 0 ? 1 : (diff < 0 ? -1 : 0);
-                edgetype = downsign + signupline[x];
-                statsDate->diff[edgetype + 2] += (Org[(pix_y + lcu_pix_height - 1) * OrgStride + pix_x + x] - Rec[(pix_y + lcu_pix_height - 1) * SrcStride + pix_x + x]);
-                statsDate->count[edgetype + 2]++;
-            }
-        }
-        break;
-        case SAO_TYPE_EO_45: {
-            start_x_r0 = lcu_available_up ? (lcu_available_left ? 0 : 1) : (lcu_pix_width - 1);
-            end_x_r0 = lcu_available_up && lcu_available_right ? lcu_pix_width : (lcu_pix_width - 1);
-            start_x_r = lcu_available_left ? 0 : 1;
-            end_x_r = lcu_available_right ? lcu_pix_width : (lcu_pix_width - 1);
-            start_x_rn = lcu_available_left && lcu_available_down ? 0 : 1;
-            end_x_rn = lcu_available_down ? (lcu_available_right ? lcu_pix_width : (lcu_pix_width - 1)) : 1;
-            signupline1 = signupline + 1;
-            for (x = start_x_r - 1; x < COM_MAX(end_x_r - 1, end_x_r0 - 1); x++) {
-                diff = Rec[(pix_y + 1) * SrcStride + pix_x + x] - Rec[pix_y * SrcStride + pix_x + x + 1];
-                upsign = diff > 0 ? 1 : (diff < 0 ? -1 : 0);
-                signupline1[x] = upsign;
-            }
-            //first row
-            for (x = start_x_r0; x < end_x_r0; x++) {
-                diff = Rec[pix_y * SrcStride + pix_x + x] - Rec[(pix_y - 1) * SrcStride + pix_x + x + 1];
-                upsign = diff > 0 ? 1 : (diff < 0 ? -1 : 0);
-                edgetype = upsign - signupline1[x - 1];
-                statsDate->diff[edgetype + 2] += (Org[pix_y * OrgStride + pix_x + x] - Rec[pix_y * SrcStride + pix_x + x]);
-                statsDate->count[edgetype + 2]++;
-            }
-            //middle rows
-            for (y = 1; y < lcu_pix_height - 1; y++) {
-                for (x = start_x_r; x < end_x_r; x++) {
-                    if (x == end_x_r - 1) {
-                        diff = Rec[(pix_y + y) * SrcStride + pix_x + x] - Rec[(pix_y + y - 1) * SrcStride + pix_x + x + 1];
-                        upsign = diff > 0 ? 1 : (diff < 0 ? -1 : 0);
-                        signupline1[x] = upsign;
-                    }
-                    diff = Rec[(pix_y + y) * SrcStride + pix_x + x] - Rec[(pix_y + y + 1) * SrcStride + pix_x + x - 1];
-                    downsign = diff > 0 ? 1 : (diff < 0 ? -1 : 0);
-                    edgetype = downsign + signupline1[x];
-                    statsDate->diff[edgetype + 2] += (Org[(pix_y + y) * OrgStride + pix_x + x] - Rec[(pix_y + y) * SrcStride + pix_x + x]);
-                    statsDate->count[edgetype + 2]++;
-                    signupline1[x - 1] = -downsign;
-                }
-            }
-            for (x = start_x_rn; x < end_x_rn; x++) {
-                if (x == end_x_r - 1) {
-                    diff = Rec[(pix_y + lcu_pix_height - 1) * SrcStride + pix_x + x] - Rec[(pix_y + lcu_pix_height - 2) * SrcStride + pix_x
-                            + x + 1];
-                    upsign = diff > 0 ? 1 : (diff < 0 ? -1 : 0);
-                    signupline1[x] = upsign;
-                }
-                diff = Rec[(pix_y + lcu_pix_height - 1) * SrcStride + pix_x + x] - Rec[(pix_y + lcu_pix_height) * SrcStride + pix_x + x
-                        - 1];
-                downsign = diff > 0 ? 1 : (diff < 0 ? -1 : 0);
-                edgetype = downsign + signupline1[x];
-                statsDate->diff[edgetype + 2] += (Org[(pix_y + lcu_pix_height - 1) * OrgStride + pix_x + x] - Rec[(pix_y +
-                                                  lcu_pix_height - 1) * SrcStride + pix_x +
-                                                  x]);
-                statsDate->count[edgetype + 2]++;
-            }
-        }
-        break;
-        case SAO_TYPE_BO: {
-            start_x = 0;
-            end_x = lcu_pix_width;
-            start_y = 0;
-            end_y = lcu_pix_height;
-            for (x = start_x; x < end_x; x++) {
-                for (y = start_y; y < end_y; y++) {
-                    bandtype = Rec[(pix_y + y) * SrcStride + pix_x + x] >> (bit_depth - NUM_SAO_BO_CLASSES_IN_BIT);
-                    statsDate->diff[bandtype] += (Org[(pix_y + y) * OrgStride + pix_x + x] - Rec[(pix_y + y) * SrcStride + pix_x + x]);
-                    statsDate->count[bandtype]++;
-                }
-            }
-        }
-        break;
-        default: {
-            printf("Not a supported SAO types\n");
-            assert(0);
-            exit(-1);
-        }
-        }
-    }
-}
-
-
-void sao_get_statistics(com_info_t *info, com_patch_header_t *pathdr, com_map_t *map, com_pic_t  *pic_org, com_pic_t  *pic_rec, int mb_y, int mb_x, int lcu_mb_height, int lcu_mb_width,
-                        com_sao_stat_t saostatData[N_C][NUM_SAO_NEW_TYPES])
+void sao_get_statistics(com_info_t *info, com_patch_header_t *pathdr, com_map_t *map, com_pic_t  *pic_org, com_pic_t  *pic_rec, int pix_x, int pix_y, int lcu_pix_width, int lcu_pix_height, com_sao_stat_t saostatData[N_C][NUM_SAO_NEW_TYPES])
 {
     int bit_depth = info->bit_depth_internal;
-    int pix_x = mb_x << MIN_CU_LOG2;
-    int pix_y = mb_y << MIN_CU_LOG2;
-    int lcu_pix_width  = lcu_mb_width << MIN_CU_LOG2;
-    int lcu_pix_height = lcu_mb_height << MIN_CU_LOG2;
-    int compIdx;
-    int isLeftAvail = pix_x > 0;
-    int isRightAvail = pix_x + lcu_pix_width < info->pic_width;
     int isAboveAvail = pix_y > 0;
     int isBelowAvail = pix_y + lcu_pix_height < info->pic_height;
+    int isLeftAvail  = pix_x > 0;
+    int isRightAvail = pix_x + lcu_pix_width < info->pic_width;
     int x_offset = 0, y_offset = 0, width_add = 0, height_add = 0;
+    int w, h, x, y;
 
     if (isLeftAvail) {
-        x_offset -= SAO_SHIFT_PIX_NUM;
+        x_offset  -= SAO_SHIFT_PIX_NUM;
         width_add += SAO_SHIFT_PIX_NUM;
     }
     if (isRightAvail) {
         width_add -= SAO_SHIFT_PIX_NUM;
     }
-    if (isAboveAvail) {
-        y_offset -= SAO_SHIFT_PIX_NUM;
-        height_add += SAO_SHIFT_PIX_NUM;
-    }
     if (isBelowAvail) {
         height_add -= SAO_SHIFT_PIX_NUM;
     }
+    if (isAboveAvail) {
+        y_offset   -= SAO_SHIFT_PIX_NUM;// - 1; // -1 for keep const of WPP
+        height_add += SAO_SHIFT_PIX_NUM;// - 1;
+    }
 
-    for (compIdx = Y_C; compIdx < N_C; compIdx++) {
-        if (!pathdr->slice_sao_enable[compIdx]) {
-            continue;
-        }
-        com_sao_stat_t *statsDate = saostatData[compIdx];
-        memset(statsDate, 0, sizeof(saostatData[compIdx]));
+    if (pathdr->slice_sao_enable[0]) {
+        w = (lcu_pix_width  - SAO_SHIFT_PIX_NUM) + width_add;
+        h = (lcu_pix_height - SAO_SHIFT_PIX_NUM) + height_add;
+        x = pix_x + x_offset;
+        y = pix_y + y_offset;
+        uavs3e_funs_handle.sao_stat(pic_org, pic_rec, saostatData[0], bit_depth, 0, x, y, w, h, isLeftAvail, isRightAvail, isAboveAvail, isBelowAvail);
+    }
 
-        int w = compIdx ? ((lcu_pix_width  >> 1) - SAO_SHIFT_PIX_NUM) : (lcu_pix_width  - SAO_SHIFT_PIX_NUM);
-        int h = compIdx ? ((lcu_pix_height >> 1) - SAO_SHIFT_PIX_NUM) : (lcu_pix_height - SAO_SHIFT_PIX_NUM);
-        int x = compIdx ? (pix_x >> 1) : pix_x;
-        int y = compIdx ? (pix_y >> 1) : pix_y;
+    w = ((lcu_pix_width  >> 1) - SAO_SHIFT_PIX_NUM) + width_add;
+    h = ((lcu_pix_height >> 1) - SAO_SHIFT_PIX_NUM) + height_add;
+    x = (pix_x >> 1) + x_offset;
+    y = (pix_y >> 1) + y_offset;
 
-        x += x_offset;
-        y += y_offset;
-        w += width_add;
-        h += height_add;
-
-        sao_get_stat(pic_org, pic_rec, statsDate, bit_depth, compIdx, x, y, w, h, isLeftAvail, isRightAvail, isAboveAvail, isBelowAvail);
+    if (pathdr->slice_sao_enable[1]) {
+        uavs3e_funs_handle.sao_stat(pic_org, pic_rec, saostatData[1], bit_depth, 1, x, y, w, h, isLeftAvail, isRightAvail, isAboveAvail, isBelowAvail);
+    }
+    if (pathdr->slice_sao_enable[2]) {
+        uavs3e_funs_handle.sao_stat(pic_org, pic_rec, saostatData[2], bit_depth, 2, x, y, w, h, isLeftAvail, isRightAvail, isAboveAvail, isBelowAvail);
     }
 }
 
@@ -616,16 +388,12 @@ void enc_sao_rdo(core_t *core, const lbac_t *lbac)
 
     int lcu_x = core->lcu_pix_x;
     int lcu_y = core->lcu_pix_y;
-    int mb_x = PEL2SCU(lcu_x);
-    int mb_y = PEL2SCU(lcu_y);
-    int lcuw = COM_MIN(1 << info->log2_max_cuwh, info->pic_width - lcu_x);
+    int lcuw = COM_MIN(1 << info->log2_max_cuwh, info->pic_width  - lcu_x);
     int lcuh = COM_MIN(1 << info->log2_max_cuwh, info->pic_height - lcu_y);
-    int lcu_mb_width = lcuw >> MIN_CU_LOG2;
-    int lcu_mb_height = lcuh >> MIN_CU_LOG2;
     int lcu_pos = core->lcu_x + core->lcu_y * info->pic_width_in_lcu;
-    com_sao_stat_t sao_blk_stats[N_C][NUM_SAO_NEW_TYPES];   //[SMB][comp][types]
+    com_sao_stat_t sao_blk_stats[N_C][NUM_SAO_NEW_TYPES] = { 0 };
 
-    sao_get_statistics(info, core->pathdr, map, core->pic_org, core->pic_rec, mb_y, mb_x, lcu_mb_height, lcu_mb_width, sao_blk_stats);
+    sao_get_statistics(info, core->pathdr, map, core->pic_org, core->pic_rec, lcu_x, lcu_y, lcuw, lcuh, sao_blk_stats);
 
     double sao_lambda[N_C];
     int scale_lambda = (bit_depth == 10) ? info->qp_offset_bit_depth : 1;
@@ -633,5 +401,5 @@ void enc_sao_rdo(core_t *core, const lbac_t *lbac)
     for (int compIdx = Y_C; compIdx < N_C; compIdx++) {
         sao_lambda[compIdx] = core->lambda[0] * scale_lambda;
     }
-    sao_get_lcu_param(core, lbac, lcu_pos, mb_y, mb_x, sao_blk_stats, core->sao_blk_params, sao_lambda);
+    sao_get_lcu_param(core, lbac, lcu_pos, lcu_x, lcu_y, sao_blk_stats, core->sao_blk_params, sao_lambda);
 }

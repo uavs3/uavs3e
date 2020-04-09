@@ -279,6 +279,7 @@ typedef struct uavs3e_funs_handle_t {
     void(*deblock_chroma[2])(pel *srcu, pel *srcv, int stride, int alphau, int betau, int alphav, int betav, int flag);
 
     void(*sao)(pel *src, int i_src, pel *dst, int i_dst, com_sao_param_t *sao_params, int height, int width, int avail_left, int avail_right, int avail_up, int avail_down, int bit_depth);
+    void(*sao_stat)(com_pic_t *pic_org, com_pic_t *pic_rec, com_sao_stat_t *saostatsData, int bit_depth, int compIdx, int pix_x, int pix_y, int lcu_pix_width, int lcu_pix_height, int lcu_available_left, int lcu_available_right, int lcu_available_up, int lcu_available_down);
 
     void(*alf)(pel *dst, int i_dst, pel *src, int i_src, int lcu_width, int lcu_height, int *coef, int sample_bit_depth);
     void(*alf_fix)(pel *dst, int i_dst, pel *src, int i_src, int lcu_width, int lcu_height, int *coef, int sample_bit_depth);

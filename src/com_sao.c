@@ -558,7 +558,196 @@ void com_sao_one_row(com_info_t *info, com_map_t *map, com_pic_t  *pic_rec, com_
     }
 }
 
+static void sao_get_stat(com_pic_t  *pic_org, com_pic_t  *pic_rec, com_sao_stat_t *saostatsData, int bit_depth, int compIdx, int pix_x, int pix_y, int lcu_pix_width, int lcu_pix_height, int lcu_available_left, int lcu_available_right, int lcu_available_up, int lcu_available_down)
+{
+    int type;
+    int start_x, end_x, start_y, end_y;
+    int start_x_r0, end_x_r0, start_x_r, end_x_r, start_x_rn, end_x_rn;
+    int x, y;
+    char leftsign, rightsign, upsign, downsign;
+    long diff;
+    com_sao_stat_t *statsDate;
+    char signupline[MAX_CU_SIZE * 2], *signupline1;
+    int reg = 0;
+    int edgetype, bandtype;
+    int SrcStride = pic_rec->img->stride[compIdx];
+    int OrgStride = pic_org->img->stride[compIdx];
+    pel *Rec = pic_rec->img->planes[compIdx];
+    pel *Org = pic_org->img->planes[compIdx];
+
+    for (type = 0; type < NUM_SAO_NEW_TYPES; type++) {
+        statsDate = &(saostatsData[type]);
+        switch (type) {
+        case SAO_TYPE_EO_0: {
+            start_y = 0;
+            end_y = lcu_pix_height;
+            start_x = lcu_available_left ? 0 : 1;
+            end_x = lcu_available_right ? lcu_pix_width : (lcu_pix_width - 1);
+            for (y = start_y; y < end_y; y++) {
+                diff = Rec[(pix_y + y) * SrcStride + pix_x + start_x] - Rec[(pix_y + y) * SrcStride + pix_x + start_x - 1];
+                leftsign = diff > 0 ? 1 : (diff < 0 ? -1 : 0);
+                for (x = start_x; x < end_x; x++) {
+                    diff = Rec[(pix_y + y) * SrcStride + pix_x + x] - Rec[(pix_y + y) * SrcStride + pix_x + x + 1];
+                    rightsign = diff > 0 ? 1 : (diff < 0 ? -1 : 0);
+                    edgetype = leftsign + rightsign;
+                    leftsign = -rightsign;
+                    statsDate->diff[edgetype + 2] += (Org[(pix_y + y) * OrgStride + pix_x + x] - Rec[(pix_y + y) * SrcStride + pix_x + x]);
+                    statsDate->count[edgetype + 2]++;
+                }
+            }
+        }
+        break;
+        case SAO_TYPE_EO_90: {
+            start_x = 0;
+            end_x = lcu_pix_width;
+            start_y = lcu_available_up ? 0 : 1;
+            end_y = lcu_available_down ? lcu_pix_height : (lcu_pix_height - 1);
+            for (x = start_x; x < end_x; x++) {
+                diff = Rec[(pix_y + start_y) * SrcStride + pix_x + x] - Rec[(pix_y + start_y - 1) * SrcStride + pix_x + x];
+                upsign = diff > 0 ? 1 : (diff < 0 ? -1 : 0);
+                for (y = start_y; y < end_y; y++) {
+                    diff = Rec[(pix_y + y) * SrcStride + pix_x + x] - Rec[(pix_y + y + 1) * SrcStride + pix_x + x];
+                    downsign = diff > 0 ? 1 : (diff < 0 ? -1 : 0);
+                    edgetype = downsign + upsign;
+                    upsign = -downsign;
+                    statsDate->diff[edgetype + 2] += (Org[(pix_y + y) * OrgStride + pix_x + x] - Rec[(pix_y + y) * SrcStride + pix_x + x]);
+                    statsDate->count[edgetype + 2]++;
+                }
+            }
+        }
+        break;
+        case SAO_TYPE_EO_135: {
+            start_x_r0 = lcu_available_up && lcu_available_left ? 0 : 1;
+            end_x_r0 = lcu_available_up ? (lcu_available_right ? lcu_pix_width : (lcu_pix_width - 1)) : 1;
+            start_x_r = lcu_available_left ? 0 : 1;
+            end_x_r = lcu_available_right ? lcu_pix_width : (lcu_pix_width - 1);
+            start_x_rn = lcu_available_down ? (lcu_available_left ? 0 : 1) : (lcu_pix_width - 1);
+            end_x_rn = lcu_available_right && lcu_available_down ? lcu_pix_width : (lcu_pix_width - 1);
+            for (x = start_x_r + 1; x < end_x_r + 1; x++) {
+                diff = Rec[(pix_y + 1) * SrcStride + pix_x + x] - Rec[pix_y * SrcStride + pix_x + x - 1];
+                upsign = diff > 0 ? 1 : (diff < 0 ? -1 : 0);
+                signupline[x] = upsign;
+            }
+            //first row
+            for (x = start_x_r0; x < end_x_r0; x++) {
+                diff = Rec[pix_y * SrcStride + pix_x + x] - Rec[(pix_y - 1) * SrcStride + pix_x + x - 1];
+                upsign = diff > 0 ? 1 : (diff < 0 ? -1 : 0);
+                edgetype = upsign - signupline[x + 1];
+                statsDate->diff[edgetype + 2] += (Org[pix_y * OrgStride + pix_x + x] - Rec[pix_y * SrcStride + pix_x + x]);
+                statsDate->count[edgetype + 2]++;
+            }
+            //middle rows
+            for (y = 1; y < lcu_pix_height - 1; y++) {
+                for (x = start_x_r; x < end_x_r; x++) {
+                    if (x == start_x_r) {
+                        diff = Rec[(pix_y + y) * SrcStride + pix_x + x] - Rec[(pix_y + y - 1) * SrcStride + pix_x + x - 1];
+                        upsign = diff > 0 ? 1 : (diff < 0 ? -1 : 0);
+                        signupline[x] = upsign;
+                    }
+                    diff = Rec[(pix_y + y) * SrcStride + pix_x + x] - Rec[(pix_y + y + 1) * SrcStride + pix_x + x + 1];
+                    downsign = diff > 0 ? 1 : (diff < 0 ? -1 : 0);
+                    edgetype = downsign + signupline[x];
+                    statsDate->diff[edgetype + 2] += (Org[(pix_y + y) * OrgStride + pix_x + x] - Rec[(pix_y + y) * SrcStride + pix_x + x]);
+                    statsDate->count[edgetype + 2]++;
+                    signupline[x] = (char)reg;
+                    reg = -downsign;
+                }
+            }
+            //last row
+            for (x = start_x_rn; x < end_x_rn; x++) {
+                if (x == start_x_r) {
+                    diff = Rec[(pix_y + lcu_pix_height - 1) * SrcStride + pix_x + x] - Rec[(pix_y + lcu_pix_height - 2) * SrcStride + pix_x + x - 1];
+                    upsign = diff > 0 ? 1 : (diff < 0 ? -1 : 0);
+                    signupline[x] = upsign;
+                }
+                diff = Rec[(pix_y + lcu_pix_height - 1) * SrcStride + pix_x + x] - Rec[(pix_y + lcu_pix_height) * SrcStride + pix_x + x + 1];
+                downsign = diff > 0 ? 1 : (diff < 0 ? -1 : 0);
+                edgetype = downsign + signupline[x];
+                statsDate->diff[edgetype + 2] += (Org[(pix_y + lcu_pix_height - 1) * OrgStride + pix_x + x] - Rec[(pix_y + lcu_pix_height - 1) * SrcStride + pix_x + x]);
+                statsDate->count[edgetype + 2]++;
+            }
+        }
+        break;
+        case SAO_TYPE_EO_45: {
+            start_x_r0 = lcu_available_up ? (lcu_available_left ? 0 : 1) : (lcu_pix_width - 1);
+            end_x_r0 = lcu_available_up && lcu_available_right ? lcu_pix_width : (lcu_pix_width - 1);
+            start_x_r = lcu_available_left ? 0 : 1;
+            end_x_r = lcu_available_right ? lcu_pix_width : (lcu_pix_width - 1);
+            start_x_rn = lcu_available_left && lcu_available_down ? 0 : 1;
+            end_x_rn = lcu_available_down ? (lcu_available_right ? lcu_pix_width : (lcu_pix_width - 1)) : 1;
+            signupline1 = signupline + 1;
+            for (x = start_x_r - 1; x < COM_MAX(end_x_r - 1, end_x_r0 - 1); x++) {
+                diff = Rec[(pix_y + 1) * SrcStride + pix_x + x] - Rec[pix_y * SrcStride + pix_x + x + 1];
+                upsign = diff > 0 ? 1 : (diff < 0 ? -1 : 0);
+                signupline1[x] = upsign;
+            }
+            //first row
+            for (x = start_x_r0; x < end_x_r0; x++) {
+                diff = Rec[pix_y * SrcStride + pix_x + x] - Rec[(pix_y - 1) * SrcStride + pix_x + x + 1];
+                upsign = diff > 0 ? 1 : (diff < 0 ? -1 : 0);
+                edgetype = upsign - signupline1[x - 1];
+                statsDate->diff[edgetype + 2] += (Org[pix_y * OrgStride + pix_x + x] - Rec[pix_y * SrcStride + pix_x + x]);
+                statsDate->count[edgetype + 2]++;
+            }
+            //middle rows
+            for (y = 1; y < lcu_pix_height - 1; y++) {
+                for (x = start_x_r; x < end_x_r; x++) {
+                    if (x == end_x_r - 1) {
+                        diff = Rec[(pix_y + y) * SrcStride + pix_x + x] - Rec[(pix_y + y - 1) * SrcStride + pix_x + x + 1];
+                        upsign = diff > 0 ? 1 : (diff < 0 ? -1 : 0);
+                        signupline1[x] = upsign;
+                    }
+                    diff = Rec[(pix_y + y) * SrcStride + pix_x + x] - Rec[(pix_y + y + 1) * SrcStride + pix_x + x - 1];
+                    downsign = diff > 0 ? 1 : (diff < 0 ? -1 : 0);
+                    edgetype = downsign + signupline1[x];
+                    statsDate->diff[edgetype + 2] += (Org[(pix_y + y) * OrgStride + pix_x + x] - Rec[(pix_y + y) * SrcStride + pix_x + x]);
+                    statsDate->count[edgetype + 2]++;
+                    signupline1[x - 1] = -downsign;
+                }
+            }
+            for (x = start_x_rn; x < end_x_rn; x++) {
+                if (x == end_x_r - 1) {
+                    diff = Rec[(pix_y + lcu_pix_height - 1) * SrcStride + pix_x + x] - Rec[(pix_y + lcu_pix_height - 2) * SrcStride + pix_x
+                            + x + 1];
+                    upsign = diff > 0 ? 1 : (diff < 0 ? -1 : 0);
+                    signupline1[x] = upsign;
+                }
+                diff = Rec[(pix_y + lcu_pix_height - 1) * SrcStride + pix_x + x] - Rec[(pix_y + lcu_pix_height) * SrcStride + pix_x + x
+                        - 1];
+                downsign = diff > 0 ? 1 : (diff < 0 ? -1 : 0);
+                edgetype = downsign + signupline1[x];
+                statsDate->diff[edgetype + 2] += (Org[(pix_y + lcu_pix_height - 1) * OrgStride + pix_x + x] - Rec[(pix_y +
+                                                  lcu_pix_height - 1) * SrcStride + pix_x +
+                                                  x]);
+                statsDate->count[edgetype + 2]++;
+            }
+        }
+        break;
+        case SAO_TYPE_BO: {
+            start_x = 0;
+            end_x = lcu_pix_width;
+            start_y = 0;
+            end_y = lcu_pix_height;
+            for (x = start_x; x < end_x; x++) {
+                for (y = start_y; y < end_y; y++) {
+                    bandtype = Rec[(pix_y + y) * SrcStride + pix_x + x] >> (bit_depth - NUM_SAO_BO_CLASSES_IN_BIT);
+                    statsDate->diff[bandtype] += (Org[(pix_y + y) * OrgStride + pix_x + x] - Rec[(pix_y + y) * SrcStride + pix_x + x]);
+                    statsDate->count[bandtype]++;
+                }
+            }
+        }
+        break;
+        default: {
+            printf("Not a supported SAO types\n");
+            assert(0);
+            exit(-1);
+        }
+        }
+    }
+}
+
 void uavs3e_funs_init_sao_c()
 {
     uavs3e_funs_handle.sao = sao_on_lcu;
+    uavs3e_funs_handle.sao_stat = sao_get_stat;
 }
