@@ -387,10 +387,10 @@ static double inter_rdcost(core_t *core, lbac_t *lbac_best_ret, int bForceAllZer
 
             int nnz_store[MAX_NUM_TB][N_C];
             com_mcpy(nnz_store, num_nz_coef, sizeof(int) * MAX_NUM_TB * N_C);
+            int tb_part_store = cur_info->tb_part;
 
             if (cbf_y + cbf_u + cbf_v > 1) {
                 if (core->tree_status == TREE_LC) {
-                    int tb_part_store = cur_info->tb_part;
                     lbac_t lbac_cur_comp_best;
                     lbac_copy(&lbac_cur_comp_best, &core->lbac_bakup);
 
@@ -461,12 +461,15 @@ static double inter_rdcost(core_t *core, lbac_t *lbac_best_ret, int bForceAllZer
             for (int i = 0; i < num_n_c; i++) {
                 if (cbf_best[i]) {
                     cu_plane_nz_cpy(num_nz_coef, nnz_store, i);
+                    if (i == 0) {
+                        cur_info->tb_part = tb_part_store;
+                    }
                 } else {
                     cu_plane_nz_cln(num_nz_coef, i);
+                    if (i == 0) {
+                        cur_info->tb_part = SIZE_2Nx2N;
+                    }
                 }
-            }
-            if (!is_cu_plane_nz(num_nz_coef, Y_C)) {
-                cur_info->tb_part = SIZE_2Nx2N;
             }
         }
 #if TR_SAVE_LOAD 
