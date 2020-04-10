@@ -355,20 +355,20 @@ void sao_get_statistics(com_info_t *info, com_patch_header_t *pathdr, com_map_t 
         height_add -= SAO_SHIFT_PIX_NUM;
     }
     if (isAboveAvail) {
-        y_offset   -= SAO_SHIFT_PIX_NUM;// - 1; // -1 for keep const of WPP
-        height_add += SAO_SHIFT_PIX_NUM;// - 1;
+        y_offset   -= SAO_SHIFT_PIX_NUM - 1; // -1 for keep const of WPP
+        height_add += SAO_SHIFT_PIX_NUM - 1;
     }
 
     if (pathdr->slice_sao_enable[0]) {
-        w = (lcu_pix_width  - SAO_SHIFT_PIX_NUM) + width_add;
-        h = (lcu_pix_height - SAO_SHIFT_PIX_NUM) + height_add;
+        w = lcu_pix_width  + width_add;
+        h = lcu_pix_height + height_add;
         x = pix_x + x_offset;
         y = pix_y + y_offset;
         uavs3e_funs_handle.sao_stat(pic_org, pic_rec, saostatData[0], bit_depth, 0, x, y, w, h, isLeftAvail, isRightAvail, isAboveAvail, isBelowAvail);
     }
 
-    w = ((lcu_pix_width  >> 1) - SAO_SHIFT_PIX_NUM) + width_add;
-    h = ((lcu_pix_height >> 1) - SAO_SHIFT_PIX_NUM) + height_add;
+    w = (lcu_pix_width  >> 1) + width_add;
+    h = (lcu_pix_height >> 1) + height_add;
     x = (pix_x >> 1) + x_offset;
     y = (pix_y >> 1) + y_offset;
 
