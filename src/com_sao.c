@@ -570,8 +570,8 @@ static void sao_get_stat(com_pic_t  *pic_org, com_pic_t  *pic_rec, com_sao_stat_
     char signupline[MAX_CU_SIZE * 2], *signupline1;
     int reg = 0;
     int edgetype, bandtype;
-    int SrcStride = pic_rec->img->stride[compIdx];
-    int OrgStride = pic_org->img->stride[compIdx];
+    int SrcStride = STRIDE_IMGB2PIC(pic_rec->img->stride[compIdx]);
+    int OrgStride = STRIDE_IMGB2PIC(pic_org->img->stride[compIdx]);
     pel *Rec = pic_rec->img->planes[compIdx];
     pel *Org = pic_org->img->planes[compIdx];
 
