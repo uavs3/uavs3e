@@ -180,7 +180,7 @@ void com_mc_cu(int x, int y, int pic_w, int pic_h, int w, int h, s8 refi[REFP_NU
     }
 }
 
-void com_mc_blk_affine_luma(int x, int y, int pic_w, int pic_h, int cu_width, int cu_height, CPMV ac_mv[VER_NUM][MV_D], com_pic_t *ref_pic, pel pred[MAX_CU_DIM], int cp_num, int sub_w, int sub_h, int bit_depth)
+void com_mc_blk_affine_luma(int x, int y, int pic_w, int pic_h, int cu_width, int cu_height, CPMV ac_mv[VER_NUM][MV_D], com_pic_t *ref_pic, pel pred[MAX_CU_DIM], int sub_w, int sub_h, int bit_depth)
 {
     assert(com_tbl_log2[cu_width ] >= 4);
     assert(com_tbl_log2[cu_height] >= 4);
@@ -194,15 +194,8 @@ void com_mc_blk_affine_luma(int x, int y, int pic_w, int pic_h, int cu_width, in
     // convert to 2^(storeBit + bit) precision
     s32 dmv_hor_x = (((s32)ac_mv[1][MV_X] - (s32)ac_mv[0][MV_X]) << 7) >> com_tbl_log2[cu_width];      // deltaMvHor
     s32 dmv_hor_y = (((s32)ac_mv[1][MV_Y] - (s32)ac_mv[0][MV_Y]) << 7) >> com_tbl_log2[cu_width];
-    s32 dmv_ver_x, dmv_ver_y;
-
-    if (cp_num == 3) {
-        dmv_ver_x = (((s32)ac_mv[2][MV_X] - (s32)ac_mv[0][MV_X]) << 7) >> com_tbl_log2[cu_height]; // deltaMvVer
-        dmv_ver_y = (((s32)ac_mv[2][MV_Y] - (s32)ac_mv[0][MV_Y]) << 7) >> com_tbl_log2[cu_height];
-    } else {
-        dmv_ver_x = -dmv_hor_y;                                                                    // deltaMvVer
-        dmv_ver_y = dmv_hor_x;
-    }
+    s32 dmv_ver_x = -dmv_hor_y;                                                                        // deltaMvVer
+    s32 dmv_ver_y = dmv_hor_x;
 
     int widx = CONV_LOG2(sub_w) - MIN_CU_LOG2;
     int max_posx = pic_w + 4;
@@ -220,10 +213,7 @@ void com_mc_blk_affine_luma(int x, int y, int pic_w, int pic_h, int cu_width, in
             } else if (w + sub_w == cu_width && h == 0) {
                 pos_x = cu_width;
                 pos_y = 0;
-            } else if (w == 0 && h + sub_h == cu_height && cp_num == 3) {
-                pos_x = 0;
-                pos_y = cu_height;
-            }
+            } 
 
             mv_scale_tmp_hor = mv_scale_hor + dmv_hor_x * pos_x + dmv_ver_x * pos_y;
             mv_scale_tmp_ver = mv_scale_ver + dmv_hor_y * pos_x + dmv_ver_y * pos_y;

@@ -52,7 +52,7 @@ void com_mc_blk_luma(com_pic_t *pic, pel *dst, int dst_stride, int x_pos, int y_
 pel* com_mc_blk_luma_pointer(com_pic_t *pic, int x_pos, int y_pos, int max_posx, int max_posy);
 void com_mc_cu(int x, int y, int pic_w, int pic_h, int w, int h, s8 refi[REFP_NUM], s16 mv[REFP_NUM][MV_D], com_ref_pic_t(*refp)[REFP_NUM], pel pred_buf[N_C][MAX_CU_DIM], int pred_stride, channel_type_t channel, int bit_depth);
 void com_mc_cu_affine(int x, int y, int pic_w, int pic_h, int w, int h, s8 refi[REFP_NUM], CPMV mv[REFP_NUM][VER_NUM][MV_D], com_ref_pic_t(*refp)[REFP_NUM], pel pred[N_C][MAX_CU_DIM], int cp_num, com_pic_header_t *pichdr, int bit_depth);
-void com_mc_blk_affine_luma(int x, int y, int pic_w, int pic_h, int w, int h, CPMV ac_mv[VER_NUM][MV_D], com_pic_t *ref_pic, pel pred[MAX_CU_DIM], int cp_num, int sub_w, int sub_h, int bit_depth);
+void com_mc_blk_affine_luma(int x, int y, int pic_w, int pic_h, int w, int h, CPMV ac_mv[VER_NUM][MV_D], com_pic_t *ref_pic, pel pred[MAX_CU_DIM], int sub_w, int sub_h, int bit_depth);
 void com_if_luma_frame(com_img_t *img_list[4][4], s16 *tmp_buf[3], int bit_depth);
 
 ////////////// PICMAN

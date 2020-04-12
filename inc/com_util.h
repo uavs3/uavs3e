@@ -184,10 +184,7 @@ static avs3_inline void com_mv_rounding_s16(s32 hor, s32 ver, s16 *rounded_hor, 
 
 void com_get_affine_mvp_scaling(s64 ptr, int scup, int lidx, s8 cur_refi, \
                                 s16(*map_mv)[REFP_NUM][MV_D], s8(*map_refi)[REFP_NUM], com_ref_pic_t(*refp)[REFP_NUM], \
-                                int cu_width, int cu_height, int i_scu, CPMV mvp[VER_NUM][MV_D],
-                                com_scu_t *map_scu, u32 *map_pos, int vertex_num
-                                , u8 curr_mvr
-                               );
+                                int cu_width, int cu_height, int i_scu, CPMV mvp[VER_NUM][MV_D], com_scu_t *map_scu, u32 *map_pos, u8 curr_mvr);
 
 int com_get_affine_memory_access(CPMV mv[VER_NUM][MV_D], int cu_width, int cu_height);
 

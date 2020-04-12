@@ -1962,16 +1962,14 @@ int com_get_affine_merge_candidate(s64 ptr, int scup, s8(*map_refi)[REFP_NUM], s
 /* inter affine mode */
 void com_get_affine_mvp_scaling(s64 ptr, int scup, int lidx, s8 cur_refi, \
                                 s16(*map_mv)[REFP_NUM][MV_D], s8(*map_refi)[REFP_NUM], com_ref_pic_t(*refp)[REFP_NUM], \
-                                int cu_width, int cu_height, int i_scu, CPMV mvp[VER_NUM][MV_D], com_scu_t *map_scu, u32 *map_pos, int vertex_num
-                                , u8 curr_mvr
-                               )
+                                int cu_width, int cu_height, int i_scu, CPMV mvp[VER_NUM][MV_D], com_scu_t *map_scu, u32 *map_pos, u8 curr_mvr)
 {
     s64 ptr_cur_ref;
     int x_scu = scup % i_scu;
     int y_scu = scup / i_scu;
     int cu_width_in_scu = cu_width >> MIN_CU_LOG2;
     int cnt = 0, cnt_lt = 0, cnt_rt = 0;
-    int i, j, k;
+    int i, k;
 
     s16 mvp_lt[MV_D], mvp_rt[MV_D];
     int neb_addr_lt[AFFINE_MAX_NUM_LT];
@@ -1980,10 +1978,7 @@ void com_get_affine_mvp_scaling(s64 ptr, int scup, int lidx, s8 cur_refi, \
     int valid_flag_rt[AFFINE_MAX_NUM_RT];
 
     ptr_cur_ref = refp[cur_refi][lidx].ptr;
-    for (j = 0; j < VER_NUM; j++) {
-        mvp[j][MV_X] = 0;
-        mvp[j][MV_Y] = 0;
-    }
+    memset(mvp, 0, VER_NUM * sizeof(CPMV) * MV_D);
 
     //-------------------  LT  -------------------//
     neb_addr_lt[0] = scup - 1;                     // A
@@ -2003,8 +1998,7 @@ void com_get_affine_mvp_scaling(s64 ptr, int scup, int lidx, s8 cur_refi, \
     }
 
     if (cnt_lt == 0) {
-        mvp_lt[MV_X] = 0;
-        mvp_lt[MV_Y] = 0;
+        M32(mvp_lt) = 0;
         cnt_lt++;
     }
 
@@ -2024,8 +2018,7 @@ void com_get_affine_mvp_scaling(s64 ptr, int scup, int lidx, s8 cur_refi, \
     }
 
     if (cnt_rt == 0) {
-        mvp_rt[MV_X] = 0;
-        mvp_rt[MV_Y] = 0;
+        M32(mvp_rt) = 0;
         cnt_rt++;
     }
 
@@ -2033,7 +2026,6 @@ void com_get_affine_mvp_scaling(s64 ptr, int scup, int lidx, s8 cur_refi, \
     mvp[0][MV_Y] = mvp_lt[MV_Y];
     mvp[1][MV_X] = mvp_rt[MV_X];
     mvp[1][MV_Y] = mvp_rt[MV_Y];
-
 
     for (i = 0; i < 2; i++) {
         // convert to 1/16 precision

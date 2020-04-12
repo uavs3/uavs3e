@@ -1216,12 +1216,12 @@ static void solve_equal(double(*equal_coeff)[7], int order, double *affine_para)
     }
 }
 
-static int affine_mv_bits(CPMV mv[VER_NUM][MV_D], CPMV mvp[VER_NUM][MV_D], int num_refp, int refi, int vertex_num, u8 curr_mvr)
+static int affine_mv_bits(CPMV mv[VER_NUM][MV_D], CPMV mvp[VER_NUM][MV_D], int num_refp, int refi, u8 curr_mvr)
 {
     int bits = tbl_refi_bits[num_refp][refi];
     u8  amvr_shift = Tab_Affine_AMVR(curr_mvr);
 
-    for (int vertex = 0; vertex < vertex_num; vertex++) {
+    for (int vertex = 0; vertex < 2; vertex++) {
         int mvd_x = mv[vertex][MV_X] - mvp[vertex][MV_X];
         int mvd_y = mv[vertex][MV_Y] - mvp[vertex][MV_Y];
 
@@ -1238,11 +1238,11 @@ static int affine_mv_bits(CPMV mv[VER_NUM][MV_D], CPMV mvp[VER_NUM][MV_D], int n
     return bits;
 }
 
-static u64 affine_me_gradient(inter_search_t *pi, int x, int y, int cu_width_log2, int cu_height_log2, s8 *refi, int lidx, CPMV mvp[VER_NUM][MV_D], CPMV mv[VER_NUM][MV_D], int bi, int vertex_num, int sub_w, int sub_h)
+static u64 affine_me_gradient(inter_search_t *pi, int x, int y, int cu_width_log2, int cu_height_log2, s8 *refi, int lidx, CPMV mvp[VER_NUM][MV_D], CPMV mv[VER_NUM][MV_D], int bi, int sub_w, int sub_h)
 {
     int bit_depth = pi->bit_depth;
     CPMV mvt[VER_NUM][MV_D];
-    s16 mvd[VER_NUM][MV_D];
+    s16 mvd[VER_NUM][MV_D] = { 0 };
     int cu_width = 1 << cu_width_log2;
     int cu_height = 1 << cu_height_log2;
     u64 cost, cost_best = COM_UINT64_MAX;
@@ -1254,7 +1254,7 @@ static u64 affine_me_gradient(inter_search_t *pi, int x, int y, int cu_width_log
     int mv_bits, best_bits;
     int vertex, iter;
     int iter_num = bi ? AF_ITER_BI : AF_ITER_UNI;
-    int para_num = (vertex_num << 1) + 1;
+    int para_num = (2 << 1) + 1;
     int affine_param_num = para_num - 1;
     double affine_para[6];
     double delta_mv[6];
@@ -1267,23 +1267,17 @@ static u64 affine_me_gradient(inter_search_t *pi, int x, int y, int cu_width_log
     cu_width  = 1 << cu_width_log2;
     cu_height = 1 << cu_height_log2;
 
-    for (vertex = 0; vertex < vertex_num; vertex++) {
-        CP64(mvt[vertex], mv[vertex]);
-        M32(mvd[vertex]) = 0;
-    }
+    CP128(mvt, mv);
 
-    com_mc_blk_affine_luma(x, y, refp->width_luma, refp->height_luma, cu_width, cu_height, mvt, refp, pred, vertex_num, sub_w, sub_h, bit_depth);
-    best_bits = affine_mv_bits(mvt, mvp, pi->num_refp, ri, vertex_num, pi->curr_mvr);
+    com_mc_blk_affine_luma(x, y, refp->width_luma, refp->height_luma, cu_width, cu_height, mvt, refp, pred, sub_w, sub_h, bit_depth);
+    best_bits = affine_mv_bits(mvt, mvp, pi->num_refp, ri, pi->curr_mvr);
 
     if (bi) {
         best_bits += pi->mot_bits[1 - lidx];
     }
     cost_best = MV_COST(best_bits);
-
     cost_best += calc_satd_16b(cu_width, cu_height, org, pred, s_org, cu_width, bit_depth) >> bi;
-    if (vertex_num == 3) {
-        iter_num = bi ? (AF_ITER_BI - 2) : (AF_ITER_UNI - 2);
-    }
+
     for (iter = 0; iter < iter_num; iter++) {
         int row, col;
         int all_zero = 0;
@@ -1302,7 +1296,7 @@ static u64 affine_me_gradient(inter_search_t *pi, int x, int y, int cu_width_log
         for (row = 0; row < para_num; row++) {
             com_mset(&equal_coeff_t[row][0], 0, para_num * sizeof(s64));
         }
-        uavs3e_funs_handle.affine_coef_computer(error, cu_width, derivate, cu_width, equal_coeff_t, cu_width, cu_height, vertex_num);
+        uavs3e_funs_handle.affine_coef_computer(error, cu_width, derivate, cu_width, equal_coeff_t, cu_width, cu_height, 2);
         for (row = 0; row < para_num; row++) {
             for (col = 0; col < para_num; col++) {
                 equal_coeff[row][col] = (double)equal_coeff_t[row][col];
@@ -1310,72 +1304,36 @@ static u64 affine_me_gradient(inter_search_t *pi, int x, int y, int cu_width_log
         }
         solve_equal(equal_coeff, affine_param_num, affine_para);
         // convert to delta mv
-        if (vertex_num == 3) {
-            delta_mv[0] = affine_para[0];
-            delta_mv[2] = affine_para[2];
-            delta_mv[1] = affine_para[1] * cu_width  + affine_para[0];
-            delta_mv[3] = affine_para[3] * cu_width  + affine_para[2];
-            delta_mv[4] = affine_para[4] * cu_height + affine_para[0];
-            delta_mv[5] = affine_para[5] * cu_height + affine_para[2];
 
-            u8 amvr_shift = Tab_Affine_AMVR(pi->curr_mvr);
-            if (amvr_shift == 0) {
-                mvd[0][MV_X] = (s16)(delta_mv[0] * 16 + (delta_mv[0] >= 0 ? 0.5 : -0.5)); //  1/16-pixel
-                mvd[0][MV_Y] = (s16)(delta_mv[2] * 16 + (delta_mv[2] >= 0 ? 0.5 : -0.5));
-                mvd[1][MV_X] = (s16)(delta_mv[1] * 16 + (delta_mv[1] >= 0 ? 0.5 : -0.5));
-                mvd[1][MV_Y] = (s16)(delta_mv[3] * 16 + (delta_mv[3] >= 0 ? 0.5 : -0.5));
-                mvd[2][MV_X] = (s16)(delta_mv[4] * 16 + (delta_mv[4] >= 0 ? 0.5 : -0.5));
-                mvd[2][MV_Y] = (s16)(delta_mv[5] * 16 + (delta_mv[5] >= 0 ? 0.5 : -0.5));
-            } else {
-                mvd[0][MV_X] = (s16)(delta_mv[0] * 4 + (delta_mv[0] >= 0 ? 0.5 : -0.5));
-                mvd[0][MV_Y] = (s16)(delta_mv[2] * 4 + (delta_mv[2] >= 0 ? 0.5 : -0.5));
-                mvd[1][MV_X] = (s16)(delta_mv[1] * 4 + (delta_mv[1] >= 0 ? 0.5 : -0.5));
-                mvd[1][MV_Y] = (s16)(delta_mv[3] * 4 + (delta_mv[3] >= 0 ? 0.5 : -0.5));
-                mvd[2][MV_X] = (s16)(delta_mv[1] * 4 + (delta_mv[4] >= 0 ? 0.5 : -0.5));
-                mvd[2][MV_Y] = (s16)(delta_mv[3] * 4 + (delta_mv[5] >= 0 ? 0.5 : -0.5));
-                mvd[0][MV_X] <<= 2; // 1/16-pixel
-                mvd[0][MV_Y] <<= 2;
-                mvd[1][MV_X] <<= 2;
-                mvd[1][MV_Y] <<= 2;
-                mvd[2][MV_X] <<= 2;
-                mvd[2][MV_Y] <<= 2;
+        delta_mv[0] = affine_para[0];
+        delta_mv[2] = affine_para[2];
+        delta_mv[1] = affine_para[1] * cu_width + affine_para[0];
+        delta_mv[3] = -affine_para[3] * cu_width + affine_para[2];
 
-                if (amvr_shift > 0) {
-                    com_mv_rounding_s16(mvd[0][MV_X], mvd[0][MV_Y], &mvd[0][MV_X], &mvd[0][MV_Y], amvr_shift);
-                    com_mv_rounding_s16(mvd[1][MV_X], mvd[1][MV_Y], &mvd[1][MV_X], &mvd[1][MV_Y], amvr_shift);
-                    com_mv_rounding_s16(mvd[2][MV_X], mvd[2][MV_Y], &mvd[2][MV_X], &mvd[2][MV_Y], amvr_shift);
-                }
-            }
+        u8 amvr_shift = Tab_Affine_AMVR(pi->curr_mvr);
+        if (amvr_shift == 0) {
+            mvd[0][MV_X] = (s16)(delta_mv[0] * 16 + (delta_mv[0] >= 0 ? 0.5 : -0.5));
+            mvd[0][MV_Y] = (s16)(delta_mv[2] * 16 + (delta_mv[2] >= 0 ? 0.5 : -0.5));
+            mvd[1][MV_X] = (s16)(delta_mv[1] * 16 + (delta_mv[1] >= 0 ? 0.5 : -0.5));
+            mvd[1][MV_Y] = (s16)(delta_mv[3] * 16 + (delta_mv[3] >= 0 ? 0.5 : -0.5));
         } else {
-            delta_mv[0] = affine_para[0];
-            delta_mv[2] = affine_para[2];
-            delta_mv[1] = affine_para[1] * cu_width + affine_para[0];
-            delta_mv[3] = -affine_para[3] * cu_width + affine_para[2];
+            mvd[0][MV_X] = (s16)(delta_mv[0] * 4 + (delta_mv[0] >= 0 ? 0.5 : -0.5));
+            mvd[0][MV_Y] = (s16)(delta_mv[2] * 4 + (delta_mv[2] >= 0 ? 0.5 : -0.5));
+            mvd[1][MV_X] = (s16)(delta_mv[1] * 4 + (delta_mv[1] >= 0 ? 0.5 : -0.5));
+            mvd[1][MV_Y] = (s16)(delta_mv[3] * 4 + (delta_mv[3] >= 0 ? 0.5 : -0.5));
+            mvd[0][MV_X] <<= 2;//  1/16-pixel
+            mvd[0][MV_Y] <<= 2;
+            mvd[1][MV_X] <<= 2;
+            mvd[1][MV_Y] <<= 2;
 
-            u8 amvr_shift = Tab_Affine_AMVR(pi->curr_mvr);
-            if (amvr_shift == 0) {
-                mvd[0][MV_X] = (s16)(delta_mv[0] * 16 + (delta_mv[0] >= 0 ? 0.5 : -0.5));
-                mvd[0][MV_Y] = (s16)(delta_mv[2] * 16 + (delta_mv[2] >= 0 ? 0.5 : -0.5));
-                mvd[1][MV_X] = (s16)(delta_mv[1] * 16 + (delta_mv[1] >= 0 ? 0.5 : -0.5));
-                mvd[1][MV_Y] = (s16)(delta_mv[3] * 16 + (delta_mv[3] >= 0 ? 0.5 : -0.5));
-            } else {
-                mvd[0][MV_X] = (s16)(delta_mv[0] * 4 + (delta_mv[0] >= 0 ? 0.5 : -0.5));
-                mvd[0][MV_Y] = (s16)(delta_mv[2] * 4 + (delta_mv[2] >= 0 ? 0.5 : -0.5));
-                mvd[1][MV_X] = (s16)(delta_mv[1] * 4 + (delta_mv[1] >= 0 ? 0.5 : -0.5));
-                mvd[1][MV_Y] = (s16)(delta_mv[3] * 4 + (delta_mv[3] >= 0 ? 0.5 : -0.5));
-                mvd[0][MV_X] <<= 2;//  1/16-pixel
-                mvd[0][MV_Y] <<= 2;
-                mvd[1][MV_X] <<= 2;
-                mvd[1][MV_Y] <<= 2;
-
-                if (amvr_shift > 0) {
-                    com_mv_rounding_s16(mvd[0][MV_X], mvd[0][MV_Y], &mvd[0][MV_X], &mvd[0][MV_Y], amvr_shift);
-                    com_mv_rounding_s16(mvd[1][MV_X], mvd[1][MV_Y], &mvd[1][MV_X], &mvd[1][MV_Y], amvr_shift);
-                }
+            if (amvr_shift > 0) {
+                com_mv_rounding_s16(mvd[0][MV_X], mvd[0][MV_Y], &mvd[0][MV_X], &mvd[0][MV_Y], amvr_shift);
+                com_mv_rounding_s16(mvd[1][MV_X], mvd[1][MV_Y], &mvd[1][MV_X], &mvd[1][MV_Y], amvr_shift);
             }
         }
+
         // check early terminate
-        for (vertex = 0; vertex < vertex_num; vertex++) {
+        for (vertex = 0; vertex < 2; vertex++) {
             if (mvd[vertex][MV_X] != 0 || mvd[vertex][MV_Y] != 0) {
                 all_zero = 0;
                 break;
@@ -1387,7 +1345,7 @@ static u64 affine_me_gradient(inter_search_t *pi, int x, int y, int cu_width_log
         }
 
         /* update mv */
-        for (vertex = 0; vertex < vertex_num; vertex++) {
+        for (vertex = 0; vertex < 2; vertex++) {
             s32 mvx = (s32)mvt[vertex][MV_X] + (s32)mvd[vertex][MV_X];
             s32 mvy = (s32)mvt[vertex][MV_Y] + (s32)mvd[vertex][MV_Y];
             mvt[vertex][MV_X] = (CPMV)COM_CLIP3(COM_CPMV_MIN, COM_CPMV_MAX, mvx);
@@ -1402,9 +1360,9 @@ static u64 affine_me_gradient(inter_search_t *pi, int x, int y, int cu_width_log
                 mvt[vertex][MV_Y] = mvt[vertex][MV_Y] >> amvr_shift << amvr_shift;
             }
         }
-        com_mc_blk_affine_luma(x, y, refp->width_luma, refp->height_luma, cu_width, cu_height, mvt, refp, pred, vertex_num, sub_w, sub_h, bit_depth);
+        com_mc_blk_affine_luma(x, y, refp->width_luma, refp->height_luma, cu_width, cu_height, mvt, refp, pred, sub_w, sub_h, bit_depth);
 
-        mv_bits = affine_mv_bits(mvt, mvp, pi->num_refp, ri, vertex_num, pi->curr_mvr);
+        mv_bits = affine_mv_bits(mvt, mvp, pi->num_refp, ri, pi->curr_mvr);
         if (bi) {
             mv_bits += pi->mot_bits[1 - lidx];
         }
@@ -1414,9 +1372,7 @@ static u64 affine_me_gradient(inter_search_t *pi, int x, int y, int cu_width_log
         if (cost < cost_best) {
             cost_best = cost;
             best_bits = mv_bits;
-            for (vertex = 0; vertex < vertex_num; vertex++) {
-                CP64(mv[vertex], mvt[vertex]);
-            }
+            CP128(mv, mvt);
         }
     }
     return (cost_best - MV_COST(best_bits));
@@ -1470,36 +1426,29 @@ static void mv_clip(int x, int y, int pic_w, int pic_h, int w, int h, s8 refi[RE
 
 static void analyze_affine_uni(core_t *core, lbac_t *lbac_best, CPMV aff_mv_L0L1[REFP_NUM][VER_NUM][MV_D], s8 *refi_L0L1, double *cost_L0L1)
 {
-    com_info_t *info = core->info;
+    com_info_t *info     =  core->info;
+    com_map_t *map       =  core->map;
     com_mode_t *cur_info = &core->mod_info_curr;
-    inter_search_t *pi = &core->pinter;
-    int bit_depth = info->bit_depth_internal;
-    int lidx;
-    s8 *refi;
-    s8 refi_cur;
-    u64 mecost, best_mecost;
-    s8 t0, t1;
-    s8 refi_temp = 0;
-    CPMV(*affine_mvp)[MV_D], (*affine_mv)[MV_D];
-    s16(*affine_mvd)[MV_D];
-    int vertex = 0;
-    int vertex_num = 2;
-    int mebits, best_bits = 0;
-    u64 cost_trans[REFP_NUM][MAX_NUM_ACTIVE_REF_FRAME];
-    CPMV tmp_mv_array[VER_NUM][MV_D];
-    int memory_access;
-    int allowed = 1;
-    int x = core->cu_pix_x;
-    int y = core->cu_pix_y;
-    int cu_width_log2 = core->cu_width_log2;
-    int cu_height_log2 = core->cu_height_log2;
-    int cu_width = 1 << cu_width_log2;
-    int cu_height = 1 << cu_height_log2;
-    int mem = MAX_MEMORY_ACCESS_UNI * (1 << cu_width_log2) * (1 << cu_height_log2);
-    u32 lambda_mv = pi->lambda_mv;
+    inter_search_t *pi   = &core->pinter;
+    int x                =  core->cu_pix_x;
+    int y                =  core->cu_pix_y;
+    int cu_width_log2    =  core->cu_width_log2;
+    int cu_height_log2   =  core->cu_height_log2;
+    com_pic_t *pic_org   =  core->pic_org;
+    pel *org             = pic_org->y + x + y * pic_org->stride_luma;
+    int s_org            = pic_org->stride_luma;
+    int cu_width         = 1 << cu_width_log2;
+    int cu_height        = 1 << cu_height_log2;
+    s8* refi             = cur_info->refi;
+    int bit_depth        = info->bit_depth_internal;
+    const int mem        = MAX_MEMORY_ACCESS_UNI * (1 << cu_width_log2) * (1 << cu_height_log2);
+    u32 lambda_mv        = pi->lambda_mv;
+    int sub_w            = 4;
+    int sub_h            = 4;
 
-    int sub_w = 4;
-    int sub_h = 4;
+    u64 mecost, best_mecost;
+    int mebits, best_bits;
+
     if (core->pichdr->affine_subblk_size_idx > 0) {
         sub_w = 8;
         sub_h = 8;
@@ -1513,34 +1462,33 @@ static void analyze_affine_uni(core_t *core, lbac_t *lbac_best, CPMV aff_mv_L0L1
     cur_info->cu_mode = MODE_INTER;
     cur_info->affine_flag = 1;
 
-    for (lidx = 0; lidx <= ((core->slice_type == SLICE_P) ? PRED_L0 : PRED_L1); lidx++) {
+    pi->org   = org;
+    pi->i_org = s_org;
+
+    for (int lidx = 0; lidx <= ((core->slice_type == SLICE_P) ? PRED_L0 : PRED_L1); lidx++) {
         init_inter_data(core);
-        refi = cur_info->refi;
-        affine_mv = cur_info->affine_mv[lidx];
-        affine_mvd = cur_info->affine_mvd[lidx];
+
+        int refi_bst;
+
+        CPMV (*affine_mv)[MV_D] = cur_info->affine_mv [lidx];
+        s16 (*affine_mvd)[MV_D] = cur_info->affine_mvd[lidx];
+        CPMV(*affine_mvp)[MV_D];
+
         pi->num_refp = (u8)core->num_refp[lidx];
         best_mecost = COM_UINT64_MAX;
-        for (refi_cur = 0; refi_cur < pi->num_refp; refi_cur++) {
-            com_map_t *map = core->map;
+
+        for (s8 refi_cur = 0; refi_cur < pi->num_refp; refi_cur++) {
             affine_mvp = pi->affine_mvp_scale[lidx][refi_cur];
             com_get_affine_mvp_scaling(core->ptr, core->cu_scup_in_pic, lidx, refi_cur, map->map_mv, map->map_refi, core->refp,
-            core->cu_width, core->cu_height, info->i_scu, affine_mvp,
-            map->map_scu, map->map_pos, vertex_num, cur_info->mvr_idx);
-
-            u64 mvp_best = COM_UINT64_MAX;
-            u64 mvp_temp = COM_UINT64_MAX;
+                                        core->cu_width, core->cu_height, info->i_scu, affine_mvp, map->map_scu, map->map_pos, cur_info->mvr_idx);
             s8  refi_t[REFP_NUM];
             com_pic_t *refp = core->refp[refi_cur][lidx].pic;
             ALIGNED_32(pel pred[MAX_CU_DIM]);
-            com_pic_t *pic_org = core->pic_org;
-            pel *org = pic_org->y + x + y * pic_org->stride_luma;
-            int s_org = pic_org->stride_luma;
-            pi->org = org;
-            pi->i_org = s_org;
 
-            com_mc_blk_affine_luma(x, y, refp->width_luma, refp->height_luma, cu_width, cu_height, affine_mvp, refp, pred, vertex_num, sub_w, sub_h, bit_depth);
-            mvp_best = calc_satd_16b(cu_width, cu_height, org, pred, s_org, cu_width, bit_depth);
-            mebits = affine_mv_bits(affine_mvp, affine_mvp, pi->num_refp, refi_cur, vertex_num, cur_info->mvr_idx);
+            com_mc_blk_affine_luma(x, y, refp->width_luma, refp->height_luma, cu_width, cu_height, affine_mvp, refp, pred, sub_w, sub_h, bit_depth);
+            
+            u64 mvp_best = calc_satd_16b(cu_width, cu_height, org, pred, s_org, cu_width, bit_depth);
+            mebits = affine_mv_bits(affine_mvp, affine_mvp, pi->num_refp, refi_cur, cur_info->mvr_idx);
             mvp_best += MV_COST(mebits);
 
             s16 mv_cliped[REFP_NUM][MV_D];
@@ -1551,79 +1499,60 @@ static void analyze_affine_uni(core_t *core, lbac_t *lbac_best, CPMV aff_mv_L0L1
             refi_t[1 - lidx] = -1;
             mv_clip(x, y, info->pic_width, info->pic_height, cu_width, cu_height, refi_t, mv_cliped, mv_cliped);
 
-            for (vertex = 0; vertex < vertex_num; vertex++) {
+            CPMV tmp_mv_array[VER_NUM][MV_D];
+
+            for (int vertex = 0; vertex < 2; vertex++) {
                 tmp_mv_array[vertex][MV_X] = mv_cliped[lidx][MV_X];
                 tmp_mv_array[vertex][MV_Y] = mv_cliped[lidx][MV_Y];
 
-                s32 tmp_mvx, tmp_mvy;
-                tmp_mvx = tmp_mv_array[vertex][MV_X] << 2;
-                tmp_mvy = tmp_mv_array[vertex][MV_Y] << 2;
+                s32 tmp_mvx = tmp_mv_array[vertex][MV_X] << 2;
+                s32 tmp_mvy = tmp_mv_array[vertex][MV_Y] << 2;
+
                 if (cur_info->mvr_idx == 1) {
                     com_mv_rounding_s32(tmp_mvx, tmp_mvy, &tmp_mvx, &tmp_mvy, 4, 4);
                 }
                 tmp_mv_array[vertex][MV_X] = (CPMV)COM_CLIP3(COM_CPMV_MIN, COM_CPMV_MAX, tmp_mvx);
                 tmp_mv_array[vertex][MV_Y] = (CPMV)COM_CLIP3(COM_CPMV_MIN, COM_CPMV_MAX, tmp_mvy);
             }
-            com_mc_blk_affine_luma(x, y, refp->width_luma, refp->height_luma, cu_width, cu_height, tmp_mv_array, refp, pred, vertex_num, sub_w, sub_h, bit_depth);
-            cost_trans[lidx][refi_cur] = calc_satd_16b(cu_width, cu_height, org, pred, s_org, cu_width, bit_depth);
-            mebits = affine_mv_bits(tmp_mv_array, affine_mvp, pi->num_refp, refi_cur, vertex_num, cur_info->mvr_idx);
-            mvp_temp = cost_trans[lidx][refi_cur] + MV_COST(mebits);
+            com_mc_blk_affine_luma(x, y, refp->width_luma, refp->height_luma, cu_width, cu_height, tmp_mv_array, refp, pred, sub_w, sub_h, bit_depth);
+             
+            u64 mvp_temp = calc_satd_16b(cu_width, cu_height, org, pred, s_org, cu_width, bit_depth);
+            mebits = affine_mv_bits(tmp_mv_array, affine_mvp, pi->num_refp, refi_cur, cur_info->mvr_idx);
+            mvp_temp += MV_COST(mebits);
 
             if (mvp_temp < mvp_best) {
-                for (vertex = 0; vertex < vertex_num; vertex++) {
-                    affine_mv[vertex][MV_X] = tmp_mv_array[vertex][MV_X];
-                    affine_mv[vertex][MV_Y] = tmp_mv_array[vertex][MV_Y];
-                }
+                CP128(affine_mv, tmp_mv_array);
             } else {
-                for (vertex = 0; vertex < vertex_num; vertex++) {
-                    affine_mv[vertex][MV_X] = affine_mvp[vertex][MV_X];
-                    affine_mv[vertex][MV_Y] = affine_mvp[vertex][MV_Y];
-                }
+                CP128(affine_mv, affine_mvp);
             }
             pi->ref_pic = core->refp[refi_cur][lidx].pic;
-            mecost = affine_me_gradient(pi, x, y, cu_width_log2, cu_height_log2, &refi_cur, lidx, affine_mvp, affine_mv, 0, vertex_num, sub_w, sub_h);
+            mecost = affine_me_gradient(pi, x, y, cu_width_log2, cu_height_log2, &refi_cur, lidx, affine_mvp, affine_mv, 0, sub_w, sub_h);
 
-            t0 = (lidx == 0) ? refi_cur : REFI_INVALID;
-            t1 = (lidx == 1) ? refi_cur : REFI_INVALID;
-            SET_REFI(refi, t0, t1);
-            mebits = affine_mv_bits(affine_mv, affine_mvp, pi->num_refp, refi_cur, vertex_num, cur_info->mvr_idx);
+            refi[REFP_0] = (lidx == 0) ? refi_cur : REFI_INVALID;
+            refi[REFP_1] = (lidx == 1) ? refi_cur : REFI_INVALID;
+
+            mebits = affine_mv_bits(affine_mv, affine_mvp, pi->num_refp, refi_cur, cur_info->mvr_idx);
             mecost += MV_COST(mebits);
 
-            for (vertex = 0; vertex < vertex_num; vertex++) {
-                pi->affine_mv_scale[lidx][refi_cur][vertex][MV_X] = affine_mv[vertex][MV_X];
-                pi->affine_mv_scale[lidx][refi_cur][vertex][MV_Y] = affine_mv[vertex][MV_Y];
-            }
+            CP128(pi->affine_mv_scale[lidx][refi_cur], affine_mv);
+
             if (mecost < best_mecost) {
                 best_mecost = mecost;
                 best_bits = mebits;
-                refi_temp = refi_cur;
+                refi_bst = refi_cur;
             }
         }
-        refi_cur = refi_temp;
-        for (vertex = 0; vertex < vertex_num; vertex++) {
-            affine_mv[vertex][MV_X] = pi->affine_mv_scale[lidx][refi_cur][vertex][MV_X];
-            affine_mv[vertex][MV_Y] = pi->affine_mv_scale[lidx][refi_cur][vertex][MV_Y];
-        }
-        affine_mvp = pi->affine_mvp_scale[lidx][refi_cur];
-        t0 = (lidx == 0) ? refi_cur : REFI_INVALID;
-        t1 = (lidx == 1) ? refi_cur : REFI_INVALID;
-        SET_REFI(refi, t0, t1);
-        refi_L0L1[lidx] = refi_cur;
 
-        for (vertex = 0; vertex < vertex_num; vertex++) {
+        CP128(affine_mv, pi->affine_mv_scale[lidx][refi_bst]);
+
+        affine_mvp = pi->affine_mvp_scale[lidx][refi_bst];
+        refi[REFP_0] = (lidx == 0) ? refi_bst : REFI_INVALID;
+        refi[REFP_1] = (lidx == 1) ? refi_bst : REFI_INVALID;
+        refi_L0L1[lidx] = refi_bst;
+
+        for (int vertex = 0; vertex < 2; vertex++) {
             affine_mvd[vertex][MV_X] = affine_mv[vertex][MV_X] - affine_mvp[vertex][MV_X];
             affine_mvd[vertex][MV_Y] = affine_mv[vertex][MV_Y] - affine_mvp[vertex][MV_Y];
-        }
-
-        for (vertex = 0; vertex < vertex_num; vertex++) {
-            int amvr_shift = Tab_Affine_AMVR(cur_info->mvr_idx);
-            affine_mvd[vertex][MV_X] = affine_mvd[vertex][MV_X] >> amvr_shift << amvr_shift;
-            affine_mvd[vertex][MV_Y] = affine_mvd[vertex][MV_Y] >> amvr_shift << amvr_shift;
-
-            int mv_x = (s32)affine_mvd[vertex][MV_X] + affine_mvp[vertex][MV_X];
-            int mv_y = (s32)affine_mvd[vertex][MV_Y] + affine_mvp[vertex][MV_Y];
-            affine_mv[vertex][MV_X] = COM_CLIP3(COM_CPMV_MIN, COM_CPMV_MAX, mv_x);
-            affine_mv[vertex][MV_Y] = COM_CLIP3(COM_CPMV_MIN, COM_CPMV_MAX, mv_y);
         }
 
         pi->mot_bits[lidx] = best_bits;
@@ -1632,16 +1561,9 @@ static void analyze_affine_uni(core_t *core, lbac_t *lbac_best, CPMV aff_mv_L0L1
         affine_mv[3][MV_X] = affine_mv[1][MV_X] - (affine_mv[1][MV_Y] - affine_mv[0][MV_Y]) * (s16)cu_height / (s16)cu_width;
         affine_mv[3][MV_Y] = affine_mv[1][MV_Y] + (affine_mv[1][MV_X] - affine_mv[0][MV_X]) * (s16)cu_height / (s16)cu_width;
 
-        for (vertex = 0; vertex < vertex_num; vertex++) {
-            aff_mv_L0L1[lidx][vertex][MV_X] = affine_mv[vertex][MV_X];
-            aff_mv_L0L1[lidx][vertex][MV_Y] = affine_mv[vertex][MV_Y];
-        }
-        allowed = 1;
-        memory_access = com_get_affine_memory_access(affine_mv, cu_width, cu_height);
-        if (memory_access > mem) {
-            allowed = 0;
-        }
-        if (allowed) {
+        memcpy(aff_mv_L0L1[lidx], affine_mv, 2 * MV_D * sizeof(CPMV));
+
+        if (com_get_affine_memory_access(affine_mv, cu_width, cu_height) <= mem) {
             cost_L0L1[lidx] = inter_rdcost(core, lbac_best, 0, 1, NULL, NULL);
         }
     }
@@ -1649,35 +1571,25 @@ static void analyze_affine_uni(core_t *core, lbac_t *lbac_best, CPMV aff_mv_L0L1
 
 static void analyze_affine_bi(core_t *core, lbac_t *lbac_best, CPMV aff_mv_L0L1[REFP_NUM][VER_NUM][MV_D], const s8 *refi_L0L1, const double *cost_L0L1)
 {
-    com_info_t *info = core->info;
-    com_mode_t *cur_info = &core->mod_info_curr;
-    inter_search_t *pi = &core->pinter;
-    com_pic_t *pic_org = core->pic_org;
-    int bit_depth = info->bit_depth_internal;
-    s8         refi[REFP_NUM] = { REFI_INVALID, REFI_INVALID };
-    u64        best_mecost = COM_UINT64_MAX;
-    s8        refi_best = 0, refi_cur;
-    int        changed = 0;
-    u64        mecost;
-    pel        *org;
-    pel(*pred)[MAX_CU_DIM];
-    int        vertex_num = 2;
-    int x = core->cu_pix_x;
-    int y = core->cu_pix_y;
-    int cu_width_log2 = core->cu_width_log2;
-    int cu_height_log2 = core->cu_height_log2;
-    int cu_width = 1 << cu_width_log2;
-    int cu_height = 1 << cu_height_log2;
-    s8         t0, t1;
-    double      cost;
-    s8         lidx_ref, lidx_cnd;
-    u8          mvp_idx = 0;
-    int         i;
-    int         vertex;
-    int         mebits;
-    int         memory_access[REFP_NUM];
-    int         mem = MAX_MEMORY_ACCESS_BI * (1 << cu_width_log2) * (1 << cu_height_log2);
-    u32 lambda_mv = pi->lambda_mv;
+    com_info_t *info       =  core->info;
+    com_mode_t *cur_info   = &core->mod_info_curr;
+    inter_search_t *pi     = &core->pinter;
+    com_pic_t *pic_org     =  core->pic_org;
+    int x                  =  core->cu_pix_x;
+    int y                  =  core->cu_pix_y;
+    int cu_width_log2      =  core->cu_width_log2;
+    int cu_height_log2     =  core->cu_height_log2;
+    int cu_width           = 1 << cu_width_log2;
+    int cu_height          = 1 << cu_height_log2;
+    int bit_depth          = info->bit_depth_internal;
+    const int mem          = MAX_MEMORY_ACCESS_BI * (1 << cu_width_log2) * (1 << cu_height_log2);
+    u32 lambda_mv          = pi->lambda_mv;
+    pel(*pred)[MAX_CU_DIM] = cur_info->pred;
+    pel *org               = pic_org->y + x + y * pic_org->stride_luma;
+
+    ALIGNED_32(pel org_bi[MAX_CU_DIM]);
+    s8  refi[REFP_NUM] = { REFI_INVALID, REFI_INVALID };
+    s8  lidx_ref, lidx_cnd;
 
     init_pb_part(cur_info);
     init_tb_part(cur_info);
@@ -1685,6 +1597,7 @@ static void analyze_affine_bi(core_t *core, lbac_t *lbac_best, CPMV aff_mv_L0L1[
     get_part_info(info->i_scu, core->cu_scu_x << 2, core->cu_scu_y << 2, cu_width, cu_height, cur_info->tb_part, &cur_info->tb_info);
     cur_info->cu_mode = MODE_INTER;
     init_inter_data(core);
+
     if (cost_L0L1[REFP_0] <= cost_L0L1[REFP_1]) {
         lidx_ref = REFP_0;
         lidx_cnd = REFP_1;
@@ -1694,38 +1607,34 @@ static void analyze_affine_bi(core_t *core, lbac_t *lbac_best, CPMV aff_mv_L0L1[
     }
     cur_info->refi[REFP_0] = refi_L0L1[REFP_0];
     cur_info->refi[REFP_1] = refi_L0L1[REFP_1];
-    for (vertex = 0; vertex < vertex_num; vertex++) {
-        cur_info->affine_mv[lidx_ref][vertex][MV_X] = aff_mv_L0L1[lidx_ref][vertex][MV_X];
-        cur_info->affine_mv[lidx_ref][vertex][MV_Y] = aff_mv_L0L1[lidx_ref][vertex][MV_Y];
-        cur_info->affine_mv[lidx_cnd][vertex][MV_X] = aff_mv_L0L1[lidx_cnd][vertex][MV_X];
-        cur_info->affine_mv[lidx_cnd][vertex][MV_Y] = aff_mv_L0L1[lidx_cnd][vertex][MV_Y];
-    }
+    CP128(cur_info->affine_mv[lidx_ref], aff_mv_L0L1[lidx_ref]);
+    CP128(cur_info->affine_mv[lidx_cnd], aff_mv_L0L1[lidx_cnd]);
 
-    org = pic_org->y + x + y * pic_org->stride_luma;
-    pred = cur_info->pred;
-    t0 = (lidx_ref == REFP_0) ? cur_info->refi[lidx_ref] : REFI_INVALID;
-    t1 = (lidx_ref == REFP_1) ? cur_info->refi[lidx_ref] : REFI_INVALID;
+    int t0 = (lidx_ref == REFP_0) ? cur_info->refi[lidx_ref] : REFI_INVALID;
+    int t1 = (lidx_ref == REFP_1) ? cur_info->refi[lidx_ref] : REFI_INVALID;
     SET_REFI(refi, t0, t1);
+    pi->org      = org_bi;
+    pi->i_org    = cu_width;
 
-    for (i = 0; i < AFFINE_BI_ITER; i++) {
-        ALIGNED_32(pel org_bi[MAX_CU_DIM]);
-        pi->org = org_bi;
-        pi->i_org = cu_width;
-
-        com_mc_blk_affine_luma(x, y, info->pic_width, info->pic_height, cu_width, cu_height, cur_info->affine_mv[lidx_ref], core->refp[refi[lidx_ref]][lidx_ref].pic, pred[Y_C], vertex_num, 8, 8, bit_depth);
+    u64 best_mecost = COM_UINT64_MAX;
+    for (int i = 0; i < AFFINE_BI_ITER; i++) {
+        com_mc_blk_affine_luma(x, y, info->pic_width, info->pic_height, cu_width, cu_height, cur_info->affine_mv[lidx_ref], core->refp[refi[lidx_ref]][lidx_ref].pic, pred[Y_C], 8, 8, bit_depth);
         create_bi_org(org, pred[Y_C], pic_org->stride_luma, cu_width, cu_height, org_bi, cu_width, info->bit_depth_internal);
         SWAP(refi[lidx_ref], refi[lidx_cnd], t0);
         SWAP(lidx_ref, lidx_cnd, t0);
-        changed = 0;
         pi->num_refp = (u8)core->num_refp[lidx_ref];
 
-        for (refi_cur = 0; refi_cur < pi->num_refp; refi_cur++) {
+        int changed   = 0;
+        s8  refi_best = 0;
+
+        for (s8 refi_cur = 0; refi_cur < pi->num_refp; refi_cur++) {
             refi[lidx_ref] = refi_cur;
             pi->ref_pic = core->refp[refi_cur][lidx_ref].pic;
-            mecost = affine_me_gradient(pi, x, y, cu_width_log2, cu_height_log2, &refi[lidx_ref], lidx_ref, \
-            pi->affine_mvp_scale[lidx_ref][refi_cur], pi->affine_mv_scale[lidx_ref][refi_cur], 1, vertex_num, 8, 8);
 
-            mebits = affine_mv_bits(pi->affine_mv_scale[lidx_ref][refi_cur], pi->affine_mvp_scale[lidx_ref][refi_cur], pi->num_refp, refi_cur, vertex_num, cur_info->mvr_idx);
+            u64 mecost = affine_me_gradient(pi, x, y, cu_width_log2, cu_height_log2, &refi[lidx_ref], lidx_ref, \
+            pi->affine_mvp_scale[lidx_ref][refi_cur], pi->affine_mv_scale[lidx_ref][refi_cur], 1, 8, 8);
+
+            int mebits = affine_mv_bits(pi->affine_mv_scale[lidx_ref][refi_cur], pi->affine_mvp_scale[lidx_ref][refi_cur], pi->num_refp, refi_cur, cur_info->mvr_idx);
             mebits += pi->mot_bits[1 - lidx_ref]; 
             mecost += MV_COST(mebits);
 
@@ -1737,10 +1646,7 @@ static void analyze_affine_bi(core_t *core, lbac_t *lbac_best, CPMV aff_mv_L0L1[
                 t0 = (lidx_ref == REFP_0) ? refi_best : cur_info->refi[lidx_cnd];
                 t1 = (lidx_ref == REFP_1) ? refi_best : cur_info->refi[lidx_cnd];
                 SET_REFI(cur_info->refi, t0, t1);
-                for (vertex = 0; vertex < vertex_num; vertex++) {
-                    cur_info->affine_mv[lidx_ref][vertex][MV_X] = pi->affine_mv_scale[lidx_ref][refi_cur][vertex][MV_X];
-                    cur_info->affine_mv[lidx_ref][vertex][MV_Y] = pi->affine_mv_scale[lidx_ref][refi_cur][vertex][MV_Y];
-                }
+                CP128(cur_info->affine_mv[lidx_ref], pi->affine_mv_scale[lidx_ref][refi_cur]);
             }
         }
         t0 = (lidx_ref == REFP_0) ? refi_best : REFI_INVALID;
@@ -1750,68 +1656,42 @@ static void analyze_affine_bi(core_t *core, lbac_t *lbac_best, CPMV aff_mv_L0L1[
             break;
         }
     }
-
-    for (vertex = 0; vertex < vertex_num; vertex++) {
+    for (int vertex = 0; vertex < 2; vertex++) {
         cur_info->affine_mvd[REFP_0][vertex][MV_X] = cur_info->affine_mv[REFP_0][vertex][MV_X] - pi->affine_mvp_scale[REFP_0][cur_info->refi[REFP_0]][vertex][MV_X];
         cur_info->affine_mvd[REFP_0][vertex][MV_Y] = cur_info->affine_mv[REFP_0][vertex][MV_Y] - pi->affine_mvp_scale[REFP_0][cur_info->refi[REFP_0]][vertex][MV_Y];
         cur_info->affine_mvd[REFP_1][vertex][MV_X] = cur_info->affine_mv[REFP_1][vertex][MV_X] - pi->affine_mvp_scale[REFP_1][cur_info->refi[REFP_1]][vertex][MV_X];
         cur_info->affine_mvd[REFP_1][vertex][MV_Y] = cur_info->affine_mv[REFP_1][vertex][MV_Y] - pi->affine_mvp_scale[REFP_1][cur_info->refi[REFP_1]][vertex][MV_Y];
     }
+    for (int i = 0; i < REFP_NUM; i++) {
+        cur_info->affine_mv[i][2][MV_X] = cur_info->affine_mv[i][0][MV_X] - (cur_info->affine_mv[i][1][MV_Y] - cur_info->affine_mv[i][0][MV_Y]) * (s16)cu_height / (s16)cu_width;
+        cur_info->affine_mv[i][2][MV_Y] = cur_info->affine_mv[i][0][MV_Y] + (cur_info->affine_mv[i][1][MV_X] - cur_info->affine_mv[i][0][MV_X]) * (s16)cu_height / (s16)cu_width;
+        cur_info->affine_mv[i][3][MV_X] = cur_info->affine_mv[i][1][MV_X] - (cur_info->affine_mv[i][1][MV_Y] - cur_info->affine_mv[i][0][MV_Y]) * (s16)cu_height / (s16)cu_width;
+        cur_info->affine_mv[i][3][MV_Y] = cur_info->affine_mv[i][1][MV_Y] + (cur_info->affine_mv[i][1][MV_X] - cur_info->affine_mv[i][0][MV_X]) * (s16)cu_height / (s16)cu_width;
 
-    for (i = 0; i < REFP_NUM; i++) {
-        for (vertex = 0; vertex < vertex_num; vertex++) {
-            int amvr_shift = Tab_Affine_AMVR(cur_info->mvr_idx);
-            cur_info->affine_mvd[i][vertex][MV_X] = cur_info->affine_mvd[i][vertex][MV_X] >> amvr_shift << amvr_shift;
-            cur_info->affine_mvd[i][vertex][MV_Y] = cur_info->affine_mvd[i][vertex][MV_Y] >> amvr_shift << amvr_shift;
-
-            int mv_x = (s32)cur_info->affine_mvd[i][vertex][MV_X] + pi->affine_mvp_scale[i][cur_info->refi[i]][vertex][MV_X];
-            int mv_y = (s32)cur_info->affine_mvd[i][vertex][MV_Y] + pi->affine_mvp_scale[i][cur_info->refi[i]][vertex][MV_Y];
-            cur_info->affine_mv[i][vertex][MV_X] = COM_CLIP3(COM_CPMV_MIN, COM_CPMV_MAX, mv_x);
-            cur_info->affine_mv[i][vertex][MV_Y] = COM_CLIP3(COM_CPMV_MIN, COM_CPMV_MAX, mv_y);
+        if (com_get_affine_memory_access(cur_info->affine_mv[i], cu_width, cu_height) > mem) {
+            return;
         }
     }
-
-    for (i = 0; i < REFP_NUM; i++) {
-        if (vertex_num == 3) {
-            cur_info->affine_mv[i][3][MV_X] = cur_info->affine_mv[i][1][MV_X] + cur_info->affine_mv[i][2][MV_X] - cur_info->affine_mv[i][0][MV_X];
-            cur_info->affine_mv[i][3][MV_Y] = cur_info->affine_mv[i][1][MV_Y] + cur_info->affine_mv[i][2][MV_Y] - cur_info->affine_mv[i][0][MV_Y];
-        } else {
-            cur_info->affine_mv[i][2][MV_X] = cur_info->affine_mv[i][0][MV_X] - (cur_info->affine_mv[i][1][MV_Y] - cur_info->affine_mv[i][0][MV_Y]) * (s16)cu_height / (s16)cu_width;
-            cur_info->affine_mv[i][2][MV_Y] = cur_info->affine_mv[i][0][MV_Y] + (cur_info->affine_mv[i][1][MV_X] - cur_info->affine_mv[i][0][MV_X]) * (s16)cu_height / (s16)cu_width;
-            cur_info->affine_mv[i][3][MV_X] = cur_info->affine_mv[i][1][MV_X] - (cur_info->affine_mv[i][1][MV_Y] - cur_info->affine_mv[i][0][MV_Y]) * (s16)cu_height / (s16)cu_width;
-            cur_info->affine_mv[i][3][MV_Y] = cur_info->affine_mv[i][1][MV_Y] + (cur_info->affine_mv[i][1][MV_X] - cur_info->affine_mv[i][0][MV_X]) * (s16)cu_height / (s16)cu_width;
-        }
-        memory_access[i] = com_get_affine_memory_access(cur_info->affine_mv[i], cu_width, cu_height);
-    }
-    if (memory_access[0] > mem || memory_access[1] > mem) {
-        return;
-    } else {
-        cost = inter_rdcost(core, lbac_best, 0, 1, NULL, NULL);
-    }
+    inter_rdcost(core, lbac_best, 0, 1, NULL, NULL);
 }
 
 static int is_same_mv(core_t *core, com_motion_t hmvp_motion)
 {
-    com_info_t *info = core->info;
+    com_info_t *info    = core->info;
+    int x_scu           = core->cu_scu_x;
+    int y_scu           = core->cu_scu_y;
+    com_map_t *map      = core->map;
+    com_scu_t *map_scu  = map->map_scu;
+    int neb_addr        = core->cu_scup_in_pic - info->i_scu + (core->cu_width >> MIN_CU_LOG2);
+    int neb_avaliable   = COM_IS_INTER_SCU(map_scu[neb_addr]);
+
     com_motion_t c_motion;
-    int x_scu = core->cu_scu_x;
-    int y_scu = core->cu_scu_y;
-    int cu_width_in_scu = core->cu_width >> MIN_CU_LOG2;
-    com_map_t *map = core->map;
-    com_scu_t *map_scu = map->map_scu;
-    int cnt_hmvp = core->cnt_hmvp_cands;
 
-    int neb_addr = core->cu_scup_in_pic - info->i_scu + cu_width_in_scu;
-    int neb_avaliable = COM_IS_INTER_SCU(map_scu[neb_addr]);
+    if (neb_avaliable && core->cnt_hmvp_cands) {
+        CP32(c_motion.mv[0], map->map_mv[neb_addr][0]);
+        CP32(c_motion.mv[1], map->map_mv[neb_addr][1]);
+        CP16(c_motion.ref_idx, map->map_refi[neb_addr]);
 
-    if (neb_avaliable && cnt_hmvp) {
-        c_motion.mv[0][0] = map->map_mv[neb_addr][0][0];
-        c_motion.mv[0][1] = map->map_mv[neb_addr][0][1];
-        c_motion.mv[1][0] = map->map_mv[neb_addr][1][0];
-        c_motion.mv[1][1] = map->map_mv[neb_addr][1][1];
-
-        c_motion.ref_idx[0] = map->map_refi[neb_addr][0];
-        c_motion.ref_idx[1] = map->map_refi[neb_addr][1];
         return same_motion(hmvp_motion, c_motion);
     }
     return 0;

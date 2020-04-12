@@ -992,17 +992,10 @@ s64 calc_dist_filter_boundary(core_t *core, com_pic_t *pic_rec, com_pic_t *pic_o
     int y_scu            = y >> MIN_CU_LOG2;
     s64 dist_nofilt      = 0;
     s64 dist_filter      = 0;
-    pel *d, *s;
 
-    d = dst_y;
-    s = src;
-    for (int i = 0; i < cu_height; i++) { //copy curr block
-        com_mcpy(d, s, cu_width * sizeof(pel));
-        d += s_l_dbk, s += s_src;
-    }
     if (y != 0) { //copy top
-        d = dst_y - pad * s_l_dbk;
-        s = pic_rec->y + (y - pad) * s_l_rec + x;
+        pel *d = dst_y - pad * s_l_dbk;
+        pel *s = pic_rec->y + (y - pad) * s_l_rec + x;
         for (int i = 0; i < pad; i++) {
             com_mcpy(d, s, cu_width * sizeof(pel));
             d += s_l_dbk;
@@ -1010,13 +1003,23 @@ s64 calc_dist_filter_boundary(core_t *core, com_pic_t *pic_rec, com_pic_t *pic_o
         }
     }
     if (x != 0) { //copy left
-        d = dst_y - pad;
-        s = pic_rec->y + y * s_l_rec + x - pad;
+        pel *d = dst_y;
+        pel *sc = src;
+        pel *sl = pic_rec->y + y * s_l_rec + x - pad;
         for (int i = 0; i < cu_height; i++) {
-            com_mcpy(d, s, pad * sizeof(pel));
-            d += s_l_dbk;
-            s += s_l_rec;
+            com_mcpy(d-pad, sl, pad * sizeof(pel));
+            com_mcpy(d, sc, cu_width * sizeof(pel));
+            d  += s_l_dbk;
+            sl += s_l_rec;
+            sc += s_src;
+        }
+    } else {
+        pel *d = dst_y;
+        pel *s = src;
 
+        for (int i = 0; i < cu_height; i++) { //copy curr&left block
+            com_mcpy(d, s, cu_width * sizeof(pel));
+            d += s_l_dbk, s += s_src;
         }
     }
     //******** no filter ****************************
