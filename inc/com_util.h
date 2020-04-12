@@ -311,7 +311,7 @@ typedef struct uavs3e_funs_handle_t {
 
     void(*affine_sobel_flt_hor)(pel *pred, int i_pred, s16 *deriv, int i_deriv, int width, int height);
     void(*affine_sobel_flt_ver)(pel *pred, int i_pred, s16 *deriv, int i_deriv, int width, int height);
-    void(*affine_coef_computer)(s16 *resi, int i_resi, s16(*deriv)[MAX_CU_DIM], int i_deriv, s64(*coef)[7], int width, int height, int vertex_num);
+    void(*affine_coef_computer)(s16 *resi, int i_resi, s16(*deriv)[MAX_CU_DIM], int i_deriv, s64(*coef)[5], int width, int height);
 
     int(*quant_rdoq)(s16 *coef, int num, int q_value, int q_bits, s32 err_scale, int precision_bits, u32* abs_coef, s16* abs_level, s64 *uncoded_err);
     int(*quant_check)(s16 *coef, int num, int threshold);
@@ -350,10 +350,6 @@ void uavs3e_funs_init_c();
 int  uavs3e_simd_avx_level(int *phwavx);
 void uavs3e_funs_init_sse();
 void uavs3e_funs_init_avx2();
-#endif
-
-#if ENABLE_FUNCTION_ARM64
-//void uavs3e_funs_init_arm64();
 #endif
 
 void *uavs3e_align_malloc(int i_size);

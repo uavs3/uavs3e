@@ -220,383 +220,149 @@ void affine_sobel_flt_ver_sse(pel *pred, int i_pred, s16 *deriv, int i_deriv, in
 }
 
 // deriv: 11 bits signed integer
-void affine_coef_computer_sse(s16 *resi, int i_resi, s16(*deriv)[MAX_CU_DIM], int i_deriv, s64(*coef)[7], int width, int height, int vertex_num)
+void affine_coef_computer_sse(s16 *resi, int i_resi, s16(*deriv)[MAX_CU_DIM], int i_deriv, s64(*coef)[5], int width, int height)
 {
     int j, k;
     int idx1 = 0, idx2 = 0;
-    __m128i mm_two, mm_four;
     __m128i mm_tmp[4];
     __m128i mm_intermediate[4];
     __m128i mm_idx_k, mm_idx_j[2];
     __m128i mm_residue[2];
 
-    mm_two = _mm_set1_epi32(2);
-    mm_four = _mm_set1_epi32(4);
-    if (vertex_num == 3) {
-        __m128i mm_c[12];
-        //  mm_c - map
-        //  C for 1st row of pixels
-        //  mm_c[0] = iC[0][i] | iC[0][i+1] | iC[0][i+2] | iC[0][i+3]
-        //  mm_c[1] = iC[1][i] | iC[1][i+1] | iC[1][i+2] | iC[1][i+3]
-        //  mm_c[2] = iC[2][i] | iC[2][i+1] | iC[2][i+2] | iC[2][i+3]
-        //  mm_c[3] = iC[3][i] | iC[3][i+1] | iC[3][i+2] | iC[3][i+3]
-        //  mm_c[4] = iC[4][i] | iC[4][i+1] | iC[4][i+2] | iC[4][i+3]
-        //  mm_c[5] = iC[5][i] | iC[5][i+1] | iC[5][i+2] | iC[5][i+3]
-        //  C for 2nd row of pixels
-        //  mm_c[6] = iC[6][i] | iC[6][i+1] | iC[6][i+2] | iC[6][i+3]
-        //  mm_c[7] = iC[7][i] | iC[7][i+1] | iC[7][i+2] | iC[7][i+3]
-        //  mm_c[8] = iC[8][i] | iC[8][i+1] | iC[8][i+2] | iC[8][i+3]
-        //  mm_c[9] = iC[9][i] | iC[9][i+1] | iC[9][i+2] | iC[9][i+3]
-        //  mm_c[10] = iC[10][i] | iC[10][i+1] | iC[10][i+2] | iC[10][i+3]
-        //  mm_c[11] = iC[11][i] | iC[11][i+1] | iC[11][i+2] | iC[11][i+3]
-        idx1 = -2 * i_deriv - 4;
-        idx2 = -i_deriv - 4;
-        mm_idx_j[0] = _mm_set1_epi32(-2);
-        mm_idx_j[1] = _mm_set1_epi32(-1);
-        for (j = 0; j < height; j += 2) {
-            mm_idx_j[0] = _mm_add_epi32(mm_idx_j[0], mm_two);
-            mm_idx_j[1] = _mm_add_epi32(mm_idx_j[1], mm_two);
-            mm_idx_k = _mm_set_epi32(-1, -2, -3, -4);
-            idx1 += (i_deriv << 1);
-            idx2 += (i_deriv << 1);
-            for (k = 0; k < width; k += 4) {
-                idx1 += 4;
-                idx2 += 4;
-                mm_idx_k = _mm_add_epi32(mm_idx_k, mm_four);
-                // 1st row
-                mm_c[0] = _mm_loadl_epi64((const __m128i *)&deriv[0][idx1]);
-                mm_c[2] = _mm_loadl_epi64((const __m128i *)&deriv[1][idx1]);
-                mm_c[0] = _mm_cvtepi16_epi32(mm_c[0]);
-                mm_c[2] = _mm_cvtepi16_epi32(mm_c[2]);
-                // 2nd row
-                mm_c[6] = _mm_loadl_epi64((const __m128i *)&deriv[0][idx2]);
-                mm_c[8] = _mm_loadl_epi64((const __m128i *)&deriv[1][idx2]);
-                mm_c[6] = _mm_cvtepi16_epi32(mm_c[6]);
-                mm_c[8] = _mm_cvtepi16_epi32(mm_c[8]);
-                // 1st row
-                mm_c[1] = _mm_mullo_epi32(mm_idx_k, mm_c[0]);
-                mm_c[3] = _mm_mullo_epi32(mm_idx_k, mm_c[2]);
-                mm_c[4] = _mm_mullo_epi32(mm_idx_j[0], mm_c[0]);
-                mm_c[5] = _mm_mullo_epi32(mm_idx_j[0], mm_c[2]);
-                // 2nd row
-                mm_c[7] = _mm_mullo_epi32(mm_idx_k, mm_c[6]);
-                mm_c[9] = _mm_mullo_epi32(mm_idx_k, mm_c[8]);
-                mm_c[10] = _mm_mullo_epi32(mm_idx_j[1], mm_c[6]);
-                mm_c[11] = _mm_mullo_epi32(mm_idx_j[1], mm_c[8]);
-                // Residue
-                mm_residue[0] = _mm_loadl_epi64((const __m128i *)&resi[idx1]);
-                mm_residue[1] = _mm_loadl_epi64((const __m128i *)&resi[idx2]);
-                mm_residue[0] = _mm_cvtepi16_epi32(mm_residue[0]);
-                mm_residue[1] = _mm_cvtepi16_epi32(mm_residue[1]);
-                mm_residue[0] = _mm_slli_epi32(mm_residue[0], 3);
-                mm_residue[1] = _mm_slli_epi32(mm_residue[1], 3);
-                // Calculate resi coefficients first
-                mm_tmp[2] = _mm_srli_si128(mm_residue[0], 4);
-                mm_tmp[3] = _mm_srli_si128(mm_residue[1], 4);
-                // 1st row
-                mm_tmp[0] = _mm_srli_si128(mm_c[0], 4);
-                mm_tmp[1] = _mm_srli_si128(mm_c[6], 4);
-                // 7th col of row
-                CALC_EQUAL_COEFF_8PXLS(mm_c[0], mm_c[6], mm_residue[0], mm_residue[1], mm_tmp[0], mm_tmp[1], mm_tmp[2], mm_tmp[3], mm_intermediate[0]);
-                coef[1][6] += _mm_extract_epi64(mm_intermediate[0], 0) + _mm_extract_epi64(mm_intermediate[0], 1);
-                // 2nd row
-                mm_tmp[0] = _mm_srli_si128(mm_c[1], 4);
-                mm_tmp[1] = _mm_srli_si128(mm_c[7], 4);
-                // 7th col of row
-                CALC_EQUAL_COEFF_8PXLS(mm_c[1], mm_c[7], mm_residue[0], mm_residue[1], mm_tmp[0], mm_tmp[1], mm_tmp[2], mm_tmp[3], mm_intermediate[0]);
-                coef[2][6] += _mm_extract_epi64(mm_intermediate[0], 0) + _mm_extract_epi64(mm_intermediate[0], 1);
-                // 3rd row
-                mm_tmp[0] = _mm_srli_si128(mm_c[2], 4);
-                mm_tmp[1] = _mm_srli_si128(mm_c[8], 4);
-                // 7th col of row
-                CALC_EQUAL_COEFF_8PXLS(mm_c[2], mm_c[8], mm_residue[0], mm_residue[1], mm_tmp[0], mm_tmp[1], mm_tmp[2], mm_tmp[3], mm_intermediate[0]);
-                coef[3][6] += _mm_extract_epi64(mm_intermediate[0], 0) + _mm_extract_epi64(mm_intermediate[0], 1);
-                // 4th row
-                mm_tmp[0] = _mm_srli_si128(mm_c[3], 4);
-                mm_tmp[1] = _mm_srli_si128(mm_c[9], 4);
-                // 7th col of row
-                CALC_EQUAL_COEFF_8PXLS(mm_c[3], mm_c[9], mm_residue[0], mm_residue[1], mm_tmp[0], mm_tmp[1], mm_tmp[2], mm_tmp[3], mm_intermediate[0]);
-                coef[4][6] += _mm_extract_epi64(mm_intermediate[0], 0) + _mm_extract_epi64(mm_intermediate[0], 1);
-                // 5th row
-                mm_tmp[0] = _mm_srli_si128(mm_c[4], 4);
-                mm_tmp[1] = _mm_srli_si128(mm_c[10], 4);
-                // 7th col of row
-                CALC_EQUAL_COEFF_8PXLS(mm_c[4], mm_c[10], mm_residue[0], mm_residue[1], mm_tmp[0], mm_tmp[1], mm_tmp[2], mm_tmp[3], mm_intermediate[0]);
-                coef[5][6] += _mm_extract_epi64(mm_intermediate[0], 0) + _mm_extract_epi64(mm_intermediate[0], 1);
-                // 6th row
-                mm_tmp[0] = _mm_srli_si128(mm_c[5], 4);
-                mm_tmp[1] = _mm_srli_si128(mm_c[11], 4);
-                // 7th col of row
-                CALC_EQUAL_COEFF_8PXLS(mm_c[5], mm_c[11], mm_residue[0], mm_residue[1], mm_tmp[0], mm_tmp[1], mm_tmp[2], mm_tmp[3], mm_intermediate[0]);
-                coef[6][6] += _mm_extract_epi64(mm_intermediate[0], 0) + _mm_extract_epi64(mm_intermediate[0], 1);
-                //Start calculation of coefficient matrix
-                // 1st row
-                mm_tmp[0] = _mm_srli_si128(mm_c[0], 4);
-                mm_tmp[1] = _mm_srli_si128(mm_c[6], 4);
-                // 1st col of row
-                CALC_EQUAL_COEFF_8PXLS(mm_c[0], mm_c[6], mm_c[0], mm_c[6], mm_tmp[0], mm_tmp[1], mm_tmp[0], mm_tmp[1], mm_intermediate[0]);
-                coef[1][0] += _mm_extract_epi64(mm_intermediate[0], 0) + _mm_extract_epi64(mm_intermediate[0], 1);
-                // 2nd col of row and 1st col of 2nd row
-                mm_tmp[2] = _mm_srli_si128(mm_c[1], 4);
-                mm_tmp[3] = _mm_srli_si128(mm_c[7], 4);
-                CALC_EQUAL_COEFF_8PXLS(mm_c[0], mm_c[6], mm_c[1], mm_c[7], mm_tmp[0], mm_tmp[1], mm_tmp[2], mm_tmp[3], mm_intermediate[0]);
-                coef[1][1] += _mm_extract_epi64(mm_intermediate[0], 0) + _mm_extract_epi64(mm_intermediate[0], 1);
-                // 3rd col of row and 1st col of 3rd row
-                mm_tmp[2] = _mm_srli_si128(mm_c[2], 4);
-                mm_tmp[3] = _mm_srli_si128(mm_c[8], 4);
-                CALC_EQUAL_COEFF_8PXLS(mm_c[0], mm_c[6], mm_c[2], mm_c[8], mm_tmp[0], mm_tmp[1], mm_tmp[2], mm_tmp[3], mm_intermediate[0]);
-                coef[1][2] += _mm_extract_epi64(mm_intermediate[0], 0) + _mm_extract_epi64(mm_intermediate[0], 1);
-                // 4th col of row and 1st col of 4th row
-                mm_tmp[2] = _mm_srli_si128(mm_c[3], 4);
-                mm_tmp[3] = _mm_srli_si128(mm_c[9], 4);
-                CALC_EQUAL_COEFF_8PXLS(mm_c[0], mm_c[6], mm_c[3], mm_c[9], mm_tmp[0], mm_tmp[1], mm_tmp[2], mm_tmp[3], mm_intermediate[0]);
-                coef[1][3] += _mm_extract_epi64(mm_intermediate[0], 0) + _mm_extract_epi64(mm_intermediate[0], 1);
-                // 5th col of row and 1st col of the 5th row
-                mm_tmp[2] = _mm_srli_si128(mm_c[4], 4);
-                mm_tmp[3] = _mm_srli_si128(mm_c[10], 4);
-                CALC_EQUAL_COEFF_8PXLS(mm_c[0], mm_c[6], mm_c[4], mm_c[10], mm_tmp[0], mm_tmp[1], mm_tmp[2], mm_tmp[3], mm_intermediate[0]);
-                coef[1][4] += _mm_extract_epi64(mm_intermediate[0], 0) + _mm_extract_epi64(mm_intermediate[0], 1);
-                // 6th col of row and 1st col of the 6th row
-                mm_tmp[2] = _mm_srli_si128(mm_c[5], 4);
-                mm_tmp[3] = _mm_srli_si128(mm_c[11], 4);
-                CALC_EQUAL_COEFF_8PXLS(mm_c[0], mm_c[6], mm_c[5], mm_c[11], mm_tmp[0], mm_tmp[1], mm_tmp[2], mm_tmp[3], mm_intermediate[0]);
-                coef[1][5] += _mm_extract_epi64(mm_intermediate[0], 0) + _mm_extract_epi64(mm_intermediate[0], 1);
-                // 2nd row
-                mm_tmp[0] = _mm_srli_si128(mm_c[1], 4);
-                mm_tmp[1] = _mm_srli_si128(mm_c[7], 4);
-                // 2nd col of row
-                CALC_EQUAL_COEFF_8PXLS(mm_c[1], mm_c[7], mm_c[1], mm_c[7], mm_tmp[0], mm_tmp[1], mm_tmp[0], mm_tmp[1], mm_intermediate[0]);
-                coef[2][1] += _mm_extract_epi64(mm_intermediate[0], 0) + _mm_extract_epi64(mm_intermediate[0], 1);
-                // 3rd col of row and 2nd col of 3rd row
-                mm_tmp[2] = _mm_srli_si128(mm_c[2], 4);
-                mm_tmp[3] = _mm_srli_si128(mm_c[8], 4);
-                CALC_EQUAL_COEFF_8PXLS(mm_c[1], mm_c[7], mm_c[2], mm_c[8], mm_tmp[0], mm_tmp[1], mm_tmp[2], mm_tmp[3], mm_intermediate[0]);
-                coef[2][2] += _mm_extract_epi64(mm_intermediate[0], 0) + _mm_extract_epi64(mm_intermediate[0], 1);
-                // 4th col of row and 2nd col of 4th row
-                mm_tmp[2] = _mm_srli_si128(mm_c[3], 4);
-                mm_tmp[3] = _mm_srli_si128(mm_c[9], 4);
-                CALC_EQUAL_COEFF_8PXLS(mm_c[1], mm_c[7], mm_c[3], mm_c[9], mm_tmp[0], mm_tmp[1], mm_tmp[2], mm_tmp[3], mm_intermediate[0]);
-                coef[2][3] += _mm_extract_epi64(mm_intermediate[0], 0) + _mm_extract_epi64(mm_intermediate[0], 1);
-                // 5th col of row and 1st col of the 5th row
-                mm_tmp[2] = _mm_srli_si128(mm_c[4], 4);
-                mm_tmp[3] = _mm_srli_si128(mm_c[10], 4);
-                CALC_EQUAL_COEFF_8PXLS(mm_c[1], mm_c[7], mm_c[4], mm_c[10], mm_tmp[0], mm_tmp[1], mm_tmp[2], mm_tmp[3], mm_intermediate[0]);
-                coef[2][4] += _mm_extract_epi64(mm_intermediate[0], 0) + _mm_extract_epi64(mm_intermediate[0], 1);
-                // 6th col of row and 1st col of the 6th row
-                mm_tmp[2] = _mm_srli_si128(mm_c[5], 4);
-                mm_tmp[3] = _mm_srli_si128(mm_c[11], 4);
-                CALC_EQUAL_COEFF_8PXLS(mm_c[1], mm_c[7], mm_c[5], mm_c[11], mm_tmp[0], mm_tmp[1], mm_tmp[2], mm_tmp[3], mm_intermediate[0]);
-                coef[2][5] += _mm_extract_epi64(mm_intermediate[0], 0) + _mm_extract_epi64(mm_intermediate[0], 1);
-                // 3rd row
-                mm_tmp[0] = _mm_srli_si128(mm_c[2], 4);
-                mm_tmp[1] = _mm_srli_si128(mm_c[8], 4);
-                //3rd Col of row
-                CALC_EQUAL_COEFF_8PXLS(mm_c[2], mm_c[8], mm_c[2], mm_c[8], mm_tmp[0], mm_tmp[1], mm_tmp[0], mm_tmp[1], mm_intermediate[0]);
-                coef[3][2] += _mm_extract_epi64(mm_intermediate[0], 0) + _mm_extract_epi64(mm_intermediate[0], 1);
-                // 4th col of row and 3rd col of 4th row
-                mm_tmp[2] = _mm_srli_si128(mm_c[3], 4);
-                mm_tmp[3] = _mm_srli_si128(mm_c[9], 4);
-                CALC_EQUAL_COEFF_8PXLS(mm_c[2], mm_c[8], mm_c[3], mm_c[9], mm_tmp[0], mm_tmp[1], mm_tmp[2], mm_tmp[3], mm_intermediate[0]);
-                coef[3][3] += _mm_extract_epi64(mm_intermediate[0], 0) + _mm_extract_epi64(mm_intermediate[0], 1);
-                // 5th col of row and 1st col of the 5th row
-                mm_tmp[2] = _mm_srli_si128(mm_c[4], 4);
-                mm_tmp[3] = _mm_srli_si128(mm_c[10], 4);
-                CALC_EQUAL_COEFF_8PXLS(mm_c[2], mm_c[8], mm_c[4], mm_c[10], mm_tmp[0], mm_tmp[1], mm_tmp[2], mm_tmp[3], mm_intermediate[0]);
-                coef[3][4] += _mm_extract_epi64(mm_intermediate[0], 0) + _mm_extract_epi64(mm_intermediate[0], 1);
-                // 6th col of row and 1st col of the 6th row
-                mm_tmp[2] = _mm_srli_si128(mm_c[5], 4);
-                mm_tmp[3] = _mm_srli_si128(mm_c[11], 4);
-                CALC_EQUAL_COEFF_8PXLS(mm_c[2], mm_c[8], mm_c[5], mm_c[11], mm_tmp[0], mm_tmp[1], mm_tmp[2], mm_tmp[3], mm_intermediate[0]);
-                coef[3][5] += _mm_extract_epi64(mm_intermediate[0], 0) + _mm_extract_epi64(mm_intermediate[0], 1);
-                // 4th row
-                mm_tmp[0] = _mm_srli_si128(mm_c[3], 4);
-                mm_tmp[1] = _mm_srli_si128(mm_c[9], 4);
-                // 4th col of row
-                CALC_EQUAL_COEFF_8PXLS(mm_c[3], mm_c[9], mm_c[3], mm_c[9], mm_tmp[0], mm_tmp[1], mm_tmp[0], mm_tmp[1], mm_intermediate[0]);
-                coef[4][3] += _mm_extract_epi64(mm_intermediate[0], 0) + _mm_extract_epi64(mm_intermediate[0], 1);
-                // 5th col of row and 1st col of the 5th row
-                mm_tmp[2] = _mm_srli_si128(mm_c[4], 4);
-                mm_tmp[3] = _mm_srli_si128(mm_c[10], 4);
-                CALC_EQUAL_COEFF_8PXLS(mm_c[3], mm_c[9], mm_c[4], mm_c[10], mm_tmp[0], mm_tmp[1], mm_tmp[2], mm_tmp[3], mm_intermediate[0]);
-                coef[4][4] += _mm_extract_epi64(mm_intermediate[0], 0) + _mm_extract_epi64(mm_intermediate[0], 1);
-                // 6th col of row and 1st col of the 6th row
-                mm_tmp[2] = _mm_srli_si128(mm_c[5], 4);
-                mm_tmp[3] = _mm_srli_si128(mm_c[11], 4);
-                CALC_EQUAL_COEFF_8PXLS(mm_c[3], mm_c[9], mm_c[5], mm_c[11], mm_tmp[0], mm_tmp[1], mm_tmp[2], mm_tmp[3], mm_intermediate[0]);
-                coef[4][5] += _mm_extract_epi64(mm_intermediate[0], 0) + _mm_extract_epi64(mm_intermediate[0], 1);
-                // 5th row
-                mm_tmp[0] = _mm_srli_si128(mm_c[4], 4);
-                mm_tmp[1] = _mm_srli_si128(mm_c[10], 4);
-                // 5th col of row and 1st col of the 5th row
-                CALC_EQUAL_COEFF_8PXLS(mm_c[4], mm_c[10], mm_c[4], mm_c[10], mm_tmp[0], mm_tmp[1], mm_tmp[0], mm_tmp[1], mm_intermediate[0]);
-                coef[5][4] += _mm_extract_epi64(mm_intermediate[0], 0) + _mm_extract_epi64(mm_intermediate[0], 1);
-                // 6th col of row and 1st col of the 6th row
-                mm_tmp[2] = _mm_srli_si128(mm_c[5], 4);
-                mm_tmp[3] = _mm_srli_si128(mm_c[11], 4);
-                CALC_EQUAL_COEFF_8PXLS(mm_c[4], mm_c[10], mm_c[5], mm_c[11], mm_tmp[0], mm_tmp[1], mm_tmp[2], mm_tmp[3], mm_intermediate[0]);
-                coef[5][5] += _mm_extract_epi64(mm_intermediate[0], 0) + _mm_extract_epi64(mm_intermediate[0], 1);
-                // 6th row
-                mm_tmp[0] = _mm_srli_si128(mm_c[5], 4);
-                mm_tmp[1] = _mm_srli_si128(mm_c[11], 4);
-                // 5th col of row and 1st col of the 5th row
-                CALC_EQUAL_COEFF_8PXLS(mm_c[5], mm_c[11], mm_c[5], mm_c[11], mm_tmp[0], mm_tmp[1], mm_tmp[0], mm_tmp[1], mm_intermediate[0]);
-                coef[6][5] += _mm_extract_epi64(mm_intermediate[0], 0) + _mm_extract_epi64(mm_intermediate[0], 1);
-            }
-            idx1 -= (width);
-            idx2 -= (width);
+    __m128i mm_c[12];
+    __m128i mm_four_s16 = _mm_set1_epi16(4);
+    __m128i mm_two_s16 = _mm_set1_epi16(2);
+    __m128i mm_idx_jk[2], mm_idx_kj[2];
+    __m128i zero = _mm_setzero_si128();
+
+    idx1 = 0;
+    idx2 = i_deriv;
+    mm_idx_j[0] = _mm_set1_epi16(0);
+    mm_idx_j[1] = _mm_set1_epi16(1);
+    for (j = 0; j < height; j += 2) {
+        mm_idx_k = _mm_set_epi16(0, 0, 0, 0, 3, 2, 1, 0);
+        for (k = 0; k < width; k += 4) {
+            mm_c[0] = _mm_loadl_epi64((const __m128i *)&deriv[0][idx1]);
+            mm_c[2] = _mm_loadl_epi64((const __m128i *)&deriv[1][idx1]);
+            mm_c[4] = _mm_loadl_epi64((const __m128i *)&deriv[0][idx2]);
+            mm_c[6] = _mm_loadl_epi64((const __m128i *)&deriv[1][idx2]);
+            mm_tmp[0] = _mm_subs_epi16(zero, mm_idx_k);
+            mm_idx_kj[0] = _mm_unpacklo_epi16(mm_idx_k, mm_idx_j[0]);
+            mm_idx_kj[1] = _mm_unpacklo_epi16(mm_idx_k, mm_idx_j[1]);
+            mm_idx_jk[0] = _mm_unpacklo_epi16(mm_idx_j[0], mm_tmp[0]);
+            mm_idx_jk[1] = _mm_unpacklo_epi16(mm_idx_j[1], mm_tmp[0]);
+            mm_tmp[1] = _mm_unpacklo_epi16(mm_c[0], mm_c[2]);
+            mm_tmp[2] = _mm_unpacklo_epi16(mm_c[4], mm_c[6]);
+            mm_c[1] = _mm_madd_epi16(mm_idx_kj[0], mm_tmp[1]);
+            mm_c[3] = _mm_madd_epi16(mm_idx_jk[0], mm_tmp[1]);
+            mm_c[5] = _mm_madd_epi16(mm_idx_kj[1], mm_tmp[2]);
+            mm_c[7] = _mm_madd_epi16(mm_idx_jk[1], mm_tmp[2]);
+
+            mm_residue[0] = _mm_loadl_epi64((const __m128i *)&resi[idx1]);
+            mm_residue[1] = _mm_loadl_epi64((const __m128i *)&resi[idx2]);
+            mm_c[8] = _mm_unpacklo_epi64(mm_c[0], mm_c[2]);
+            mm_c[9] = _mm_unpacklo_epi64(mm_c[2], mm_c[0]);
+            mm_c[10] = _mm_unpacklo_epi64(mm_c[4], mm_c[6]);
+            mm_c[11] = _mm_unpacklo_epi64(mm_c[6], mm_c[4]);
+            mm_c[0] = _mm_cvtepi16_epi32(mm_c[0]);
+            mm_c[2] = _mm_cvtepi16_epi32(mm_c[2]);
+            mm_c[4] = _mm_cvtepi16_epi32(mm_c[4]);
+            mm_c[6] = _mm_cvtepi16_epi32(mm_c[6]);
+
+            mm_tmp[0] = _mm_madd_epi16(mm_c[8], mm_c[8]);
+            mm_tmp[1] = _mm_madd_epi16(mm_c[8], mm_c[9]);
+            mm_tmp[2] = _mm_madd_epi16(mm_c[10], mm_c[10]);
+            mm_tmp[3] = _mm_madd_epi16(mm_c[10], mm_c[11]);
+            mm_tmp[0] = _mm_add_epi32(mm_tmp[0], mm_tmp[2]);
+            mm_tmp[1] = _mm_add_epi32(mm_tmp[1], mm_tmp[3]);
+            mm_tmp[0] = _mm_hadd_epi32(mm_tmp[0], mm_tmp[1]);
+            coef[1][0] += _mm_extract_epi32(mm_tmp[0], 0);
+            coef[3][2] += _mm_extract_epi32(mm_tmp[0], 1);
+            coef[1][2] += _mm_extract_epi32(mm_tmp[0], 2);
+
+            mm_c[9] = _mm_unpacklo_epi64(mm_residue[0], mm_residue[0]);
+            mm_c[11] = _mm_unpacklo_epi64(mm_residue[1], mm_residue[1]);
+            mm_tmp[0] = _mm_madd_epi16(mm_c[8], mm_c[9]);
+            mm_tmp[1] = _mm_madd_epi16(mm_c[10], mm_c[11]);
+            mm_tmp[0] = _mm_add_epi32(mm_tmp[0], mm_tmp[1]);
+            mm_tmp[0] = _mm_hadd_epi32(mm_tmp[0], mm_tmp[0]);
+            coef[1][4] += _mm_extract_epi32(mm_tmp[0], 0);
+            coef[3][4] += _mm_extract_epi32(mm_tmp[0], 1);
+
+            mm_residue[0] = _mm_cvtepi16_epi32(mm_residue[0]);
+            mm_residue[1] = _mm_cvtepi16_epi32(mm_residue[1]);
+
+            idx1 += 4;
+            idx2 += 4;
+            mm_idx_k = _mm_add_epi16(mm_idx_k, mm_four_s16);
+
+            // 1st row
+            mm_tmp[0] = _mm_srli_si128(mm_c[0], 4);
+            mm_tmp[1] = _mm_srli_si128(mm_c[4], 4);
+            mm_tmp[2] = _mm_srli_si128(mm_c[1], 4);
+            mm_tmp[3] = _mm_srli_si128(mm_c[5], 4);
+            CALC_EQUAL_COEFF_8PXLS(mm_c[0], mm_c[4], mm_c[1], mm_c[5], mm_tmp[0], mm_tmp[1], mm_tmp[2], mm_tmp[3], mm_intermediate[0]);
+            coef[1][1] += _mm_extract_epi64(mm_intermediate[0], 0) + _mm_extract_epi64(mm_intermediate[0], 1);
+
+            mm_tmp[2] = _mm_srli_si128(mm_c[3], 4);
+            mm_tmp[3] = _mm_srli_si128(mm_c[7], 4);
+            CALC_EQUAL_COEFF_8PXLS(mm_c[0], mm_c[4], mm_c[3], mm_c[7], mm_tmp[0], mm_tmp[1], mm_tmp[2], mm_tmp[3], mm_intermediate[0]);
+            coef[1][3] += _mm_extract_epi64(mm_intermediate[0], 0) + _mm_extract_epi64(mm_intermediate[0], 1);
+
+            // 2nd row
+            mm_tmp[0] = _mm_srli_si128(mm_c[1], 4);
+            mm_tmp[1] = _mm_srli_si128(mm_c[5], 4);
+            // 2nd col of row
+            CALC_EQUAL_COEFF_8PXLS(mm_c[1], mm_c[5], mm_c[1], mm_c[5], mm_tmp[0], mm_tmp[1], mm_tmp[0], mm_tmp[1], mm_intermediate[0]);
+            coef[2][1] += _mm_extract_epi64(mm_intermediate[0], 0) + _mm_extract_epi64(mm_intermediate[0], 1);
+            // 3rd col of row and 2nd col of 3rd row
+            mm_tmp[2] = _mm_srli_si128(mm_c[2], 4);
+            mm_tmp[3] = _mm_srli_si128(mm_c[6], 4);
+            CALC_EQUAL_COEFF_8PXLS(mm_c[1], mm_c[5], mm_c[2], mm_c[6], mm_tmp[0], mm_tmp[1], mm_tmp[2], mm_tmp[3], mm_intermediate[0]);
+            coef[2][2] += _mm_extract_epi64(mm_intermediate[0], 0) + _mm_extract_epi64(mm_intermediate[0], 1);
+            // 4th col of row and 2nd col of 4th row
+            mm_tmp[2] = _mm_srli_si128(mm_c[3], 4);
+            mm_tmp[3] = _mm_srli_si128(mm_c[7], 4);
+            CALC_EQUAL_COEFF_8PXLS(mm_c[1], mm_c[5], mm_c[3], mm_c[7], mm_tmp[0], mm_tmp[1], mm_tmp[2], mm_tmp[3], mm_intermediate[0]);
+            coef[2][3] += _mm_extract_epi64(mm_intermediate[0], 0) + _mm_extract_epi64(mm_intermediate[0], 1);
+            // 5th col of row
+            mm_tmp[2] = _mm_srli_si128(mm_residue[0], 4);
+            mm_tmp[3] = _mm_srli_si128(mm_residue[1], 4);
+            CALC_EQUAL_COEFF_8PXLS(mm_c[1], mm_c[5], mm_residue[0], mm_residue[1], mm_tmp[0], mm_tmp[1], mm_tmp[2], mm_tmp[3], mm_intermediate[0]);
+            coef[2][4] += _mm_extract_epi64(mm_intermediate[0], 0) + _mm_extract_epi64(mm_intermediate[0], 1);
+            // 3rd row
+            mm_tmp[0] = _mm_srli_si128(mm_c[2], 4);
+            mm_tmp[1] = _mm_srli_si128(mm_c[6], 4);
+            mm_tmp[2] = _mm_srli_si128(mm_c[3], 4);
+            mm_tmp[3] = _mm_srli_si128(mm_c[7], 4);
+            CALC_EQUAL_COEFF_8PXLS(mm_c[2], mm_c[6], mm_c[3], mm_c[7], mm_tmp[0], mm_tmp[1], mm_tmp[2], mm_tmp[3], mm_intermediate[0]);
+            coef[3][3] += _mm_extract_epi64(mm_intermediate[0], 0) + _mm_extract_epi64(mm_intermediate[0], 1);
+
+            // 4th row
+            mm_tmp[0] = _mm_srli_si128(mm_c[3], 4);
+            mm_tmp[1] = _mm_srli_si128(mm_c[7], 4);
+            // 4th col of row
+            CALC_EQUAL_COEFF_8PXLS(mm_c[3], mm_c[7], mm_c[3], mm_c[7], mm_tmp[0], mm_tmp[1], mm_tmp[0], mm_tmp[1], mm_intermediate[0]);
+            coef[4][3] += _mm_extract_epi64(mm_intermediate[0], 0) + _mm_extract_epi64(mm_intermediate[0], 1);
+            // 5th col of row
+            mm_tmp[2] = _mm_srli_si128(mm_residue[0], 4);
+            mm_tmp[3] = _mm_srli_si128(mm_residue[1], 4);
+            CALC_EQUAL_COEFF_8PXLS(mm_c[3], mm_c[7], mm_residue[0], mm_residue[1], mm_tmp[0], mm_tmp[1], mm_tmp[2], mm_tmp[3], mm_intermediate[0]);
+            coef[4][4] += _mm_extract_epi64(mm_intermediate[0], 0) + _mm_extract_epi64(mm_intermediate[0], 1);
         }
-        coef[2][0] = coef[1][1];
-        coef[3][0] = coef[1][2];
-        coef[4][0] = coef[1][3];
-        coef[5][0] = coef[1][4];
-        coef[6][0] = coef[1][5];
-        coef[3][1] = coef[2][2];
-        coef[4][1] = coef[2][3];
-        coef[5][1] = coef[2][4];
-        coef[6][1] = coef[2][5];
-        coef[4][2] = coef[3][3];
-        coef[5][2] = coef[3][4];
-        coef[6][2] = coef[3][5];
-        coef[5][3] = coef[4][4];
-        coef[6][3] = coef[4][5];
-        coef[6][4] = coef[5][5];
+        idx1 += (i_deriv << 1) - width;
+        idx2 += (i_deriv << 1) - width;
+        mm_idx_j[0] = _mm_add_epi16(mm_idx_j[0], mm_two_s16);
+        mm_idx_j[1] = _mm_add_epi16(mm_idx_j[1], mm_two_s16);
     }
-    else {
-        __m128i mm_c[12];
-        __m128i mm_four_s16 = _mm_set1_epi16(4);
-        __m128i mm_two_s16 = _mm_set1_epi16(2);
-        __m128i mm_idx_jk[2], mm_idx_kj[2];
-        __m128i zero = _mm_setzero_si128();
-
-        idx1 = 0;
-        idx2 = i_deriv;
-        mm_idx_j[0] = _mm_set1_epi16(0);
-        mm_idx_j[1] = _mm_set1_epi16(1);
-        for (j = 0; j < height; j += 2) {
-            mm_idx_k = _mm_set_epi16(0, 0, 0, 0, 3, 2, 1, 0);
-            for (k = 0; k < width; k += 4) {
-                mm_c[0] = _mm_loadl_epi64((const __m128i *)&deriv[0][idx1]);
-                mm_c[2] = _mm_loadl_epi64((const __m128i *)&deriv[1][idx1]);
-                mm_c[4] = _mm_loadl_epi64((const __m128i *)&deriv[0][idx2]);
-                mm_c[6] = _mm_loadl_epi64((const __m128i *)&deriv[1][idx2]);
-                mm_tmp[0] = _mm_subs_epi16(zero, mm_idx_k);
-                mm_idx_kj[0] = _mm_unpacklo_epi16(mm_idx_k, mm_idx_j[0]);
-                mm_idx_kj[1] = _mm_unpacklo_epi16(mm_idx_k, mm_idx_j[1]);
-                mm_idx_jk[0] = _mm_unpacklo_epi16(mm_idx_j[0], mm_tmp[0]);
-                mm_idx_jk[1] = _mm_unpacklo_epi16(mm_idx_j[1], mm_tmp[0]);
-                mm_tmp[1] = _mm_unpacklo_epi16(mm_c[0], mm_c[2]);
-                mm_tmp[2] = _mm_unpacklo_epi16(mm_c[4], mm_c[6]);
-                mm_c[1] = _mm_madd_epi16(mm_idx_kj[0], mm_tmp[1]);
-                mm_c[3] = _mm_madd_epi16(mm_idx_jk[0], mm_tmp[1]);
-                mm_c[5] = _mm_madd_epi16(mm_idx_kj[1], mm_tmp[2]);
-                mm_c[7] = _mm_madd_epi16(mm_idx_jk[1], mm_tmp[2]);
-
-                mm_residue[0] = _mm_loadl_epi64((const __m128i *)&resi[idx1]);
-                mm_residue[1] = _mm_loadl_epi64((const __m128i *)&resi[idx2]);
-                mm_c[8] = _mm_unpacklo_epi64(mm_c[0], mm_c[2]);
-                mm_c[9] = _mm_unpacklo_epi64(mm_c[2], mm_c[0]);
-                mm_c[10] = _mm_unpacklo_epi64(mm_c[4], mm_c[6]);
-                mm_c[11] = _mm_unpacklo_epi64(mm_c[6], mm_c[4]);
-                mm_c[0] = _mm_cvtepi16_epi32(mm_c[0]);
-                mm_c[2] = _mm_cvtepi16_epi32(mm_c[2]);
-                mm_c[4] = _mm_cvtepi16_epi32(mm_c[4]);
-                mm_c[6] = _mm_cvtepi16_epi32(mm_c[6]);
-
-                mm_tmp[0] = _mm_madd_epi16(mm_c[8], mm_c[8]);
-                mm_tmp[1] = _mm_madd_epi16(mm_c[8], mm_c[9]);
-                mm_tmp[2] = _mm_madd_epi16(mm_c[10], mm_c[10]);
-                mm_tmp[3] = _mm_madd_epi16(mm_c[10], mm_c[11]);
-                mm_tmp[0] = _mm_add_epi32(mm_tmp[0], mm_tmp[2]);
-                mm_tmp[1] = _mm_add_epi32(mm_tmp[1], mm_tmp[3]);
-                mm_tmp[0] = _mm_hadd_epi32(mm_tmp[0], mm_tmp[1]);
-                coef[1][0] += _mm_extract_epi32(mm_tmp[0], 0);
-                coef[3][2] += _mm_extract_epi32(mm_tmp[0], 1);
-                coef[1][2] += _mm_extract_epi32(mm_tmp[0], 2);
-
-                mm_c[9] = _mm_unpacklo_epi64(mm_residue[0], mm_residue[0]);
-                mm_c[11] = _mm_unpacklo_epi64(mm_residue[1], mm_residue[1]);
-                mm_tmp[0] = _mm_madd_epi16(mm_c[8], mm_c[9]);
-                mm_tmp[1] = _mm_madd_epi16(mm_c[10], mm_c[11]);
-                mm_tmp[0] = _mm_add_epi32(mm_tmp[0], mm_tmp[1]);
-                mm_tmp[0] = _mm_hadd_epi32(mm_tmp[0], mm_tmp[0]);
-                coef[1][4] += _mm_extract_epi32(mm_tmp[0], 0);
-                coef[3][4] += _mm_extract_epi32(mm_tmp[0], 1);
-
-                mm_residue[0] = _mm_cvtepi16_epi32(mm_residue[0]);
-                mm_residue[1] = _mm_cvtepi16_epi32(mm_residue[1]);
-
-                idx1 += 4;
-                idx2 += 4;
-                mm_idx_k = _mm_add_epi16(mm_idx_k, mm_four_s16);
-
-                // 1st row
-                mm_tmp[0] = _mm_srli_si128(mm_c[0], 4);
-                mm_tmp[1] = _mm_srli_si128(mm_c[4], 4);
-                mm_tmp[2] = _mm_srli_si128(mm_c[1], 4);
-                mm_tmp[3] = _mm_srli_si128(mm_c[5], 4);
-                CALC_EQUAL_COEFF_8PXLS(mm_c[0], mm_c[4], mm_c[1], mm_c[5], mm_tmp[0], mm_tmp[1], mm_tmp[2], mm_tmp[3], mm_intermediate[0]);
-                coef[1][1] += _mm_extract_epi64(mm_intermediate[0], 0) + _mm_extract_epi64(mm_intermediate[0], 1);
-
-                mm_tmp[2] = _mm_srli_si128(mm_c[3], 4);
-                mm_tmp[3] = _mm_srli_si128(mm_c[7], 4);
-                CALC_EQUAL_COEFF_8PXLS(mm_c[0], mm_c[4], mm_c[3], mm_c[7], mm_tmp[0], mm_tmp[1], mm_tmp[2], mm_tmp[3], mm_intermediate[0]);
-                coef[1][3] += _mm_extract_epi64(mm_intermediate[0], 0) + _mm_extract_epi64(mm_intermediate[0], 1);
-
-                // 2nd row
-                mm_tmp[0] = _mm_srli_si128(mm_c[1], 4);
-                mm_tmp[1] = _mm_srli_si128(mm_c[5], 4);
-                // 2nd col of row
-                CALC_EQUAL_COEFF_8PXLS(mm_c[1], mm_c[5], mm_c[1], mm_c[5], mm_tmp[0], mm_tmp[1], mm_tmp[0], mm_tmp[1], mm_intermediate[0]);
-                coef[2][1] += _mm_extract_epi64(mm_intermediate[0], 0) + _mm_extract_epi64(mm_intermediate[0], 1);
-                // 3rd col of row and 2nd col of 3rd row
-                mm_tmp[2] = _mm_srli_si128(mm_c[2], 4);
-                mm_tmp[3] = _mm_srli_si128(mm_c[6], 4);
-                CALC_EQUAL_COEFF_8PXLS(mm_c[1], mm_c[5], mm_c[2], mm_c[6], mm_tmp[0], mm_tmp[1], mm_tmp[2], mm_tmp[3], mm_intermediate[0]);
-                coef[2][2] += _mm_extract_epi64(mm_intermediate[0], 0) + _mm_extract_epi64(mm_intermediate[0], 1);
-                // 4th col of row and 2nd col of 4th row
-                mm_tmp[2] = _mm_srli_si128(mm_c[3], 4);
-                mm_tmp[3] = _mm_srli_si128(mm_c[7], 4);
-                CALC_EQUAL_COEFF_8PXLS(mm_c[1], mm_c[5], mm_c[3], mm_c[7], mm_tmp[0], mm_tmp[1], mm_tmp[2], mm_tmp[3], mm_intermediate[0]);
-                coef[2][3] += _mm_extract_epi64(mm_intermediate[0], 0) + _mm_extract_epi64(mm_intermediate[0], 1);
-                // 5th col of row
-                mm_tmp[2] = _mm_srli_si128(mm_residue[0], 4);
-                mm_tmp[3] = _mm_srli_si128(mm_residue[1], 4);
-                CALC_EQUAL_COEFF_8PXLS(mm_c[1], mm_c[5], mm_residue[0], mm_residue[1], mm_tmp[0], mm_tmp[1], mm_tmp[2], mm_tmp[3], mm_intermediate[0]);
-                coef[2][4] += _mm_extract_epi64(mm_intermediate[0], 0) + _mm_extract_epi64(mm_intermediate[0], 1);
-                // 3rd row
-                mm_tmp[0] = _mm_srli_si128(mm_c[2], 4);
-                mm_tmp[1] = _mm_srli_si128(mm_c[6], 4);
-                mm_tmp[2] = _mm_srli_si128(mm_c[3], 4);
-                mm_tmp[3] = _mm_srli_si128(mm_c[7], 4);
-                CALC_EQUAL_COEFF_8PXLS(mm_c[2], mm_c[6], mm_c[3], mm_c[7], mm_tmp[0], mm_tmp[1], mm_tmp[2], mm_tmp[3], mm_intermediate[0]);
-                coef[3][3] += _mm_extract_epi64(mm_intermediate[0], 0) + _mm_extract_epi64(mm_intermediate[0], 1);
-
-                // 4th row
-                mm_tmp[0] = _mm_srli_si128(mm_c[3], 4);
-                mm_tmp[1] = _mm_srli_si128(mm_c[7], 4);
-                // 4th col of row
-                CALC_EQUAL_COEFF_8PXLS(mm_c[3], mm_c[7], mm_c[3], mm_c[7], mm_tmp[0], mm_tmp[1], mm_tmp[0], mm_tmp[1], mm_intermediate[0]);
-                coef[4][3] += _mm_extract_epi64(mm_intermediate[0], 0) + _mm_extract_epi64(mm_intermediate[0], 1);
-                // 5th col of row
-                mm_tmp[2] = _mm_srli_si128(mm_residue[0], 4);
-                mm_tmp[3] = _mm_srli_si128(mm_residue[1], 4);
-                CALC_EQUAL_COEFF_8PXLS(mm_c[3], mm_c[7], mm_residue[0], mm_residue[1], mm_tmp[0], mm_tmp[1], mm_tmp[2], mm_tmp[3], mm_intermediate[0]);
-                coef[4][4] += _mm_extract_epi64(mm_intermediate[0], 0) + _mm_extract_epi64(mm_intermediate[0], 1);
-            }
-            idx1 += (i_deriv << 1) - width;
-            idx2 += (i_deriv << 1) - width;
-            mm_idx_j[0] = _mm_add_epi16(mm_idx_j[0], mm_two_s16);
-            mm_idx_j[1] = _mm_add_epi16(mm_idx_j[1], mm_two_s16);
-        }
-        coef[1][4] <<= 3;
-        coef[2][4] <<= 3;
-        coef[3][4] <<= 3;
-        coef[4][4] <<= 3;
-        coef[2][0] = coef[1][1];
-        coef[3][0] = coef[1][2];
-        coef[4][0] = coef[1][3];
-        coef[3][1] = coef[2][2];
-        coef[4][1] = coef[2][3];
-        coef[4][2] = coef[3][3];
-    }
+    coef[1][4] <<= 3;
+    coef[2][4] <<= 3;
+    coef[3][4] <<= 3;
+    coef[4][4] <<= 3;
+    coef[2][0] = coef[1][1];
+    coef[3][0] = coef[1][2];
+    coef[4][0] = coef[1][3];
+    coef[3][1] = coef[2][2];
+    coef[4][1] = coef[2][3];
+    coef[4][2] = coef[3][3];
 }

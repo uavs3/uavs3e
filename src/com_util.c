@@ -3017,38 +3017,30 @@ static void affine_sobel_flt_ver(pel *pred, int i_pred, s16 *deriv, int i_deriv,
     }
 }
 
-static void affine_coef_computer(s16 *resi, int i_resi, s16(*deriv)[MAX_CU_DIM], int i_deriv, s64(*coef)[7], int width, int height, int vertex_num)
+static void affine_coef_computer(s16 *resi, int i_resi, s16(*deriv)[MAX_CU_DIM], int i_deriv, s64(*coef)[5], int width, int height)
 {
-    int affine_param_num = (vertex_num << 1);
     int j, k, col, row;
     for (j = 0; j != height; j++) {
         for (k = 0; k != width; k++) {
             s64 intermediates[2];
             int iC[6];
             int iIdx = j * i_deriv + k;
-            if (vertex_num == 2) {
-                iC[0] = deriv[0][iIdx];
-                iC[1] = k * deriv[0][iIdx];
-                iC[1] += j * deriv[1][iIdx];
-                iC[2] = deriv[1][iIdx];
-                iC[3] = j * deriv[0][iIdx];
-                iC[3] -= k * deriv[1][iIdx];
-            } else {
-                iC[0] = deriv[0][iIdx];
-                iC[1] = k * deriv[0][iIdx];
-                iC[2] = deriv[1][iIdx];
-                iC[3] = k * deriv[1][iIdx];
-                iC[4] = j * deriv[0][iIdx];
-                iC[5] = j * deriv[1][iIdx];
-            }
-            for (col = 0; col < affine_param_num; col++) {
+  
+            iC[0] = deriv[0][iIdx];
+            iC[1] = k * deriv[0][iIdx];
+            iC[1] += j * deriv[1][iIdx];
+            iC[2] = deriv[1][iIdx];
+            iC[3] = j * deriv[0][iIdx];
+            iC[3] -= k * deriv[1][iIdx];
+
+            for (col = 0; col < 4; col++) {
                 intermediates[0] = iC[col];
-                for (row = 0; row < affine_param_num; row++) {
+                for (row = 0; row < 4; row++) {
                     intermediates[1] = intermediates[0] * iC[row];
                     coef[col + 1][row] += intermediates[1];
                 }
                 intermediates[1] = intermediates[0] * resi[iIdx];
-                coef[col + 1][affine_param_num] += intermediates[1] * 8;
+                coef[col + 1][4] += intermediates[1] * 8;
             }
         }
     }

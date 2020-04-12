@@ -1179,7 +1179,7 @@ static void analyze_smvd(core_t *core, lbac_t *lbac_best)
     inter_rdcost(core, lbac_best, 0, 1, NULL, NULL);
 }
 
-static void solve_equal(double(*equal_coeff)[7], int order, double *affine_para)
+static void solve_equal(double(*equal_coeff)[5], int order, double *affine_para)
 {
     int i, j, k;
   
@@ -1242,7 +1242,7 @@ static u64 affine_me_gradient(inter_search_t *pi, int x, int y, int cu_width_log
 {
     int bit_depth = pi->bit_depth;
     CPMV mvt[VER_NUM][MV_D];
-    s16 mvd[VER_NUM][MV_D] = { 0 };
+    s16  mvd[VER_NUM][MV_D] = { 0 };
     int cu_width = 1 << cu_width_log2;
     int cu_height = 1 << cu_height_log2;
     u64 cost, cost_best = COM_UINT64_MAX;
@@ -1254,12 +1254,12 @@ static u64 affine_me_gradient(inter_search_t *pi, int x, int y, int cu_width_log
     int mv_bits, best_bits;
     int vertex, iter;
     int iter_num = bi ? AF_ITER_BI : AF_ITER_UNI;
-    int para_num = (2 << 1) + 1;
-    int affine_param_num = para_num - 1;
+    const int para_num = (2 << 1) + 1;
+    const int affine_param_num = para_num - 1;
     double affine_para[6];
     double delta_mv[6];
-    s64    equal_coeff_t[7][7];
-    double equal_coeff[7][7];
+    s64    equal_coeff_t[5][5];
+    double equal_coeff  [5][5];
     ALIGNED_32(s16 error[MAX_CU_DIM]);
     ALIGNED_32(s16 derivate[2][MAX_CU_DIM]);
     u32 lambda_mv = pi->lambda_mv;
@@ -1279,8 +1279,6 @@ static u64 affine_me_gradient(inter_search_t *pi, int x, int y, int cu_width_log
     cost_best += calc_satd_16b(cu_width, cu_height, org, pred, s_org, cu_width, bit_depth) >> bi;
 
     for (iter = 0; iter < iter_num; iter++) {
-        int row, col;
-        int all_zero = 0;
         block_pel_sub(cu_width_log2, cu_height_log2, org, pred, s_org, cu_width, cu_width, error);
         // sobel x direction
         // -1 0 1
@@ -1292,15 +1290,17 @@ static u64 affine_me_gradient(inter_search_t *pi, int x, int y, int cu_width_log
         //  0  0  0
         //  1  2  1
         uavs3e_funs_handle.affine_sobel_flt_ver(pred, cu_width, derivate[1], cu_width, cu_width, cu_height);
+
         // solve delta x and y
-        for (row = 0; row < para_num; row++) {
-            com_mset(&equal_coeff_t[row][0], 0, para_num * sizeof(s64));
-        }
-        uavs3e_funs_handle.affine_coef_computer(error, cu_width, derivate, cu_width, equal_coeff_t, cu_width, cu_height, 2);
-        for (row = 0; row < para_num; row++) {
-            for (col = 0; col < para_num; col++) {
-                equal_coeff[row][col] = (double)equal_coeff_t[row][col];
-            }
+        com_mset(equal_coeff_t, 0, para_num * para_num * sizeof(s64));
+        uavs3e_funs_handle.affine_coef_computer(error, cu_width, derivate, cu_width, equal_coeff_t, cu_width, cu_height);
+
+        for (int row = 0; row < para_num; row++) {
+            equal_coeff[row][0] = (double)equal_coeff_t[row][0];
+            equal_coeff[row][1] = (double)equal_coeff_t[row][1];
+            equal_coeff[row][2] = (double)equal_coeff_t[row][2];
+            equal_coeff[row][3] = (double)equal_coeff_t[row][3];
+            equal_coeff[row][4] = (double)equal_coeff_t[row][4];
         }
         solve_equal(equal_coeff, affine_param_num, affine_para);
         // convert to delta mv
@@ -1333,14 +1333,7 @@ static u64 affine_me_gradient(inter_search_t *pi, int x, int y, int cu_width_log
         }
 
         // check early terminate
-        for (vertex = 0; vertex < 2; vertex++) {
-            if (mvd[vertex][MV_X] != 0 || mvd[vertex][MV_Y] != 0) {
-                all_zero = 0;
-                break;
-            }
-            all_zero = 1;
-        }
-        if (all_zero) {
+        if (!M64(mvd)) {
             break;
         }
 
