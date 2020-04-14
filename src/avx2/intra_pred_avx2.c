@@ -400,147 +400,143 @@ void uavs3e_ipred_dc_avx2(pel *src, pel *dst, int i_dst, int width, int height, 
     }
 }
 
+static u8 avs3_always_inline get_context_pixel(int mode, int xyflag, int d, u8 *offset)
+{
+    int imult = tab_auc_dir_dxdy[xyflag][mode][0];
+    int ishift = tab_auc_dir_dxdy[xyflag][mode][1];
+    int dn = d * imult >> ishift;
+    *offset = (u8)(((d * imult * 32) >> ishift) - dn * 32);
+    return (u8)dn;
+}
+
+static u8 uavs3e_ipred_offsets[IPD_CNT - 3][2][64];
+static u8 uavs3e_ipred_steps[IPD_CNT - 3][2][64];
+void uavs3e_ipred_offsets_seteps_init() {
+    int mode, i;
+
+    for (mode = 3; mode < IPD_CNT; mode++) {
+        for (i = 0; i < 64; i++) {
+            uavs3e_ipred_steps[mode - 3][0][i] = get_context_pixel(mode, 0, i + 1, &uavs3e_ipred_offsets[mode - 3][0][i]);
+            uavs3e_ipred_steps[mode - 3][1][i] = get_context_pixel(mode, 1, i + 1, &uavs3e_ipred_offsets[mode - 3][1][i]);
+        }
+    }
+}
+
 void uavs3e_ipred_ang_x_avx2(pel *src, pel *dst, int i_dst, int mode, int width, int height)
 {
-    int offset;
-    __m128i mAddOffset = _mm_set1_epi16(64);
+    u8 *psteps = uavs3e_ipred_steps[mode - 3][0];
+    u8 *poffsets = uavs3e_ipred_offsets[mode - 3][0];
 
     if (width == 4) {
-        __m256i mSwitch = _mm256_setr_epi8(0, 1, 2, 3, 1, 2, 3, 4, 2, 3, 4, 5, 3, 4, 5, 6, 0, 1, 2, 3, 1, 2, 3, 4, 2, 3, 4, 5, 3, 4, 5, 6);
-        int j;
+        int i, j;
+        int width2 = width << 1;
 
-        for (j = 0; j < height; j += 2) {
-            int offset2;
-            pel *p0 = src + getContextPixel(mode, 0, j + 1, &offset);
-            pel *p1 = src + getContextPixel(mode, 0, j + 2, &offset2);
-            int c0 = 32 - offset;
-            int c1 = 64 - offset;
-            int c2 = 32 + offset;
-            int c3 = offset;
-            int c4 = 32 - offset2;
-            int c5 = 64 - offset2;
-            int c6 = 32 + offset2;
-            int c7 = offset2;
-            __m256i P = _mm256_set_m128i(_mm_loadl_epi64((__m128i*)p1), _mm_loadl_epi64((__m128i*)p0));
-            __m256i C = _mm256_setr_epi8(c0, c1, c2, c3, c0, c1, c2, c3, c0, c1, c2, c3, c0, c1, c2, c3, c4, c5, c6, c7, c4, c5, c6, c7, c4, c5, c6, c7, c4, c5, c6, c7);
-            __m256i T = _mm256_maddubs_epi16(_mm256_shuffle_epi8(P, mSwitch), C);
-            __m128i m0, m1;
+        for (j = 0; j < height; j++) {
+            int c0, c1, c2, c3;
+            int idx = psteps[j];
+            int offset = poffsets[j];
+            int pred_width = COM_MIN(width, width2 - idx + 1);
 
-            m0 = _mm256_castsi256_si128(T);
-            m1 = _mm256_extracti128_si256(T, 1);
+            c0 = 32 - offset;
+            c1 = 64 - offset;
+            c2 = 32 + offset;
+            c3 = offset;
 
-            m0 = _mm_hadd_epi16(m0, m1);
-            m0 = _mm_add_epi16(m0, mAddOffset);
-            m0 = _mm_srai_epi16(m0, 7);
-            m0 = _mm_packus_epi16(m0, m0);
-            *(int*)dst = _mm_extract_epi32(m0, 0);
-            dst += i_dst;
-            *(int*)dst = _mm_extract_epi32(m0, 1);
+            for (i = 0; i < pred_width; i++, idx++) {
+                dst[i] = (src[idx] * c0 + src[idx + 1] * c1 + src[idx + 2] * c2 + src[idx + 3] * c3 + 64) >> 7;
+            }
+            for (i = pred_width; i < width; i++) {
+                dst[i] = dst[pred_width - 1];
+            }
             dst += i_dst;
         }
     }
     else if (width == 8) {
-        __m256i off = _mm256_set1_epi16(64);
-        __m256i mSwitch0 = _mm256_setr_epi8(0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8);
-        __m256i mSwitch1 = _mm256_setr_epi8(2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10);
-        int j;
-        for (j = 0; j < height; j += 2) {
-            int offset2;
-            pel *p0 = src + getContextPixel(mode, 0, j + 1, &offset);
-            pel *p1 = src + getContextPixel(mode, 0, j + 2, &offset2);
-            int coef0 = ((64 - offset) << 8) | (32 - offset);
-            int coef1 = (offset << 8) | (32 + offset);
-            int coef2 = ((64 - offset2) << 8) | (32 - offset2);
-            int coef3 = (offset2 << 8) | (32 + offset2);
-            __m256i C0 = _mm256_set_epi16(coef2, coef2, coef2, coef2, coef2, coef2, coef2, coef2, coef0, coef0, coef0, coef0, coef0, coef0, coef0, coef0);
-            __m256i C1 = _mm256_set_epi16(coef3, coef3, coef3, coef3, coef3, coef3, coef3, coef3, coef1, coef1, coef1, coef1, coef1, coef1, coef1, coef1);
-
-            __m256i mSrc0;
-            __m256i T0, T1;
+        __m128i off = _mm_set1_epi16(64);
+        __m256i mSwitch = _mm256_setr_epi8(0, 1, 2, 3, 1, 2, 3, 4, 2, 3, 4, 5, 3, 4, 5, 6, 0, 1, 2, 3, 1, 2, 3, 4, 2, 3, 4, 5, 3, 4, 5, 6);
+        int j, i;
+        for (j = 0; j < height; j++) {
+            int idx = psteps[j];
+            int offset = poffsets[j];
+            pel *psrc = src + idx;
+            int c0 = 32 - offset;
+            int c1 = 64 - offset;
+            int c2 = 32 + offset;
+            int c3 = offset;
+            int pred_width = COM_MIN(8, 16 - idx + 1);
+            int coef = ((c3 << 24)) | (c2 << 16) | (c1 << 8) | c0;
+            __m256i C = _mm256_set1_epi32(coef);
+            __m256i mSrc, T;
             __m128i m0, m1;
 
-            mSrc0 = _mm256_set_m128i(_mm_loadu_si128((__m128i*)(p1)), _mm_loadu_si128((__m128i*)(p0)));
+            mSrc = _mm256_set_m128i(_mm_loadl_epi64((__m128i*)(psrc + 4)), _mm_loadl_epi64((__m128i*)(psrc)));
 
-            T0 = _mm256_shuffle_epi8(mSrc0, mSwitch0);
-            T1 = _mm256_shuffle_epi8(mSrc0, mSwitch1);
-            T0 = _mm256_maddubs_epi16(T0, C0);
-            T1 = _mm256_maddubs_epi16(T1, C1);
-
-            T0 = _mm256_add_epi16(T0, T1);
-            T0 = _mm256_add_epi16(T0, off);
-            T0 = _mm256_srai_epi16(T0, 7);
-
-            m0 = _mm256_castsi256_si128(T0);
-            m1 = _mm256_extracti128_si256(T0, 1);
-
-            m0 = _mm_packus_epi16(m0, m1);
-
+            T = _mm256_shuffle_epi8(mSrc, mSwitch);
+            T = _mm256_maddubs_epi16(T, C);
+            m0 = _mm256_castsi256_si128(T);
+            m1 = _mm256_extracti128_si256(T, 1);
+            m0 = _mm_hadd_epi16(m0, m1);
+            m0 = _mm_add_epi16(m0, off);
+            m0 = _mm_srai_epi16(m0, 7);
+            m0 = _mm_packus_epi16(m0, m0);
             _mm_storel_epi64((__m128i*)dst, m0);
-            _mm_storel_epi64((__m128i*)(dst + i_dst), _mm_srli_si128(m0, 8));
-            dst += i_dst << 1;
+
+            for (i = pred_width; i < width; i++) {
+                dst[i] = dst[pred_width - 1];
+            }
+            dst += i_dst;
         }
     }
     else if (width == 12) {
-        __m256i off = _mm256_set1_epi16(64);
-        __m256i mSwitch0 = _mm256_setr_epi8(0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8);
-        __m256i mSwitch1 = _mm256_setr_epi8(2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10);
-        int j;
-        for (j = 0; j < height; j += 2) {
-            int offset2;
-            pel *p0 = src + getContextPixel(mode, 0, j + 1, &offset);
-            pel *p1 = src + getContextPixel(mode, 0, j + 2, &offset2);
-            int coef0 = ((64 - offset) << 8) | (32 - offset);
-            int coef1 = (offset << 8) | (32 + offset);
-            int coef2 = ((64 - offset2) << 8) | (32 - offset2);
-            int coef3 = (offset2 << 8) | (32 + offset2);
-            __m256i C0 = _mm256_set_epi16(coef2, coef2, coef2, coef2, coef2, coef2, coef2, coef2, coef0, coef0, coef0, coef0, coef0, coef0, coef0, coef0);
-            __m256i C1 = _mm256_set_epi16(coef3, coef3, coef3, coef3, coef3, coef3, coef3, coef3, coef1, coef1, coef1, coef1, coef1, coef1, coef1, coef1);
-
-            __m256i mSrc0, mSrc1;
-            __m256i T0, T1, T2, T3;
+        __m128i off = _mm_set1_epi16(64);
+        __m256i mSwitch = _mm256_setr_epi8(0, 1, 2, 3, 1, 2, 3, 4, 2, 3, 4, 5, 3, 4, 5, 6, 0, 1, 2, 3, 1, 2, 3, 4, 2, 3, 4, 5, 3, 4, 5, 6);
+        int j, i;
+        for (j = 0; j < height; j++) {
+            int idx = psteps[j];
+            int offset = poffsets[j];
+            pel *psrc = src + idx;
+            int c0 = 32 - offset;
+            int c1 = 64 - offset;
+            int c2 = 32 + offset;
+            int c3 = offset;
+            int pred_width = COM_MIN(12, 24 - idx + 1);
+            int coef = ((c3 << 24)) | (c2 << 16) | (c1 << 8) | c0;
+            __m256i C = _mm256_set1_epi32(coef);
+            __m256i mSrc, T;
             __m128i m0, m1;
 
-            mSrc0 = _mm256_set_m128i(_mm_loadu_si128((__m128i*)(p1)), _mm_loadu_si128((__m128i*)(p0)));
-            mSrc1 = _mm256_set_m128i(_mm_loadl_epi64((__m128i*)(p1 + 8)), _mm_loadl_epi64((__m128i*)(p0 + 8)));
+            mSrc = _mm256_set_m128i(_mm_loadl_epi64((__m128i*)(psrc + 4)), _mm_loadl_epi64((__m128i*)(psrc)));
 
-            T0 = _mm256_shuffle_epi8(mSrc0, mSwitch0);
-            T1 = _mm256_shuffle_epi8(mSrc0, mSwitch1);
-            T2 = _mm256_shuffle_epi8(mSrc1, mSwitch0);
-            T3 = _mm256_shuffle_epi8(mSrc1, mSwitch1);
-            T0 = _mm256_maddubs_epi16(T0, C0);
-            T1 = _mm256_maddubs_epi16(T1, C1);
-            T2 = _mm256_maddubs_epi16(T2, C0);
-            T3 = _mm256_maddubs_epi16(T3, C1);
-
-            T0 = _mm256_add_epi16(T0, T1);
-            T2 = _mm256_add_epi16(T2, T3);
-            T0 = _mm256_add_epi16(T0, off);
-            T2 = _mm256_add_epi16(T2, off);
-            T0 = _mm256_srai_epi16(T0, 7);
-            T2 = _mm256_srai_epi16(T2, 7);
-            T0 = _mm256_packus_epi16(T0, T2);
-            T0 = _mm256_permute4x64_epi64(T0, 0xd8);
-
-            m0 = _mm256_castsi256_si128(T0);
-            m1 = _mm256_extracti128_si256(T0, 1);
-
+            T = _mm256_shuffle_epi8(mSrc, mSwitch);
+            T = _mm256_maddubs_epi16(T, C);
+            m0 = _mm256_castsi256_si128(T);
+            m1 = _mm256_extracti128_si256(T, 1);
+            m0 = _mm_hadd_epi16(m0, m1);
+            m0 = _mm_add_epi16(m0, off);
+            m0 = _mm_srai_epi16(m0, 7);
+            m0 = _mm_packus_epi16(m0, m0);
             _mm_storel_epi64((__m128i*)dst, m0);
-            *(int*)(dst + 8) = _mm_extract_epi32(m1, 0);
-            m0 = _mm_srli_si128(m0, 8);
-            dst += i_dst;
-            _mm_storel_epi64((__m128i*)(dst), m0);
-            *(int*)(dst + 8) = _mm_extract_epi32(m1, 2);
+
+            psrc += 8;
+            for (i = 8; i < pred_width; i++, psrc++) {
+                dst[i] = (psrc[0] * c0 + psrc[1] * c1 + psrc[2] * c2 + psrc[3] * c3 + 64) >> 7;
+            }
+            for (i = pred_width; i < width; i++) {
+                dst[i] = dst[pred_width - 1];
+            }
             dst += i_dst;
         }
-
     }
     else if (width == 24) {
         __m256i off = _mm256_set1_epi16(64);
         __m256i mSwitch0 = _mm256_setr_epi8(0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8);
         __m256i mSwitch1 = _mm256_setr_epi8(2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10);
-        int j;
+        int j, i;
         for (j = 0; j < height; j++) {
-            pel *p0 = src + getContextPixel(mode, 0, j + 1, &offset);
+            int idx = psteps[j];
+            int offset = poffsets[j];
+            pel *p0 = src + idx;
+            int pred_width = COM_MIN(24, 48 - idx + 1);
             int coef0 = ((64 - offset) << 8) | (32 - offset);
             int coef1 = (offset << 8) | (32 + offset);
             __m256i C0 = _mm256_set1_epi16(coef0);
@@ -571,6 +567,10 @@ void uavs3e_ipred_ang_x_avx2(pel *src, pel *dst, int i_dst, int mode, int width,
 
             _mm_storeu_si128((__m128i*)dst, _mm256_castsi256_si128(T0));
             _mm_storel_epi64((__m128i*)(dst + 16), _mm256_extracti128_si256(T0, 1));
+
+            for (i = pred_width; i < width; i++) {
+                dst[i] = dst[pred_width - 1];
+            }
             dst += i_dst;
         }
     }
@@ -580,14 +580,18 @@ void uavs3e_ipred_ang_x_avx2(pel *src, pel *dst, int i_dst, int mode, int width,
         __m256i mSwitch1 = _mm256_setr_epi8(2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10);
         int j, col;
         for (j = 0; j < height; j++) {
-            pel *p = src + getContextPixel(mode, 0, j + 1, &offset);
+            int idx = psteps[j];
+            int offset = poffsets[j];
+            int width2 = width << 1;
+            pel *p = src + idx;
+            int pred_width = COM_MIN(width, width2 - idx + 1);
             int coef0 = ((64 - offset) << 8) | (32 - offset);
             int coef1 = (offset << 8) | (32 + offset);
             __m256i C0 = _mm256_set1_epi16(coef0);
             __m256i C1 = _mm256_set1_epi16(coef1);
             __m128i m0, m1;
 
-            for (col = 0; col < width; col += 16) {
+            for (col = 0; col < pred_width; col += 16) {
                 __m256i mSrc0 = _mm256_set_m128i(_mm_loadu_si128((__m128i*)(p + col + 8)), _mm_loadu_si128((__m128i*)(p + col)));
                 __m256i T0, T1;
 
@@ -603,6 +607,9 @@ void uavs3e_ipred_ang_x_avx2(pel *src, pel *dst, int i_dst, int mode, int width,
                 m0 = _mm_packus_epi16(m0, m1);
 
                 _mm_storeu_si128((__m128i*)(dst + col), m0);
+            }
+            for (col = pred_width; col < width; col++) {
+                dst[col] = dst[pred_width - 1];
             }
             dst += i_dst;
         }
@@ -1495,22 +1502,31 @@ void uavs3e_ipred_ang_x_10_avx2(pel *src, pel *dst, int i_dst, int mode, int wid
 
 void uavs3e_ipred_ang_y_avx2(pel *src, pel *dst, int i_dst, int mode, int width, int height)
 {
-
+    u8 *poffsets = uavs3e_ipred_offsets[mode - 3][1];
+    u8 *psteps = uavs3e_ipred_steps[mode - 3][1];
     if (height == 4) {
         __m128i mAddOffset = _mm_set1_epi16(64);
         __m128i mSwitch = _mm_setr_epi8(3, 4, 5, 6, 2, 3, 4, 5, 1, 2, 3, 4, 0, 1, 2, 3);
+        __m128i m_c_32 = _mm_set1_epi8(32);
+        __m128i m_c_64 = _mm_set1_epi8(64);
 
         for (int i = 0; i < width; i += 4) {
-            int offset1, offset2, offset3, offset4;
-            pel *p1 = src - getContextPixel(mode, 1, i + 1, &offset1) - 6;
-            pel *p2 = src - getContextPixel(mode, 1, i + 2, &offset2) - 6;
-            pel *p3 = src - getContextPixel(mode, 1, i + 3, &offset3) - 6;
-            pel *p4 = src - getContextPixel(mode, 1, i + 4, &offset4) - 6;
+            pel *p1 = src - psteps[i] - 6;
+            pel *p2 = src - psteps[i + 1] - 6;
+            pel *p3 = src - psteps[i + 2] - 6;
+            pel *p4 = src - psteps[i + 3] - 6;
+            __m128i m_c0 = _mm_loadl_epi64((const __m128i*)(poffsets + i));
+            __m128i m_c1 = _mm_add_epi8(m_c0, m_c_32);
+            __m128i m_c2 = _mm_sub_epi8(m_c_64, m_c0);
+            __m128i m_c3 = _mm_sub_epi8(m_c_32, m_c0);
+            m_c0 = _mm_unpacklo_epi8(m_c0, m_c1);
+            m_c2 = _mm_unpacklo_epi8(m_c2, m_c3);
+            m_c0 = _mm_unpacklo_epi16(m_c0, m_c2);
 
-            __m128i C1 = _mm_set1_epi32(((32 - offset1) << 24) | ((64 - offset1) << 16) | ((32 + offset1) << 8) | offset1);
-            __m128i C2 = _mm_set1_epi32(((32 - offset2) << 24) | ((64 - offset2) << 16) | ((32 + offset2) << 8) | offset2);
-            __m128i C3 = _mm_set1_epi32(((32 - offset3) << 24) | ((64 - offset3) << 16) | ((32 + offset3) << 8) | offset3);
-            __m128i C4 = _mm_set1_epi32(((32 - offset4) << 24) | ((64 - offset4) << 16) | ((32 + offset4) << 8) | offset4);
+            __m128i C1 = _mm_set1_epi32(_mm_extract_epi32(m_c0, 0));
+            __m128i C2 = _mm_set1_epi32(_mm_extract_epi32(m_c0, 1));
+            __m128i C3 = _mm_set1_epi32(_mm_extract_epi32(m_c0, 2));
+            __m128i C4 = _mm_set1_epi32(_mm_extract_epi32(m_c0, 3));
 
             __m128i T1 = _mm_maddubs_epi16(_mm_shuffle_epi8(_mm_loadl_epi64((__m128i*)p1), mSwitch), C1);
             __m128i T2 = _mm_maddubs_epi16(_mm_shuffle_epi8(_mm_loadl_epi64((__m128i*)p2), mSwitch), C2);
@@ -1533,8 +1549,9 @@ void uavs3e_ipred_ang_y_avx2(pel *src, pel *dst, int i_dst, int mode, int width,
     }
     else if (height == 12) {
         for (int i = 0; i < width; i++) {
-            int offset;
-            pel *p = src - getContextPixel(mode, 1, i + 1, &offset);
+            int offset = poffsets[i];
+            int idx = psteps[i];
+            pel *p = src - idx;
 
             for (int j = 0; j < height; j++, p--) {
                 dst[j*i_dst] = (p[0] * (32 - offset) + p[-1] * (64 - offset) + p[-2] * (32 + offset) + p[-3] * offset + 64) >> 7;
@@ -1549,11 +1566,14 @@ void uavs3e_ipred_ang_y_avx2(pel *src, pel *dst, int i_dst, int mode, int width,
             __m256i mSwitch2 = _mm256_setr_epi8(9, 10, 8, 9, 7, 8, 6, 7, 5, 6, 4, 5, 3, 4, 2, 3, 9, 10, 8, 9, 7, 8, 6, 7, 5, 6, 4, 5, 3, 4, 2, 3);
             __m128i m0, m1;
 
-            int offset1, offset2, offset3, offset4;
-            pel *p1 = src - getContextPixel(mode, 1, 1, &offset1) - 10;
-            pel *p2 = src - getContextPixel(mode, 1, 2, &offset2) - 10;
-            pel *p3 = src - getContextPixel(mode, 1, 3, &offset3) - 10;
-            pel *p4 = src - getContextPixel(mode, 1, 4, &offset4) - 10;
+            int offset1 = poffsets[0];
+            int offset2 = poffsets[1];
+            int offset3 = poffsets[2];
+            int offset4 = poffsets[3];
+            pel *p1 = src - psteps[0] - 10;
+            pel *p2 = src - psteps[1] - 10;
+            pel *p3 = src - psteps[2] - 10;
+            pel *p4 = src - psteps[3] - 10;
 
             __m128i C1_1 = _mm_set1_epi16(((32 + offset1) << 8) | offset1);
             __m128i C2_1 = _mm_set1_epi16(((32 + offset2) << 8) | offset2);
@@ -1609,8 +1629,8 @@ void uavs3e_ipred_ang_y_avx2(pel *src, pel *dst, int i_dst, int mode, int width,
         }
         else if (width == 12) {
             for (int i = 0; i < width; i++) {
-                int offset;
-                pel *p = src - getContextPixel(mode, 1, i + 1, &offset);
+                int offset = poffsets[i];
+                pel *p = src - psteps[i];
 
                 for (int j = 0; j < height; j++, p--) {
                     dst[j*i_dst] = (p[0] * (32 - offset) + p[-1] * (64 - offset) + p[-2] * (32 + offset) + p[-3] * offset + 64) >> 7;
@@ -1621,42 +1641,39 @@ void uavs3e_ipred_ang_y_avx2(pel *src, pel *dst, int i_dst, int mode, int width,
         else { // width == 8x && height == 8x
             __m256i mSwitch1 = _mm256_setr_epi8(7, 8, 6, 7, 5, 6, 4, 5, 3, 4, 2, 3, 1, 2, 0, 1, 7, 8, 6, 7, 5, 6, 4, 5, 3, 4, 2, 3, 1, 2, 0, 1);
             __m256i mSwitch2 = _mm256_setr_epi8(9, 10, 8, 9, 7, 8, 6, 7, 5, 6, 4, 5, 3, 4, 2, 3, 9, 10, 8, 9, 7, 8, 6, 7, 5, 6, 4, 5, 3, 4, 2, 3);
-
+            __m128i m_c_32 = _mm_set1_epi8(32);
+            __m128i m_c_64 = _mm_set1_epi8(64);
+            __m256i m256_shuffle_c[4];
+            m256_shuffle_c[0] = _mm256_set_m128i(_mm_set1_epi16(((8 + 1) << 8) + 8), _mm_set1_epi16(((0 + 1) << 8) + 0));
+            m256_shuffle_c[1] = _mm256_set_m128i(_mm_set1_epi16(((10 + 1) << 8) + 10), _mm_set1_epi16(((2 + 1) << 8) + 2));
+            m256_shuffle_c[2] = _mm256_set_m128i(_mm_set1_epi16(((12 + 1) << 8) + 12), _mm_set1_epi16(((4 + 1) << 8) + 4));
+            m256_shuffle_c[3] = _mm256_set_m128i(_mm_set1_epi16(((14 + 1) << 8) + 14), _mm_set1_epi16(((6 + 1) << 8) + 6));
             for (int i = 0; i < width; i += 8) {
-                int offset1, offset2, offset3, offset4, offset5, offset6, offset7, offset8;
-                pel *p1 = src - getContextPixel(mode, 1, i + 1, &offset1) - 10;
-                pel *p2 = src - getContextPixel(mode, 1, i + 2, &offset2) - 10;
-                pel *p3 = src - getContextPixel(mode, 1, i + 3, &offset3) - 10;
-                pel *p4 = src - getContextPixel(mode, 1, i + 4, &offset4) - 10;
-                pel *p5 = src - getContextPixel(mode, 1, i + 5, &offset5) - 10;
-                pel *p6 = src - getContextPixel(mode, 1, i + 6, &offset6) - 10;
-                pel *p7 = src - getContextPixel(mode, 1, i + 7, &offset7) - 10;
-                pel *p8 = src - getContextPixel(mode, 1, i + 8, &offset8) - 10;
+                pel *p1 = src - psteps[i + 0] - 10;
+                pel *p2 = src - psteps[i + 1] - 10;
+                pel *p3 = src - psteps[i + 2] - 10;
+                pel *p4 = src - psteps[i + 3] - 10;
+                pel *p5 = src - psteps[i + 4] - 10;
+                pel *p6 = src - psteps[i + 5] - 10;
+                pel *p7 = src - psteps[i + 6] - 10;
+                pel *p8 = src - psteps[i + 7] - 10;
+                __m128i m_c0 = _mm_loadl_epi64((const __m128i*)(poffsets + i));
+                __m128i m_c1 = _mm_add_epi8(m_c0, m_c_32);
+                __m128i m_c2 = _mm_sub_epi8(m_c_64, m_c0);
+                __m128i m_c3 = _mm_sub_epi8(m_c_32, m_c0);
+                __m128i m_c01 = _mm_unpacklo_epi8(m_c0, m_c1);
+                __m128i m_c23 = _mm_unpacklo_epi8(m_c2, m_c3);
+                __m256i m256_c01 = _mm256_set_m128i(m_c01, m_c01);
+                __m256i m256_c23 = _mm256_set_m128i(m_c23, m_c23);
 
-                __m128i C1_1 = _mm_set1_epi16(((32 + offset1) << 8) | offset1);
-                __m128i C2_1 = _mm_set1_epi16(((32 + offset2) << 8) | offset2);
-                __m128i C3_1 = _mm_set1_epi16(((32 + offset3) << 8) | offset3);
-                __m128i C4_1 = _mm_set1_epi16(((32 + offset4) << 8) | offset4);
-                __m128i C5_1 = _mm_set1_epi16(((32 + offset5) << 8) | offset5);
-                __m128i C6_1 = _mm_set1_epi16(((32 + offset6) << 8) | offset6);
-                __m128i C7_1 = _mm_set1_epi16(((32 + offset7) << 8) | offset7);
-                __m128i C8_1 = _mm_set1_epi16(((32 + offset8) << 8) | offset8);
-                __m256i C15_1 = _mm256_set_m128i(C5_1, C1_1);
-                __m256i C26_1 = _mm256_set_m128i(C6_1, C2_1);
-                __m256i C37_1 = _mm256_set_m128i(C7_1, C3_1);
-                __m256i C48_1 = _mm256_set_m128i(C8_1, C4_1);
-                __m128i C1_2 = _mm_set1_epi16(((32 - offset1) << 8) | (64 - offset1));
-                __m128i C2_2 = _mm_set1_epi16(((32 - offset2) << 8) | (64 - offset2));
-                __m128i C3_2 = _mm_set1_epi16(((32 - offset3) << 8) | (64 - offset3));
-                __m128i C4_2 = _mm_set1_epi16(((32 - offset4) << 8) | (64 - offset4));
-                __m128i C5_2 = _mm_set1_epi16(((32 - offset5) << 8) | (64 - offset5));
-                __m128i C6_2 = _mm_set1_epi16(((32 - offset6) << 8) | (64 - offset6));
-                __m128i C7_2 = _mm_set1_epi16(((32 - offset7) << 8) | (64 - offset7));
-                __m128i C8_2 = _mm_set1_epi16(((32 - offset8) << 8) | (64 - offset8));
-                __m256i C15_2 = _mm256_set_m128i(C5_2, C1_2);
-                __m256i C26_2 = _mm256_set_m128i(C6_2, C2_2);
-                __m256i C37_2 = _mm256_set_m128i(C7_2, C3_2);
-                __m256i C48_2 = _mm256_set_m128i(C8_2, C4_2);
+                __m256i C15_1 = _mm256_shuffle_epi8(m256_c01, m256_shuffle_c[0]);
+                __m256i C26_1 = _mm256_shuffle_epi8(m256_c01, m256_shuffle_c[1]);
+                __m256i C37_1 = _mm256_shuffle_epi8(m256_c01, m256_shuffle_c[2]);
+                __m256i C48_1 = _mm256_shuffle_epi8(m256_c01, m256_shuffle_c[3]);
+                __m256i C15_2 = _mm256_shuffle_epi8(m256_c23, m256_shuffle_c[0]);
+                __m256i C26_2 = _mm256_shuffle_epi8(m256_c23, m256_shuffle_c[1]);
+                __m256i C37_2 = _mm256_shuffle_epi8(m256_c23, m256_shuffle_c[2]);
+                __m256i C48_2 = _mm256_shuffle_epi8(m256_c23, m256_shuffle_c[3]);
 
                 for (int j = 0; j < height; j += 8) {
                     __m256i mSrc15 = _mm256_loadu2_m128i((__m128i*)p5, (__m128i*)p1);
@@ -2309,12 +2326,10 @@ void uavs3e_ipred_ang_y_32_avx2(pel *src, pel *dst, int i_dst, int mode, int wid
 #define IPRED_ANG_XY_Y4(py, xsteps, xoffsets, shuffle, sign, c, off, shift, dst) \
 { \
         __m128i s, d;                               \
-        __m128i coeff = _mm_loadu_si128((const __m128i*)(xoffsets));                                                            \
+        __m128i coeff = _mm_set1_epi32(*(s32*)(xoffsets));                                                                      \
         s = _mm_set_epi32(*(s32*)(py + xsteps[3]), *(s32*)(py + xsteps[2]), *(s32*)(py + xsteps[1]), *(s32*)(py + xsteps[0]));  \
-        coeff = _mm_packus_epi32(coeff, coeff);                                                                                 \
-        coeff = _mm_packus_epi16(coeff, coeff);                                                                                 \
         coeff = _mm_sign_epi8(coeff, sign);                                                                                     \
-        coeff = _mm_add_epi8(coeff, c);                                                                                        \
+        coeff = _mm_add_epi8(coeff, c);                                                                                         \
         coeff = _mm_shuffle_epi8(coeff, shuffle);                                                                               \
         d = _mm_maddubs_epi16(s, coeff);                                                                                        \
         d = _mm_hadd_epi16(d, d);                                                                                               \
@@ -2326,11 +2341,9 @@ void uavs3e_ipred_ang_y_32_avx2(pel *src, pel *dst, int i_dst, int mode, int wid
 #define IPRED_ANG_XY_Y8(py, xsteps, xoffsets, shuffle, sign, c, off, shift, dst) \
 { \
         __m128i d;                               \
-        __m256i coeff = _mm256_loadu_si256((const __m256i*)(xoffsets));                                                         \
+        __m256i coeff = _mm256_set_m128i(_mm_set1_epi32(*(s32*)(xoffsets + 4)), _mm_set1_epi32(*(s32*)(xoffsets)));             \
         __m256i s = _mm256_set_epi32(*(s32*)(py + xsteps[7]), *(s32*)(py + xsteps[6]), *(s32*)(py + xsteps[5]), *(s32*)(py + xsteps[4]), \
                 *(s32*)(py + xsteps[3]), *(s32*)(py + xsteps[2]), *(s32*)(py + xsteps[1]), *(s32*)(py + xsteps[0]));            \
-        coeff = _mm256_packus_epi32(coeff, coeff);                                                                              \
-        coeff = _mm256_packus_epi16(coeff, coeff);                                                                              \
         coeff = _mm256_sign_epi8(coeff, sign);                                                                                  \
         coeff = _mm256_add_epi8(coeff, c);                                                                                      \
         coeff = _mm256_shuffle_epi8(coeff, shuffle);                                                                            \
@@ -2647,54 +2660,12 @@ void uavs3e_ipred_ang_xy_14_avx2(pel *src, pel *dst, int i_dst, int mode, int wi
     }
 }
 
-static int uavs3e_ipred_xoffsets[5][64];
-static int uavs3e_ipred_xsteps[5][64];
-void uavs3e_ipred_offsets_seteps_init() {
-    int i, d;
-
-    // XY_15
-    d = 11;
-    for (i = 0; i < 64; i++, d += 11) {
-        uavs3e_ipred_xoffsets[0][i] = (d << 3) & 0x1f;
-        uavs3e_ipred_xsteps[0][i] = (d >> 2);
-    }
-
-    // XY_17
-    d = 11;
-    for (i = 0; i < 64; i++, d += 11) {
-        uavs3e_ipred_xoffsets[1][i] = (d << 2) & 0x1f;
-        uavs3e_ipred_xsteps[1][i] = d >> 3;
-    }
-
-    // XY_19
-    d = 93;
-    for (i = 0; i < 64; i++, d += 93) {
-        uavs3e_ipred_xoffsets[2][i] = (d >> 2) & 0x1f;
-        uavs3e_ipred_xsteps[2][i] = d >> 7;
-    }
-
-    // XY_21
-    d = 93;
-    for (i = 0; i < 64; i++, d += 93) {
-        uavs3e_ipred_xoffsets[3][i] = (d >> 3) & 0x1f;
-        uavs3e_ipred_xsteps[3][i] = d >> 8;
-    }
-
-    // XY_23
-    d = 1;
-    for (i = 0; i < 64; i++, d++) {
-        uavs3e_ipred_xoffsets[4][i] = (d << 2) & 0x1f;
-        uavs3e_ipred_xsteps[4][i] = d >> 3;
-    }
-
-}
-
 void uavs3e_ipred_ang_xy_15_avx2(pel *src, pel *dst, int i_dst, int uiDirMode, int width, int height)
 {
     int i, j;
     pel *psrc = src;
-    int *xoffsets = uavs3e_ipred_xoffsets[0];
-    int *xsteps = uavs3e_ipred_xsteps[0];
+    u8 *xoffsets = uavs3e_ipred_offsets[15-3][1];
+    u8 *xsteps = uavs3e_ipred_steps[15-3][1];
     int d = 93;
 
     __m256i shuffle_x = _mm256_setr_epi8(0, 1, 2, 3, 1, 2, 3, 4, 2, 3, 4, 5, 3, 4, 5, 6, 0, 1, 2, 3, 1, 2, 3, 4, 2, 3, 4, 5, 3, 4, 5, 6);
@@ -2749,7 +2720,7 @@ void uavs3e_ipred_ang_xy_15_avx2(pel *src, pel *dst, int i_dst, int uiDirMode, i
             pel *px = src - (d >> 8);
             pel *py = psrc - j - 2;
             __m256i coeff_x = _mm256_set1_epi32(offsetx + (c << 8) + (b << 16) + (a << 24));
-            int *psteps = xsteps;
+            u8 *psteps = xsteps;
 
             step1_width = COM_MIN(step1_width, width);
 
@@ -2928,8 +2899,8 @@ void uavs3e_ipred_ang_xy_17_avx2(pel *src, pel *dst, int i_dst, int mode, int wi
 {
     int i, j;
     pel *psrc = src;
-    int *xoffsets = uavs3e_ipred_xoffsets[1];
-    int *xsteps = uavs3e_ipred_xsteps[1];
+    u8 *xoffsets = uavs3e_ipred_offsets[17 - 3][1];
+    u8 *xsteps = uavs3e_ipred_steps[17 - 3][1];
     int d = 93;
     __m256i shuffle_x = _mm256_setr_epi8(0, 1, 2, 3, 1, 2, 3, 4, 2, 3, 4, 5, 3, 4, 5, 6, 0, 1, 2, 3, 1, 2, 3, 4, 2, 3, 4, 5, 3, 4, 5, 6);
     __m128i c_64 = _mm_set1_epi16(64);
@@ -2976,7 +2947,7 @@ void uavs3e_ipred_ang_xy_17_avx2(pel *src, pel *dst, int i_dst, int mode, int wi
             pel *px = src - (d >> 7);
             pel *py = psrc - j - 2;
             int a = 32 - offsetx, b = 64 - offsetx, c = 32 + offsetx;
-            int *psteps = xsteps;
+            u8 *psteps = xsteps;
             __m128i shuffle_c;
             __m128i sign = _mm_set_epi32(0x01010101, 0x01010101, -1, -1);
             __m128i c0;
@@ -3094,8 +3065,8 @@ void uavs3e_ipred_ang_xy_19_avx2(pel *src, pel *dst, int i_dst, int uiDirMode, i
 {
     int i, j;
     pel *psrc = src;
-    int *xoffsets = uavs3e_ipred_xoffsets[2];
-    int *xsteps = uavs3e_ipred_xsteps[2];
+    u8 *xoffsets = uavs3e_ipred_offsets[19 - 3][1];
+    u8 *xsteps = uavs3e_ipred_steps[19 - 3][1];
     int d = 11;
     int step2_height = ((93 * width) >> 7);
 
@@ -3137,7 +3108,7 @@ void uavs3e_ipred_ang_xy_19_avx2(pel *src, pel *dst, int i_dst, int uiDirMode, i
             pel *px = src - (d >> 3);
             int a = 32 - offsetx, b = 64 - offsetx, c = 32 + offsetx;
             pel *py = psrc - j - 2;
-            int *psteps = xsteps;
+            u8 *psteps = xsteps;
             __m256i shuffle_x = _mm256_setr_epi8(0, 1, 2, 3, 1, 2, 3, 4, 2, 3, 4, 5, 3, 4, 5, 6, 0, 1, 2, 3, 1, 2, 3, 4, 2, 3, 4, 5, 3, 4, 5, 6);
             __m256i coeff_x = _mm256_set1_epi32(offsetx + (c << 8) + (b << 16) + (a << 24));
 
@@ -3168,7 +3139,7 @@ void uavs3e_ipred_ang_xy_19_avx2(pel *src, pel *dst, int i_dst, int uiDirMode, i
         __m256i c0_256 = _mm256_set_m128i(c0, c0);
         for (; j < height; j++) {
             pel *py = psrc - j - 2;
-            int *psteps = xsteps;
+            u8 *psteps = xsteps;
             for (i = 0; i + 4 < width; i += 8, psteps += 8) {
                 IPRED_ANG_XY_Y8(py, psteps, xoffsets + i, shuffle_c_256, sign_256, c0_256, c_64, 7, dst + i)
             }
@@ -3356,8 +3327,8 @@ void uavs3e_ipred_ang_xy_21_avx2(pel *src, pel *dst, int i_dst, int uiDirMode, i
 {
     int i, j;
     pel *psrc = src;
-    int *xoffsets = uavs3e_ipred_xoffsets[3];
-    int *xsteps = uavs3e_ipred_xsteps[3];
+    u8 *xoffsets = uavs3e_ipred_offsets[21 - 3][1];
+    u8 *xsteps = uavs3e_ipred_steps[21 - 3][1];
     int d = 11;
     int step2_height = (93 * width) >> 8;
 
@@ -3399,7 +3370,7 @@ void uavs3e_ipred_ang_xy_21_avx2(pel *src, pel *dst, int i_dst, int uiDirMode, i
             pel *px = src - (d >> 2);
             int a = 32 - offsetx, b = 64 - offsetx, c = 32 + offsetx;
             pel *py = psrc - j - 2;
-            int *psteps = xsteps;
+            u8 *psteps = xsteps;
             __m256i shuffle_x = _mm256_setr_epi8(0, 1, 2, 3, 1, 2, 3, 4, 2, 3, 4, 5, 3, 4, 5, 6, 0, 1, 2, 3, 1, 2, 3, 4, 2, 3, 4, 5, 3, 4, 5, 6);
             __m256i coeff_x = _mm256_set1_epi32(offsetx + (c << 8) + (b << 16) + (a << 24));
 
@@ -3428,7 +3399,7 @@ void uavs3e_ipred_ang_xy_21_avx2(pel *src, pel *dst, int i_dst, int uiDirMode, i
         __m256i c0_256 = _mm256_set_m128i(c0, c0);
         for (; j < height; j++) {
             pel *py = psrc - j - 2;
-            int *psteps = xsteps;
+            u8 *psteps = xsteps;
             for (i = 0; i + 4 < width; i += 8, psteps += 8) {
                 IPRED_ANG_XY_Y8(py, psteps, xoffsets + i, shuffle_c_256, sign_256, c0_256, c_64, 7, dst + i)
             }
@@ -3688,8 +3659,8 @@ void uavs3e_ipred_ang_xy_23_avx2(pel *src, pel *dst, int i_dst, int uiDirMode, i
 {
     int i, j;
     pel *psrc = src;
-    int *xoffsets = uavs3e_ipred_xoffsets[4];
-    int *xsteps = uavs3e_ipred_xsteps[4];
+    u8 *xoffsets = uavs3e_ipred_offsets[23 - 3][1];
+    u8 *xsteps = uavs3e_ipred_steps[23 - 3][1];
     int d = 8;
     int step2_height = (width >> 3);
 
@@ -3724,7 +3695,7 @@ void uavs3e_ipred_ang_xy_23_avx2(pel *src, pel *dst, int i_dst, int uiDirMode, i
             int step1_width = ((j + 1) << 3) - 1;
             pel *px = src - d;
             pel *py = psrc - j - 2;
-            int *psteps = xsteps;
+            u8 *psteps = xsteps;
             __m256i shuffle_x = _mm256_setr_epi8(0, 1, 2, 3, 1, 2, 3, 4, 2, 3, 4, 5, 3, 4, 5, 6, 0, 1, 2, 3, 1, 2, 3, 4, 2, 3, 4, 5, 3, 4, 5, 6);
             __m256i coeff_x = _mm256_set1_epi32(1 + (2 << 8) + (1 << 16));
             __m128i c_2 = _mm_set1_epi16(2);
@@ -3751,7 +3722,7 @@ void uavs3e_ipred_ang_xy_23_avx2(pel *src, pel *dst, int i_dst, int uiDirMode, i
         __m256i c0_256 = _mm256_set_m128i(c0, c0);
         for (; j < height; j++) {
             pel *py = psrc - j - 2;
-            int *psteps = xsteps;
+            u8 *psteps = xsteps;
             for (i = 0; i + 4 < width; i += 8, psteps += 8) {
                 IPRED_ANG_XY_Y8(py, psteps, xoffsets + i, shuffle_c_256, sign_256, c0_256, c_64, 7, dst + i)
             }
@@ -4045,7 +4016,8 @@ void uavs3e_ipred_dc_avx2(pel *src, pel *dst, int i_dst, int width, int height, 
 
     if (left_avail && above_avail) {
         int length = width + height + 1;
-        __m128i sum = _mm_setzero_si128();
+        __m128i zero = _mm_setzero_si128();
+        __m128i sum = zero;
         __m128i val;
 
         p_src = src - height;
@@ -4061,11 +4033,11 @@ void uavs3e_ipred_dc_avx2(pel *src, pel *dst, int i_dst, int width, int height, 
             val = _mm_and_si128(val, mask);
             sum = _mm_add_epi16(sum, val);
         }
-        sum = _mm_add_epi16(sum, _mm_srli_si128(sum, 8));
-        sum = _mm_add_epi16(sum, _mm_srli_si128(sum, 4));
-        sum = _mm_add_epi16(sum, _mm_srli_si128(sum, 2));
-
-        dc = _mm_extract_epi16(sum, 0) + ((width + height) >> 1) - src[0];
+        val = _mm_unpackhi_epi16(sum, zero);
+        sum = _mm_unpacklo_epi16(sum, zero);
+        sum = _mm_add_epi32(sum, val);
+        sum = _mm_hadd_epi32(sum, sum);
+        dc = _mm_extract_epi32(sum, 0) + _mm_extract_epi32(sum, 1) + ((width + height) >> 1) - src[0];
 
         dc = (dc * (4096 / (width + height))) >> 12;
 

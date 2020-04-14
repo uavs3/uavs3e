@@ -198,7 +198,7 @@ void uavs3e_funs_init_avx2()
     for (i = IPD_BI + 1; i < IPD_VER; i++) {
         uavs3e_funs_handle.intra_pred_ang[i] = uavs3e_ipred_ang_x_avx2;
     }
-    for (i = IPD_HOR + 1; i < IPD_CNT; i++) {
+    for (i = IPD_HOR + 1; i < IPD_CNT - 2; i++) {
         uavs3e_funs_handle.intra_pred_ang[i] = uavs3e_ipred_ang_y_avx2;
     }
     uavs3e_funs_handle.intra_pred_ang[4] = uavs3e_ipred_ang_x_4_avx2;

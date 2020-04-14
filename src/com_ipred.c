@@ -710,7 +710,7 @@ static void ipf_core_s16(pel *src, pel *dst, int i_dst, s16 *pred, int ipm, int 
         pred += w;
     }
 }
-static void ipred_ang_xy_19(pel *pSrc, pel *dst, int i_dst, int uiDirMode, int iWidth, int iHeight);
+
 void com_intra_pred(pel *src, pel *dst, int ipm, int w, int h, int bit_depth, u16 avail_cu, u8 ipf_flag)
 {
     assert(w <= 64 && h <= 64);
@@ -728,18 +728,6 @@ void com_intra_pred(pel *src, pel *dst, int ipm, int w, int h, int bit_depth, u1
             break;
         default:
             uavs3e_funs_handle.intra_pred_ang[ipm](src, dst, w, ipm, w, h);
-            //if (ipm == 19) {
-            //    pel tmp[128 * 128];
-            //    int i;
-            //    ipred_ang_xy_19(src, tmp, w, ipm, w, h);
-            //    for (i = 0; i < w*h; i++) {
-            //        if (tmp[i] != dst[i]) {
-            //            int a = 0;
-            //        }
-            //    }
-            //    ipred_ang_xy_19(src, tmp, w, ipm, w, h);
-            //    uavs3e_funs_handle.intra_pred_ang[ipm](src, dst, w, ipm, w, h);
-            //}
             break;
         }
         if (ipf_flag) {
@@ -838,18 +826,24 @@ static void ipred_ang_x(pel *pSrc, pel *dst, int i_dst, int uiDirMode, int iWidt
 {
     int i, j;
     int offset;
+    int iWidth2 = iWidth << 1;
 
     for (j = 0; j < iHeight; j++) {
         int c1, c2, c3, c4;
-        pel *p = pSrc + getContextPixel(uiDirMode, 0, j + 1, &offset);
+        int idx = getContextPixel(uiDirMode, 0, j + 1, &offset);
+        pel *p = pSrc + idx;
+        int pred_width = COM_MIN(iWidth, iWidth2 - idx + 1);
 
         c1 = 32 - offset;
         c2 = 64 - offset;
         c3 = 32 + offset;
         c4 = offset;
 
-        for (i = 0; i < iWidth; i++, p++) {
+        for (i = 0; i < pred_width; i++, p++) {
             dst[i] = (p[0] * c1 + p[1] * c2 + p[2] * c3 + p[3] * c4 + 64) >> 7;
+        }
+        for (; i < iWidth; i++) {
+            dst[i] = dst[pred_width - 1];
         }
         dst += i_dst;
     }
@@ -989,6 +983,7 @@ static void xPredIntraAngAdi_Y(pel *pSrc, pel *dst, int i_dst, int uiDirMode, in
     int offset;
     int offsets[64];
     int xsteps[64];
+    int iHeight2 = iHeight << 1;
 
     for (i = 0; i < iWidth; i++) {
         xsteps[i] = getContextPixel(uiDirMode, 1, i + 1, &offsets[i]);
@@ -997,6 +992,7 @@ static void xPredIntraAngAdi_Y(pel *pSrc, pel *dst, int i_dst, int uiDirMode, in
     for (j = 0; j < iHeight; j++) {
         for (i = 0; i < iWidth; i++) {
             int idx = -j - xsteps[i];
+            idx = COM_MAX(-iHeight2, idx);
 
             offset = offsets[i];
             dst[i] = (pSrc[idx] * (32 - offset) + pSrc[idx - 1] * (64 - offset) + pSrc[idx - 2] * (32 + offset) + pSrc[idx - 3] * offset + 64) >> 7;

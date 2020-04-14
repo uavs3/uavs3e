@@ -344,7 +344,7 @@ void uavs3e_funs_init_sse()
     for (i = IPD_BI + 1; i < IPD_VER; i++) {
         uavs3e_funs_handle.intra_pred_ang[i] = uavs3e_ipred_ang_x_sse;
     }
-    for (i = IPD_HOR + 1; i < IPD_CNT; i++) {
+    for (i = IPD_HOR + 1; i < IPD_CNT - 2; i++) {
         uavs3e_funs_handle.intra_pred_ang[i] = uavs3e_ipred_ang_y_sse;
     }
 

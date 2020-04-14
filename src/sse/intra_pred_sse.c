@@ -3991,45 +3991,40 @@ void uavs3e_ipred_ang_x_sse(pel *pSrc, pel *dst, int i_dst, int uiDirMode, int w
     __m128i mAddOffset = _mm_set1_epi16(64);
 
     if (width == 4) {
-        __m128i mSwitch = _mm_setr_epi8(0, 1, 2, 3, 1, 2, 3, 4, 2, 3, 4, 5, 3, 4, 5, 6);
+        int i, j;
+        int offset;
+        int width2 = width << 1;
 
-        for (int j = 0; j < height; j += 2) {
-            int offset2;
-            pel *p1 = pSrc + getContextPixel(uiDirMode, 0, j + 1, &offset);
-            pel *p2 = pSrc + getContextPixel(uiDirMode, 0, j + 2, &offset2);
+        for (j = 0; j < height; j++) {
+            int c1, c2, c3, c4;
+            int idx = getContextPixel(uiDirMode, 0, j + 1, &offset);
+            pel *p = pSrc + idx;
+            int pred_width = COM_MIN(width, width2 - idx + 1);
 
-            int c1 = 32 - offset;
-            int c2 = 64 - offset;
-            int c3 = 32 + offset;
-            int c4 = offset;
-            __m128i C1 = _mm_set1_epi32((c4 << 24) | (c3 << 16) | (c2 << 8) | c1);
+            c1 = 32 - offset;
+            c2 = 64 - offset;
+            c3 = 32 + offset;
+            c4 = offset;
 
-            c1 = 32 - offset2;
-            c2 = 64 - offset2;
-            c3 = 32 + offset2;
-            c4 = offset2;
-            __m128i C2 = _mm_set1_epi32((c4 << 24) | (c3 << 16) | (c2 << 8) | c1);
-
-            __m128i T1 = _mm_maddubs_epi16(_mm_shuffle_epi8(_mm_loadl_epi64((__m128i*)p1), mSwitch), C1);
-            __m128i T2 = _mm_maddubs_epi16(_mm_shuffle_epi8(_mm_loadl_epi64((__m128i*)p2), mSwitch), C2);
-
-            T1 = _mm_hadd_epi16(T1, T2);
-            T1 = _mm_add_epi16(T1, mAddOffset);
-            T1 = _mm_srai_epi16(T1, 7);
-            T1 = _mm_packus_epi16(T1, T1);
-            *(int*)dst = _mm_extract_epi32(T1, 0);
-            dst += i_dst;
-            *(int*)dst = _mm_extract_epi32(T1, 1);
+            for (i = 0; i < pred_width; i++, p++) {
+                dst[i] = (p[0] * c1 + p[1] * c2 + p[2] * c3 + p[3] * c4 + 64) >> 7;
+            }
+            for (; i < width; i++) {
+                dst[i] = dst[pred_width - 1];
+            }
             dst += i_dst;
         }
     }
     else if (width == 12) {
         __m128i mSwitch1 = _mm_setr_epi8(0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8);
         __m128i mSwitch2 = _mm_setr_epi8(2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10);
+        int i, j;
 
-        for (int j = 0; j < height; j++) {
+        for (j = 0; j < height; j++) {
             int c1, c2, c3, c4;
-            pel *p = pSrc + getContextPixel(uiDirMode, 0, j + 1, &offset);
+            int idx = getContextPixel(uiDirMode, 0, j + 1, &offset);
+            pel *p = pSrc + idx;
+            int pred_width = COM_MIN(12, 24 - idx + 1);
 
             c1 = 32 - offset;
             c2 = 64 - offset;
@@ -4064,16 +4059,24 @@ void uavs3e_ipred_ang_x_sse(pel *pSrc, pel *dst, int i_dst, int uiDirMode, int w
            
             *(int*)(dst + 8) = _mm_extract_epi32(T0, 0);
 
+            for (i = pred_width; i < width; i++) {
+                dst[i] = dst[pred_width - 1];
+            }
+
             dst += i_dst;
         }
 
     } else { // x 8
         __m128i mSwitch1 = _mm_setr_epi8(0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8);
         __m128i mSwitch2 = _mm_setr_epi8(2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10);
+        int width2 = width << 1;
+        int j, col;
 
-        for (int j = 0; j < height; j++) {
+        for (j = 0; j < height; j++) {
             int c1, c2, c3, c4;
-            pel *p = pSrc + getContextPixel(uiDirMode, 0, j + 1, &offset);
+            int idx = getContextPixel(uiDirMode, 0, j + 1, &offset);
+            pel *p = pSrc + idx;
+            int pred_width = COM_MIN(width, width2 - idx + 1);
 
             c1 = 32 - offset;
             c2 = 64 - offset;
@@ -4086,7 +4089,7 @@ void uavs3e_ipred_ang_x_sse(pel *pSrc, pel *dst, int i_dst, int uiDirMode, int w
             __m128i C1 = _mm_set1_epi16(coef1);
             __m128i C2 = _mm_set1_epi16(coef2);
 
-            for (int col = 0; col < width; col += 8) {
+            for (col = 0; col < pred_width; col += 8) {
                 __m128i mSrc = _mm_loadu_si128((__m128i*)(p + col));
                 __m128i T0 = _mm_maddubs_epi16(_mm_shuffle_epi8(mSrc, mSwitch1), C1);
                 __m128i T1 = _mm_maddubs_epi16(_mm_shuffle_epi8(mSrc, mSwitch2), C2);
@@ -4097,6 +4100,9 @@ void uavs3e_ipred_ang_x_sse(pel *pSrc, pel *dst, int i_dst, int uiDirMode, int w
                 T0 = _mm_packus_epi16(T0, T0);
 
                 _mm_storel_epi64((__m128i*)&dst[col], T0);
+            }
+            for (col = pred_width; col < width; col++) {
+                dst[col] = dst[pred_width - 1];
             }
             dst += i_dst;
         }
