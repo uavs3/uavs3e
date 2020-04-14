@@ -445,6 +445,10 @@ void uavs3e_ipred_ang_x_avx2(pel *src, pel *dst, int i_dst, int mode, int width,
             for (i = 0; i < pred_width; i++, idx++) {
                 dst[i] = (src[idx] * c0 + src[idx + 1] * c1 + src[idx + 2] * c2 + src[idx + 3] * c3 + 64) >> 7;
             }
+            if (pred_width <= 0) {
+                dst[0] = (src[width2] * c0 + src[width2 + 1] * c1 + src[width2 + 2] * c2 + src[width2 + 3] * c3 + 64) >> 7;
+                pred_width = 1;
+            }
             for (i = pred_width; i < width; i++) {
                 dst[i] = dst[pred_width - 1];
             }
@@ -464,23 +468,28 @@ void uavs3e_ipred_ang_x_avx2(pel *src, pel *dst, int i_dst, int mode, int width,
             int c2 = 32 + offset;
             int c3 = offset;
             int pred_width = COM_MIN(8, 16 - idx + 1);
-            int coef = ((c3 << 24)) | (c2 << 16) | (c1 << 8) | c0;
-            __m256i C = _mm256_set1_epi32(coef);
-            __m256i mSrc, T;
-            __m128i m0, m1;
+            if (pred_width <= 0) {
+                dst[0] = (src[16] * c0 + src[16 + 1] * c1 + src[16 + 2] * c2 + src[16 + 3] * c3 + 64) >> 7;
+                pred_width = 1;
+            }
+            else {
+                int coef = ((c3 << 24)) | (c2 << 16) | (c1 << 8) | c0;
+                __m256i C = _mm256_set1_epi32(coef);
+                __m256i mSrc, T;
+                __m128i m0, m1;
 
-            mSrc = _mm256_set_m128i(_mm_loadl_epi64((__m128i*)(psrc + 4)), _mm_loadl_epi64((__m128i*)(psrc)));
+                mSrc = _mm256_set_m128i(_mm_loadl_epi64((__m128i*)(psrc + 4)), _mm_loadl_epi64((__m128i*)(psrc)));
 
-            T = _mm256_shuffle_epi8(mSrc, mSwitch);
-            T = _mm256_maddubs_epi16(T, C);
-            m0 = _mm256_castsi256_si128(T);
-            m1 = _mm256_extracti128_si256(T, 1);
-            m0 = _mm_hadd_epi16(m0, m1);
-            m0 = _mm_add_epi16(m0, off);
-            m0 = _mm_srai_epi16(m0, 7);
-            m0 = _mm_packus_epi16(m0, m0);
-            _mm_storel_epi64((__m128i*)dst, m0);
-
+                T = _mm256_shuffle_epi8(mSrc, mSwitch);
+                T = _mm256_maddubs_epi16(T, C);
+                m0 = _mm256_castsi256_si128(T);
+                m1 = _mm256_extracti128_si256(T, 1);
+                m0 = _mm_hadd_epi16(m0, m1);
+                m0 = _mm_add_epi16(m0, off);
+                m0 = _mm_srai_epi16(m0, 7);
+                m0 = _mm_packus_epi16(m0, m0);
+                _mm_storel_epi64((__m128i*)dst, m0);
+            }
             for (i = pred_width; i < width; i++) {
                 dst[i] = dst[pred_width - 1];
             }
@@ -495,31 +504,37 @@ void uavs3e_ipred_ang_x_avx2(pel *src, pel *dst, int i_dst, int mode, int width,
             int idx = psteps[j];
             int offset = poffsets[j];
             pel *psrc = src + idx;
+            int pred_width = COM_MIN(12, 24 - idx + 1);
             int c0 = 32 - offset;
             int c1 = 64 - offset;
             int c2 = 32 + offset;
             int c3 = offset;
-            int pred_width = COM_MIN(12, 24 - idx + 1);
-            int coef = ((c3 << 24)) | (c2 << 16) | (c1 << 8) | c0;
-            __m256i C = _mm256_set1_epi32(coef);
-            __m256i mSrc, T;
-            __m128i m0, m1;
+            if (pred_width <= 0) {
+                dst[0] = (src[16] * c0 + src[16 + 1] * c1 + src[16 + 2] * c2 + src[16 + 3] * c3 + 64) >> 7;
+                pred_width = 1;
+            }
+            else {
+                int coef = ((c3 << 24)) | (c2 << 16) | (c1 << 8) | c0;
+                __m256i C = _mm256_set1_epi32(coef);
+                __m256i mSrc, T;
+                __m128i m0, m1;
 
-            mSrc = _mm256_set_m128i(_mm_loadl_epi64((__m128i*)(psrc + 4)), _mm_loadl_epi64((__m128i*)(psrc)));
+                mSrc = _mm256_set_m128i(_mm_loadl_epi64((__m128i*)(psrc + 4)), _mm_loadl_epi64((__m128i*)(psrc)));
 
-            T = _mm256_shuffle_epi8(mSrc, mSwitch);
-            T = _mm256_maddubs_epi16(T, C);
-            m0 = _mm256_castsi256_si128(T);
-            m1 = _mm256_extracti128_si256(T, 1);
-            m0 = _mm_hadd_epi16(m0, m1);
-            m0 = _mm_add_epi16(m0, off);
-            m0 = _mm_srai_epi16(m0, 7);
-            m0 = _mm_packus_epi16(m0, m0);
-            _mm_storel_epi64((__m128i*)dst, m0);
+                T = _mm256_shuffle_epi8(mSrc, mSwitch);
+                T = _mm256_maddubs_epi16(T, C);
+                m0 = _mm256_castsi256_si128(T);
+                m1 = _mm256_extracti128_si256(T, 1);
+                m0 = _mm_hadd_epi16(m0, m1);
+                m0 = _mm_add_epi16(m0, off);
+                m0 = _mm_srai_epi16(m0, 7);
+                m0 = _mm_packus_epi16(m0, m0);
+                _mm_storel_epi64((__m128i*)dst, m0);
 
-            psrc += 8;
-            for (i = 8; i < pred_width; i++, psrc++) {
-                dst[i] = (psrc[0] * c0 + psrc[1] * c1 + psrc[2] * c2 + psrc[3] * c3 + 64) >> 7;
+                psrc += 8;
+                for (i = 8; i < pred_width; i++, psrc++) {
+                    dst[i] = (psrc[0] * c0 + psrc[1] * c1 + psrc[2] * c2 + psrc[3] * c3 + 64) >> 7;
+                }
             }
             for (i = pred_width; i < width; i++) {
                 dst[i] = dst[pred_width - 1];
@@ -537,37 +552,46 @@ void uavs3e_ipred_ang_x_avx2(pel *src, pel *dst, int i_dst, int mode, int width,
             int offset = poffsets[j];
             pel *p0 = src + idx;
             int pred_width = COM_MIN(24, 48 - idx + 1);
-            int coef0 = ((64 - offset) << 8) | (32 - offset);
-            int coef1 = (offset << 8) | (32 + offset);
-            __m256i C0 = _mm256_set1_epi16(coef0);
-            __m256i C1 = _mm256_set1_epi16(coef1);
-            __m256i mSrc0, mSrc1;
-            __m256i T0, T1, T2, T3;
+            if (pred_width <= 0) {
+                int c0 = 32 - offset;
+                int c1 = 64 - offset;
+                int c2 = 32 + offset;
+                int c3 = offset;
+                dst[0] = (src[16] * c0 + src[16 + 1] * c1 + src[16 + 2] * c2 + src[16 + 3] * c3 + 64) >> 7;
+                pred_width = 1;
+            }
+            else {
+                int coef0 = ((64 - offset) << 8) | (32 - offset);
+                int coef1 = (offset << 8) | (32 + offset);
+                __m256i C0 = _mm256_set1_epi16(coef0);
+                __m256i C1 = _mm256_set1_epi16(coef1);
+                __m256i mSrc0, mSrc1;
+                __m256i T0, T1, T2, T3;
 
-            mSrc0 = _mm256_set_m128i(_mm_loadu_si128((__m128i*)(p0 + 8)), _mm_loadu_si128((__m128i*)(p0)));
-            mSrc1 = _mm256_set_m128i(_mm_setzero_si128(), _mm_loadu_si128((__m128i*)(p0 + 16)));
+                mSrc0 = _mm256_set_m128i(_mm_loadu_si128((__m128i*)(p0 + 8)), _mm_loadu_si128((__m128i*)(p0)));
+                mSrc1 = _mm256_set_m128i(_mm_setzero_si128(), _mm_loadu_si128((__m128i*)(p0 + 16)));
 
-            T0 = _mm256_shuffle_epi8(mSrc0, mSwitch0);
-            T1 = _mm256_shuffle_epi8(mSrc0, mSwitch1);
-            T2 = _mm256_shuffle_epi8(mSrc1, mSwitch0);
-            T3 = _mm256_shuffle_epi8(mSrc1, mSwitch1);
-            T0 = _mm256_maddubs_epi16(T0, C0);
-            T1 = _mm256_maddubs_epi16(T1, C1);
-            T2 = _mm256_maddubs_epi16(T2, C0);
-            T3 = _mm256_maddubs_epi16(T3, C1);
+                T0 = _mm256_shuffle_epi8(mSrc0, mSwitch0);
+                T1 = _mm256_shuffle_epi8(mSrc0, mSwitch1);
+                T2 = _mm256_shuffle_epi8(mSrc1, mSwitch0);
+                T3 = _mm256_shuffle_epi8(mSrc1, mSwitch1);
+                T0 = _mm256_maddubs_epi16(T0, C0);
+                T1 = _mm256_maddubs_epi16(T1, C1);
+                T2 = _mm256_maddubs_epi16(T2, C0);
+                T3 = _mm256_maddubs_epi16(T3, C1);
 
-            T0 = _mm256_add_epi16(T0, T1);
-            T2 = _mm256_add_epi16(T2, T3);
-            T0 = _mm256_add_epi16(T0, off);
-            T2 = _mm256_add_epi16(T2, off);
-            T0 = _mm256_srai_epi16(T0, 7);
-            T2 = _mm256_srai_epi16(T2, 7);
-            T0 = _mm256_packus_epi16(T0, T2);
-            T0 = _mm256_permute4x64_epi64(T0, 0xd8);
+                T0 = _mm256_add_epi16(T0, T1);
+                T2 = _mm256_add_epi16(T2, T3);
+                T0 = _mm256_add_epi16(T0, off);
+                T2 = _mm256_add_epi16(T2, off);
+                T0 = _mm256_srai_epi16(T0, 7);
+                T2 = _mm256_srai_epi16(T2, 7);
+                T0 = _mm256_packus_epi16(T0, T2);
+                T0 = _mm256_permute4x64_epi64(T0, 0xd8);
 
-            _mm_storeu_si128((__m128i*)dst, _mm256_castsi256_si128(T0));
-            _mm_storel_epi64((__m128i*)(dst + 16), _mm256_extracti128_si256(T0, 1));
-
+                _mm_storeu_si128((__m128i*)dst, _mm256_castsi256_si128(T0));
+                _mm_storel_epi64((__m128i*)(dst + 16), _mm256_extracti128_si256(T0, 1));
+            }
             for (i = pred_width; i < width; i++) {
                 dst[i] = dst[pred_width - 1];
             }
@@ -585,28 +609,38 @@ void uavs3e_ipred_ang_x_avx2(pel *src, pel *dst, int i_dst, int mode, int width,
             int width2 = width << 1;
             pel *p = src + idx;
             int pred_width = COM_MIN(width, width2 - idx + 1);
-            int coef0 = ((64 - offset) << 8) | (32 - offset);
-            int coef1 = (offset << 8) | (32 + offset);
-            __m256i C0 = _mm256_set1_epi16(coef0);
-            __m256i C1 = _mm256_set1_epi16(coef1);
-            __m128i m0, m1;
+            if (pred_width <= 0) {
+                int c0 = 32 - offset;
+                int c1 = 64 - offset;
+                int c2 = 32 + offset;
+                int c3 = offset;
+                dst[0] = (src[16] * c0 + src[16 + 1] * c1 + src[16 + 2] * c2 + src[16 + 3] * c3 + 64) >> 7;
+                pred_width = 1;
+            }
+            else {
+                int coef0 = ((64 - offset) << 8) | (32 - offset);
+                int coef1 = (offset << 8) | (32 + offset);
+                __m256i C0 = _mm256_set1_epi16(coef0);
+                __m256i C1 = _mm256_set1_epi16(coef1);
+                __m128i m0, m1;
 
-            for (col = 0; col < pred_width; col += 16) {
-                __m256i mSrc0 = _mm256_set_m128i(_mm_loadu_si128((__m128i*)(p + col + 8)), _mm_loadu_si128((__m128i*)(p + col)));
-                __m256i T0, T1;
+                for (col = 0; col < pred_width; col += 16) {
+                    __m256i mSrc0 = _mm256_set_m128i(_mm_loadu_si128((__m128i*)(p + col + 8)), _mm_loadu_si128((__m128i*)(p + col)));
+                    __m256i T0, T1;
 
-                T0 = _mm256_shuffle_epi8(mSrc0, mSwitch0);
-                T1 = _mm256_shuffle_epi8(mSrc0, mSwitch1);
-                T0 = _mm256_maddubs_epi16(T0, C0);
-                T1 = _mm256_maddubs_epi16(T1, C1);
-                T0 = _mm256_add_epi16(T0, T1);
-                T0 = _mm256_add_epi16(T0, off);
-                T0 = _mm256_srai_epi16(T0, 7);
-                m0 = _mm256_castsi256_si128(T0);
-                m1 = _mm256_extracti128_si256(T0, 1);
-                m0 = _mm_packus_epi16(m0, m1);
+                    T0 = _mm256_shuffle_epi8(mSrc0, mSwitch0);
+                    T1 = _mm256_shuffle_epi8(mSrc0, mSwitch1);
+                    T0 = _mm256_maddubs_epi16(T0, C0);
+                    T1 = _mm256_maddubs_epi16(T1, C1);
+                    T0 = _mm256_add_epi16(T0, T1);
+                    T0 = _mm256_add_epi16(T0, off);
+                    T0 = _mm256_srai_epi16(T0, 7);
+                    m0 = _mm256_castsi256_si128(T0);
+                    m1 = _mm256_extracti128_si256(T0, 1);
+                    m0 = _mm_packus_epi16(m0, m1);
 
-                _mm_storeu_si128((__m128i*)(dst + col), m0);
+                    _mm_storeu_si128((__m128i*)(dst + col), m0);
+                }
             }
             for (col = pred_width; col < width; col++) {
                 dst[col] = dst[pred_width - 1];
