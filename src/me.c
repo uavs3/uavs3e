@@ -322,45 +322,72 @@ static int search_diamond(inter_search_t *pi, int x, int y, int w, int h, s8 ref
 
 static u64 me_sub_pel_search(inter_search_t *pi, int x, int y, int w, int h, s8 refi, int lidx, const s16 mvp[MV_D], s16 mv[MV_D], int bi)
 {
-    int bit_depth = pi->bit_depth;
-    int i_org = pi->i_org;
-    pel *org = pi->org;
+    int max_posx        = pi->max_coord[MV_X];
+    int max_posy        = pi->max_coord[MV_Y];
+    int bit_depth       = pi->bit_depth;
+    int i_org           = pi->i_org;
+    pel *org            = pi->org;
+    u8 *tab_mvbits_x    = pi->tab_mvbits - (mvp[MV_X] >> pi->curr_mvr);
+    u8 *tab_mvbits_y    = pi->tab_mvbits - (mvp[MV_Y] >> pi->curr_mvr);
+    int mvr_idx         = pi->curr_mvr;
+    u32 lambda_mv       = pi->lambda_mv;
+    u64 *hpel_satd      = pi->hpel_satd[lidx][refi];
+    s16 *hpel_start_mv  = pi->hpel_mv  [lidx][refi];
+    com_pic_t *ref_pic  = pi->ref_pic;
+    int i_ref           = ref_pic->stride_luma;
+    pel *ref            = ref_pic->y + y * i_ref + x;
     u64 cost, cost_best = COM_UINT64_MAX;
-    s16 mv_x, mv_y, cx, cy;
-    int i, mv_bits;
-    int max_posx = pi->max_coord[MV_X];
-    int max_posy = pi->max_coord[MV_Y];
-    int widx = CONV_LOG2(w) - MIN_CU_LOG2;
-    com_pic_t *ref_pic = pi->ref_pic;
-    int i_ref = ref_pic->stride_luma;
-    pel *ref = ref_pic->y + y * i_ref + x;
-    u8 *tab_mvbits_x = pi->tab_mvbits - (mvp[MV_X] >> pi->curr_mvr);
-    u8 *tab_mvbits_y = pi->tab_mvbits - (mvp[MV_Y] >> pi->curr_mvr);
-    int mvr_idx = pi->curr_mvr;
-    u32 lambda_mv = pi->lambda_mv;
+    int widx            = CONV_LOG2(w) - MIN_CU_LOG2;
+    int ipel_is_same    = 0;
+    s16 cx              = mv[MV_X];
+    s16 cy              = mv[MV_Y];
 
-    // make mv to be global coordinate 
-    cx = mv[MV_X];
-    cy = mv[MV_Y];
+    u64 satd;
 
-    // initial satd cost 
-    mv_bits = GET_MVBITS_X(cx) + GET_MVBITS_Y(cy);
+    if (pi->curr_mvr <= 1 && !bi && M32(mv) == M32(hpel_start_mv) && hpel_satd[0]) {
+        ipel_is_same = 1;
+    }
+
+    // center satd cost 
+    if (ipel_is_same) {
+        satd = hpel_satd[0];
+    } else {
+        satd = calc_satd_16b(w, h, org, ref + (cx >> 2) + (cy >> 2) * i_ref, i_org, i_ref, bit_depth);
+
+        if (!bi && pi->curr_mvr == 0) {
+            hpel_satd[0] = satd;
+            CP32(hpel_start_mv, mv);
+        }
+    }
+
+    int mv_bits = GET_MVBITS_X(cx) + GET_MVBITS_Y(cy);
     cost_best = MV_COST64(mv_bits);
-    cost_best += ((u64)(calc_satd_16b(w, h, org, ref + (cx >> 2) + (cy >> 2) * i_ref, i_org, i_ref, bit_depth) >> bi) << 16);
+    cost_best += ((u64)(satd >> bi) << 16);
 
     // hpel-level 
-    for (i = 0; i < 8; i++) {
+    for (int i = 0; i < 8; i++) {
         static tab_s8 tbl_search_pattern_hpel_partial[8][2] = {
             { -2, 0}, { -2, 2}, {0, 2}, {2, 2}, {2, 0}, {2, -2}, {0, -2}, { -2, -2}
         };
-        mv_x = cx + tbl_search_pattern_hpel_partial[i][0];
-        mv_y = cy + tbl_search_pattern_hpel_partial[i][1];
+
+        s16 mv_x = cx + tbl_search_pattern_hpel_partial[i][0];
+        s16 mv_y = cy + tbl_search_pattern_hpel_partial[i][1];
+
+        if (ipel_is_same) {
+            satd = hpel_satd[i + 1];
+        } else {
+            pel* pred = com_mc_blk_luma_pointer(ref_pic, mv_x + (x << 2), mv_y + (y << 2), max_posx, max_posy);
+            satd = calc_satd_16b(w, h, org, pred, i_org, ref_pic->stride_luma, bit_depth);
+
+            if (!bi && pi->curr_mvr == 0) {
+                hpel_satd[i + 1] = satd;
+            }
+        }
+
         mv_bits = GET_MVBITS_X(mv_x) + GET_MVBITS_Y(mv_y);
         cost = MV_COST64(mv_bits);
+        cost += (u64)(satd >> bi) << 16;
 
-        pel* pred = com_mc_blk_luma_pointer(ref_pic, mv_x + (x << 2), mv_y + (y << 2), max_posx, max_posy);
-        cost += (u64)(calc_satd_16b(w, h, org, pred, i_org, ref_pic->stride_luma, bit_depth) >> bi) << 16;
-   
         if (cost < cost_best) {
             mv[MV_X] = mv_x;
             mv[MV_Y] = mv_y;
@@ -370,21 +397,41 @@ static u64 me_sub_pel_search(inter_search_t *pi, int x, int y, int w, int h, s8 
 
     // qpel-level 
     if (pi->curr_mvr == 0) {
+        u64 *qpel_satd     = pi->qpel_satd[lidx][refi];
+        s16 *qpel_start_mv = pi->qpel_mv  [lidx][refi];
+        int hpel_is_same = 0;
+
+        if (!bi && M32(mv) == M32(qpel_start_mv) && qpel_satd[0]) {
+            hpel_is_same = 1;
+        } else if (!bi) {
+            qpel_satd[0] = cost_best; // just a flag
+            CP32(qpel_start_mv, mv);
+        }
+
         cx = mv[MV_X];
         cy = mv[MV_Y];
-        for (i = 0; i < 8; i++) {
+        for (int i = 0; i < 8; i++) {
             static tab_s8 tbl_search_pattern_qpel_8point[8][2] = {
                 { -1,  0}, { 0,  1}, { 1,  0}, { 0, -1}, { -1,  1}, { 1,  1}, { -1, -1}, { 1, -1}
             };
 
-            mv_x = cx + tbl_search_pattern_qpel_8point[i][0];
-            mv_y = cy + tbl_search_pattern_qpel_8point[i][1];
+            s16 mv_x = cx + tbl_search_pattern_qpel_8point[i][0];
+            s16 mv_y = cy + tbl_search_pattern_qpel_8point[i][1];
+
+            if (hpel_is_same) {
+                satd = qpel_satd[i + 1];
+            } else {
+                pel* pred = com_mc_blk_luma_pointer(ref_pic, mv_x + (x << 2), mv_y + (y << 2), max_posx, max_posy);
+                satd = calc_satd_16b(w, h, org, pred, i_org, ref_pic->stride_luma, bit_depth);
+
+                if (!bi) {
+                    qpel_satd[i + 1] = satd;
+                }
+            }
+
             mv_bits = GET_MVBITS_X(mv_x) + GET_MVBITS_Y(mv_y);
-
             cost = MV_COST64(mv_bits);
-
-            pel* pred = com_mc_blk_luma_pointer(ref_pic, mv_x + (x << 2), mv_y + (y << 2), max_posx, max_posy);
-            cost += (u64)(calc_satd_16b(w, h, org, pred, i_org, ref_pic->stride_luma, bit_depth) >> bi) << 16;
+            cost += (u64)(satd >> bi) << 16;
 
             if (cost < cost_best) {
                 mv[MV_X] = mv_x;
