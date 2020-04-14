@@ -830,8 +830,8 @@ void enc_get_pic_qp(enc_pic_t *ep, pic_thd_param_t *p)
     com_pic_t        *pic_org  = &p->pic_org;
     com_info_t       *info     = &ep->info;
     com_img_t        *img_org  = pic_org->img;
-    com_img_t        *ref_l0[2];
-    com_img_t        *ref_l1[2];
+    com_img_t        *ref_l0[4];
+    com_img_t        *ref_l1[4];
     int               base_qp;
 
     for (int refi = 0; refi < p->num_refp[PRED_L0]; refi++) {
