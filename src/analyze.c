@@ -887,7 +887,7 @@ static double mode_coding_unit(core_t *core, lbac_t *lbac_best, int x, int y, in
         if (cu_width <= 64 && cu_height <= 64) {
             core->dist_cu_best = COM_UINT64_MAX;
             if (core->cost_best < MAX_D_COST_EXT) {
-                core->inter_satd = block_pel_satd(cu_width_log2, cu_height_log2, pic_org->y + (y * pic_org->stride_luma) + x, bst_info->pred[0], pic_org->stride_luma, 1 << cu_width_log2, bit_depth);
+                core->inter_satd = com_had(cu_width, cu_height, pic_org->y + (y * pic_org->stride_luma) + x, pic_org->stride_luma, bst_info->pred[0], 1 << cu_width_log2, bit_depth);
             } else {
                 core->inter_satd = COM_UINT64_MAX;
             }

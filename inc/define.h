@@ -100,10 +100,11 @@ typedef struct uavs3e_enc_inter_data_t {
     s16  mvp_scale        [REFP_NUM][MAX_NUM_ACTIVE_REF_FRAME][MV_D];
     s16  mv_scale         [REFP_NUM][MAX_NUM_ACTIVE_REF_FRAME][MV_D];
     s16  mv_ipel          [REFP_NUM][MAX_NUM_ACTIVE_REF_FRAME][MV_D];
-    u64  hpel_satd        [REFP_NUM][MAX_NUM_ACTIVE_REF_FRAME][9];
-    s16  hpel_mv          [REFP_NUM][MAX_NUM_ACTIVE_REF_FRAME][MV_D];
-    u64  qpel_satd        [REFP_NUM][MAX_NUM_ACTIVE_REF_FRAME][9];
-    s16  qpel_mv          [REFP_NUM][MAX_NUM_ACTIVE_REF_FRAME][MV_D];
+
+    u32  hpel_satd        [REFP_NUM][MAX_NUM_ACTIVE_REF_FRAME][9];
+    s16  hpel_start_mv    [REFP_NUM][MAX_NUM_ACTIVE_REF_FRAME][MV_D];
+    u32  qpel_satd        [REFP_NUM][MAX_NUM_ACTIVE_REF_FRAME][9];
+    s16  qpel_start_mv    [REFP_NUM][MAX_NUM_ACTIVE_REF_FRAME][MV_D];
 
     CPMV affine_mvp_scale [REFP_NUM][MAX_NUM_ACTIVE_REF_FRAME][VER_NUM][MV_D];
     CPMV affine_mv_scale  [REFP_NUM][MAX_NUM_ACTIVE_REF_FRAME][VER_NUM][MV_D];

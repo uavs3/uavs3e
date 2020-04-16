@@ -392,7 +392,7 @@ static void avs3_always_inline wait_ref_available(com_pic_t *pic, int lines)
     }
 }
 
-u32 com_had(int w, int h, void *addr_org, void *addr_curr, int s_org, int s_cur, int bit_depth);
+u32 com_had(int w, int h, pel *org, int s_org, pel *cur, int s_cur, int bit_depth);
 
 com_img_t *com_img_create(int w, int h, int pad[MAX_PLANES], int planes);
 void       com_img_free(com_img_t *img);

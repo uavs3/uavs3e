@@ -186,7 +186,7 @@ static void check_one_mode(core_t *core, pel *org, int s_org, int ipm, int ipred
     
 	com_intra_pred(core->nb[Y_C] + INTRA_NEIB_MID, pred_buf, ipm, pb_w, pb_h, bit_depth, avail_cu, cur_info->ipf_flag);
 
-	u64 satd = calc_satd_16b(pb_w, pb_h, org, pred_buf, s_org, pb_w, bit_depth);
+	u64 satd = calc_satd_intra(pb_w, pb_h, org, pred_buf, s_org, pb_w, bit_depth);
 
     lbac_t lbac_temp;
     lbac_copy(&lbac_temp, &core->lbac_bakup);

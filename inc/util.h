@@ -24,22 +24,12 @@
 #define GET_MVBITS_IPEL_X(mv) (tab_mvbits_x[((mv) << 2) >> mvr_idx])
 #define GET_MVBITS_IPEL_Y(mv) (tab_mvbits_y[((mv) << 2) >> mvr_idx])
 
-u32 calc_satd_16b(int pu_w, int pu_h, pel *src1, pel *src2, int s_src1, int s_src2, int bit_depth);
-
-static u32 avs3_always_inline block_pel_satd(int log2w, int log2h, pel *src1, pel *src2, int s_src1, int s_src2, int bit_depth)
-{
-    return com_had(1 << log2w, 1 << log2h, src1, src2, s_src1, s_src2, bit_depth);
-}
+u32 calc_satd_intra(int pu_w, int pu_h, pel *src1, pel *src2, int s_src1, int s_src2, int bit_depth);
 
 static u64 avs3_always_inline block_pel_ssd(int log2w, int height, pel *src1, pel *src2, int s_src1, int s_src2, int bit_depth)
 {
     int shift = (bit_depth - 8) << 1;
     return uavs3e_funs_handle.cost_ssd[log2w - 2](src1, s_src1, src2, s_src2, height) >> shift;
-}
-
-static u64 avs3_always_inline block_pel_sad(int widx, int pu_h, int shift, pel *src1, pel *src2, int s_src1, int s_src2)
-{
-    return ((u64)uavs3e_funs_handle.cost_sad[widx](src1, s_src1, src2, s_src2, pu_h)) << shift;
 }
 
 static void avs3_always_inline block_pel_sub(int log2w, int log2h, pel *src1, pel *src2, int s_src1, int s_src2, int s_diff, s16 *diff)

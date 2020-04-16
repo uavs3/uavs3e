@@ -89,7 +89,7 @@ static void make_cand_list(core_t *core, int *mode_list, double *cost_list, int 
         }
         com_mc_cu(x, y, info->pic_width, info->pic_height, cu_width, cu_height, refi_skip_cand[skip_idx], pmv_skip_cand[skip_idx], core->refp, cur_info->pred, cu_width, CHANNEL_L, bit_depth);
         
-        double cost = calc_satd_16b(cu_width, cu_height, y_org, cur_info->pred[Y_C], pic_org->stride_luma, cu_width, bit_depth);
+        double cost = com_had(cu_width, cu_height, y_org, pic_org->stride_luma, cur_info->pred[Y_C], cu_width, bit_depth);
 
         lbac_t lbac_temp;
         lbac_copy(&lbac_temp, &core->lbac_bakup);
@@ -1085,7 +1085,7 @@ static u32 smvd_refine(core_t *core, int x, int y, int log2_cuw, int log2_cuh, s
 
             int mv_bits = ref_mvr_bits + GET_MVBITS_X(mvd_cand[lidx_cur][MV_X]) + GET_MVBITS_Y(mvd_cand[lidx_cur][MV_Y]);
 
-            mecost_tmp = block_pel_satd(log2_cuw, log2_cuh, org, cur_info->pred[0], pic_org->stride_luma, cu_width, bit_depth);
+            mecost_tmp = com_had(cu_width, cu_height, org, pic_org->stride_luma, cur_info->pred[0], cu_width, bit_depth);
             mecost_tmp += MV_COST(mv_bits);
 
             if (mecost_tmp < mecost) {
@@ -1140,7 +1140,7 @@ static void analyze_smvd(core_t *core, lbac_t *lbac_best)
 
     com_mc_cu(x, y, info->pic_width, info->pic_height, cu_width, cu_height, cur_info->refi, mv, core->refp, cur_info->pred, cu_width, CHANNEL_L, bit_depth);
 
-    u32 mecost = block_pel_satd(log2_cuw, log2_cuh, org, cur_info->pred[0], pic_org->stride_luma, cu_width, bit_depth);
+    u32 mecost = com_had(cu_width, cu_height, org, pic_org->stride_luma, cur_info->pred[0], cu_width, bit_depth);
     mecost += MV_COST(get_mv_bits_with_mvr(pi, 0, 0, cur_info->mvr_idx));
 
     s16 mv_bi[REFP_NUM][MV_D];
@@ -1152,7 +1152,7 @@ static void analyze_smvd(core_t *core, lbac_t *lbac_best)
 
     com_mc_cu(x, y, info->pic_width, info->pic_height, cu_width, cu_height, cur_info->refi, mv_bi, core->refp, cur_info->pred, cu_width, CHANNEL_L, bit_depth);
 
-    u32 mecost_bi = block_pel_satd(log2_cuw, log2_cuh, org, cur_info->pred[0], pic_org->stride_luma, cu_width, bit_depth);
+    u32 mecost_bi = com_had(cu_width, cu_height, org, pic_org->stride_luma, cur_info->pred[0], cu_width, bit_depth);
     mecost_bi += MV_COST(get_mv_bits_with_mvr(pi, mvd[MV_X], mvd[MV_Y], cur_info->mvr_idx));
 
     if (mecost_bi < mecost) {
@@ -1276,7 +1276,7 @@ static u64 affine_me_gradient(inter_search_t *pi, int x, int y, int cu_width_log
         best_bits += pi->mot_bits[1 - lidx];
     }
     cost_best = MV_COST(best_bits);
-    cost_best += calc_satd_16b(cu_width, cu_height, org, pred, s_org, cu_width, bit_depth) >> bi;
+    cost_best += com_had(cu_width, cu_height, org, s_org, pred, cu_width, bit_depth) >> bi;
 
     for (iter = 0; iter < iter_num; iter++) {
         block_pel_sub(cu_width_log2, cu_height_log2, org, pred, s_org, cu_width, cu_width, error);
@@ -1360,7 +1360,7 @@ static u64 affine_me_gradient(inter_search_t *pi, int x, int y, int cu_width_log
             mv_bits += pi->mot_bits[1 - lidx];
         }
         cost = MV_COST(mv_bits);
-        cost += calc_satd_16b(cu_width, cu_height, org, pred, s_org, cu_width, bit_depth) >> bi;
+        cost += com_had(cu_width, cu_height, org, s_org, pred, cu_width, bit_depth) >> bi;
 
         if (cost < cost_best) {
             cost_best = cost;
@@ -1480,7 +1480,7 @@ static void analyze_affine_uni(core_t *core, lbac_t *lbac_best, CPMV aff_mv_L0L1
 
             com_mc_blk_affine_luma(x, y, refp->width_luma, refp->height_luma, cu_width, cu_height, affine_mvp, refp, pred, sub_w, sub_h, bit_depth);
             
-            u64 mvp_best = calc_satd_16b(cu_width, cu_height, org, pred, s_org, cu_width, bit_depth);
+            u64 mvp_best = com_had(cu_width, cu_height, org, s_org, pred, cu_width, bit_depth);
             mebits = affine_mv_bits(affine_mvp, affine_mvp, pi->num_refp, refi_cur, cur_info->mvr_idx);
             mvp_best += MV_COST(mebits);
 
@@ -1509,7 +1509,7 @@ static void analyze_affine_uni(core_t *core, lbac_t *lbac_best, CPMV aff_mv_L0L1
             }
             com_mc_blk_affine_luma(x, y, refp->width_luma, refp->height_luma, cu_width, cu_height, tmp_mv_array, refp, pred, sub_w, sub_h, bit_depth);
              
-            u64 mvp_temp = calc_satd_16b(cu_width, cu_height, org, pred, s_org, cu_width, bit_depth);
+            u64 mvp_temp = com_had(cu_width, cu_height, org, s_org, pred, cu_width, bit_depth);
             mebits = affine_mv_bits(tmp_mv_array, affine_mvp, pi->num_refp, refi_cur, cur_info->mvr_idx);
             mvp_temp += MV_COST(mebits);
 

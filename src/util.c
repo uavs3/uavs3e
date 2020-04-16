@@ -173,11 +173,15 @@ int enc_delete_cu_data(enc_cu_t *cu_data)
     return COM_OK;
 }
 
-u32 calc_satd_16b(int pu_w, int pu_h, pel *src1, pel *src2, int s_src1, int s_src2, int bit_depth)
+u32 calc_satd_intra(int pu_w, int pu_h, pel *src1, pel *src2, int s_src1, int s_src2, int bit_depth)
 {
     int num_seg_in_pu_w = 1, num_seg_in_pu_h = 1;
     int subblk_w_log2 = com_tbl_log2[pu_w];
     int subblk_h_log2 = com_tbl_log2[pu_h];
+
+    if (subblk_w_log2 != -1 && subblk_h_log2 != -1) {
+        return com_had(pu_w, pu_h, src1, s_src1, src2, s_src2, bit_depth);
+    }
 
     if (subblk_w_log2 == -1) {
         num_seg_in_pu_w = 3;
@@ -187,9 +191,6 @@ u32 calc_satd_16b(int pu_w, int pu_h, pel *src1, pel *src2, int s_src1, int s_sr
         num_seg_in_pu_h = 3;
         subblk_h_log2 = (pu_h == 48) ? 4 : (pu_h == 24 ? 3 : 2);
     }
-    if (num_seg_in_pu_w == 1 && num_seg_in_pu_h == 1) {
-        return block_pel_satd(subblk_w_log2, subblk_h_log2, src1, src2, s_src1, s_src2, bit_depth);
-    }
 
     u32 cost = 0;
 
@@ -197,7 +198,7 @@ u32 calc_satd_16b(int pu_w, int pu_h, pel *src1, pel *src2, int s_src1, int s_sr
         for (int i = 0; i < num_seg_in_pu_w; i++) {
             pel *src1_seg = src1 + (1 << subblk_w_log2) * i + (1 << subblk_h_log2) * j * s_src1;
             pel *src2_seg = src2 + (1 << subblk_w_log2) * i + (1 << subblk_h_log2) * j * s_src2;
-            cost += block_pel_satd(subblk_w_log2, subblk_h_log2, src1_seg, src2_seg, s_src1, s_src2, bit_depth);
+            cost += com_had(1 << subblk_w_log2, 1 << subblk_h_log2, src1_seg, s_src1, src2_seg, s_src2, bit_depth);
         }
     }
     return cost;

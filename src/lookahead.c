@@ -108,7 +108,7 @@ double loka_estimate_coding_cost(inter_search_t *pi, com_img_t *img_org, com_img
                     me_search_tz(pi, x, y, UNIT_SIZE, UNIT_SIZE, pic_width, pic_height, refi, lidx, mvp, mv, 0);
                     com_mc_blk_luma(ref_pic, pred_buf, UNIT_SIZE, (x << 2) + mv[MV_X], (y << 2) + mv[MV_Y], UNIT_SIZE, UNIT_SIZE, UNIT_WIDX, pi->max_coord[MV_X], pi->max_coord[MV_Y], (1 << bit_depth) - 1, 0);
 
-                    u32 cost = com_had(UNIT_SIZE, UNIT_SIZE, org, pred_buf, i_org, UNIT_SIZE, bit_depth);
+                    u32 cost = com_had(UNIT_SIZE, UNIT_SIZE, org, i_org, pred_buf, UNIT_SIZE, bit_depth);
                     if (cost < min_cost) {
 #if WRITE_REC_PIC 
                         uavs3e_funs_handle.ipcpy[UNIT_WIDX](pred_buf, UNIT_SIZE, buf + y * pic_width + x, pic_width, UNIT_SIZE, UNIT_SIZE);
@@ -125,7 +125,7 @@ double loka_estimate_coding_cost(inter_search_t *pi, com_img_t *img_org, com_img
 
             if (is_bi) {
                 uavs3e_funs_handle.pel_avrg[UNIT_WIDX](pred_buf, UNIT_SIZE, pred_buf_fwd, pred_buf_bwd, UNIT_SIZE);
-                u32 cost = com_had(UNIT_SIZE, UNIT_SIZE, org, pred_buf, i_org, UNIT_SIZE, bit_depth);
+                u32 cost = com_had(UNIT_SIZE, UNIT_SIZE, org, i_org, pred_buf, UNIT_SIZE, bit_depth);
                 if (cost < min_cost) {
 #if WRITE_REC_PIC 
                     uavs3e_funs_handle.ipcpy[UNIT_WIDX](pred_buf, UNIT_SIZE, buf + y * pic_width + x, pic_width, UNIT_SIZE, UNIT_SIZE);
@@ -151,7 +151,7 @@ double loka_estimate_coding_cost(inter_search_t *pi, com_img_t *img_org, com_img
 
                 uavs3e_funs_handle.pel_avrg[UNIT_WIDX](pred_buf, UNIT_SIZE, pred_buf_fwd, pred_buf_bwd, UNIT_SIZE);
                 
-                cost = com_had(UNIT_SIZE, UNIT_SIZE, org, pred_buf, i_org, UNIT_SIZE, bit_depth);
+                cost = com_had(UNIT_SIZE, UNIT_SIZE, org, i_org, pred_buf, UNIT_SIZE, bit_depth);
                 if (cost < min_cost) {
 #if WRITE_REC_PIC 
                     uavs3e_funs_handle.ipcpy[UNIT_WIDX](pred_buf, UNIT_SIZE, buf + y * pic_width + x, pic_width, UNIT_SIZE, UNIT_SIZE);
@@ -170,7 +170,7 @@ double loka_estimate_coding_cost(inter_search_t *pi, com_img_t *img_org, com_img
 
             for (int i = 0; i < sizeof(ipm_tab); i++) {
                 com_intra_pred(nb_buf + INTRA_NEIB_MID, pred_buf, ipm_tab[i], UNIT_SIZE, UNIT_SIZE, bit_depth, avaliable_nb, 0);
-                u32 cost = com_had(UNIT_SIZE, UNIT_SIZE, org, pred_buf, i_org, UNIT_SIZE, bit_depth);
+                u32 cost = com_had(UNIT_SIZE, UNIT_SIZE, org, i_org, pred_buf, UNIT_SIZE, bit_depth);
 
                 if (cost < min_cost) {
 #if WRITE_REC_PIC 
