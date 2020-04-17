@@ -239,7 +239,6 @@ void cu_plane_nz_cln(int dst[MAX_NUM_TB][N_C], int plane);
 int is_cu_nz_equ(int dst[MAX_NUM_TB][N_C], int src[MAX_NUM_TB][N_C]);
 void cu_nz_cln(int dst[MAX_NUM_TB][N_C]);
 void check_set_tb_part(com_mode_t *mode);
-void check_tb_part(com_mode_t *mode);
 void copy_rec_y_to_pic(pel *src, int x, int y, int w, int h, int stride, com_pic_t *pic);
 
 u8 is_use_cons(int w, int h, split_mode_t split, u8 slice_type);

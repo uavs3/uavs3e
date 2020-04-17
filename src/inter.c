@@ -118,95 +118,31 @@ static void check_best_mode(core_t *core, lbac_t *lbac_best, lbac_t *lbac, const
     com_mode_t *cur_info = &core->mod_info_curr;
 
     if (cost_curr < core->cost_best) {
-        int lidx;
-        int cu_width_log2 = core->cu_width_log2;
-        int cu_height_log2 = core->cu_height_log2;
-        int cu_width = 1 << cu_width_log2;
-        int cu_height = 1 << cu_height_log2;
-        bst_info->cu_mode = cur_info->cu_mode;
-
-        check_tb_part(cur_info);
-        bst_info->pb_part = cur_info->pb_part;
-        bst_info->tb_part = cur_info->tb_part;
-        memcpy(&bst_info->pb_info, &cur_info->pb_info, sizeof(com_part_info_t));
-        memcpy(&bst_info->tb_info, &cur_info->tb_info, sizeof(com_part_info_t));
-        bst_info->umve_flag = cur_info->umve_flag;
+        int cu_width  = 1 << core->cu_width_log2;
+        int cu_height = 1 << core->cu_height_log2;
 
         core->cost_best = cost_curr;
-
         lbac_copy(lbac_best, lbac);
 
-        if (bst_info->cu_mode != MODE_INTRA) {
-            if (cur_info->affine_flag) {
-                assert(cur_info->mvr_idx < MAX_NUM_AFFINE_MVR);
-            }
+        memcpy(bst_info, cur_info, offsetof(com_mode_t, mpm));
 
-            if (bst_info->cu_mode == MODE_SKIP || bst_info->cu_mode == MODE_DIR) {
-                bst_info->mvr_idx = 0;
-            } else {
-                bst_info->hmvp_flag = cur_info->hmvp_flag;
-                bst_info->mvr_idx = cur_info->mvr_idx;
+        if (bst_info->cu_mode == MODE_SKIP) {
+            for (int i = 0; i < N_C; i++) {
+                int size = cu_width * cu_height >> (i ? 2 : 0);
+                com_mcpy(bst_info->rec[i], pred[i], size * sizeof(pel));
             }
+            com_mset(bst_info->num_nz, 0, sizeof(int)*N_C * MAX_NUM_TB);
+            assert(bst_info->pb_part == SIZE_2Nx2N);
+        } else {
+            for (int i = 0; i < N_C; i++) {
+                int size = (cu_width * cu_height) >> (i ? 2 : 0);
+                com_mcpy(bst_info->coef[i], cur_info->coef[i], size * sizeof(s16));
+                com_mcpy(bst_info->pred[i], pred[i], size * sizeof(pel));
 
-            bst_info->refi[REFP_0] = cur_info->refi[REFP_0];
-            bst_info->refi[REFP_1] = cur_info->refi[REFP_1];
-            for (lidx = 0; lidx < REFP_NUM; lidx++) {
-                bst_info->mv[lidx][MV_X] = cur_info->mv[lidx][MV_X];
-                bst_info->mv[lidx][MV_Y] = cur_info->mv[lidx][MV_Y];
-                bst_info->mvd[lidx][MV_X] = cur_info->mvd[lidx][MV_X];
-                bst_info->mvd[lidx][MV_Y] = cur_info->mvd[lidx][MV_Y];
-            }
-
-            bst_info->smvd_flag = cur_info->smvd_flag;
-            if (cur_info->smvd_flag) {
-                assert(cur_info->affine_flag == 0);
-            }
-
-            bst_info->affine_flag = cur_info->affine_flag;
-            if (bst_info->affine_flag) {
-                int vertex;
-                int vertex_num = bst_info->affine_flag + 1;
-                for (lidx = 0; lidx < REFP_NUM; lidx++) {
-                    for (vertex = 0; vertex < vertex_num; vertex++) {
-                        CP64(bst_info->affine_mv [lidx][vertex], cur_info->affine_mv [lidx][vertex]);
-                        CP32(bst_info->affine_mvd[lidx][vertex], cur_info->affine_mvd[lidx][vertex]);
-                    }
-                }
-            }
-
-            if (bst_info->cu_mode == MODE_SKIP) {
-                if (bst_info->umve_flag != 0) {
-                    bst_info->umve_idx = cur_info->umve_idx;
+                if (is_cu_plane_nz(bst_info->num_nz, i)) {
+                    com_mcpy(bst_info->rec[i], cur_info->rec[i], size * sizeof(pel));
                 } else {
-                    bst_info->skip_idx = cur_info->skip_idx;
-                }
-
-                for (int i = 0; i < N_C; i++) {
-                    int size = cu_width * cu_height >> (i ? 2 : 0);
                     com_mcpy(bst_info->rec[i], pred[i], size * sizeof(pel));
-                }
-                com_mset(bst_info->num_nz, 0, sizeof(int)*N_C * MAX_NUM_TB);
-                assert(bst_info->pb_part == SIZE_2Nx2N);
-            } else {
-                if (bst_info->cu_mode == MODE_DIR) {
-                    if (bst_info->umve_flag) {
-                        bst_info->umve_idx = cur_info->umve_idx;
-                    } else {
-                        bst_info->skip_idx = cur_info->skip_idx;
-                    }
-                }
-                for (int i = 0; i < N_C; i++) {
-                    int size = (cu_width * cu_height) >> (i ? 2 : 0);
-                    cu_plane_nz_cpy(bst_info->num_nz, cur_info->num_nz, i);
-
-                    com_mcpy(bst_info->coef[i], cur_info->coef[i], size * sizeof(s16));
-                    com_mcpy(bst_info->pred[i], pred[i], size * sizeof(pel));
-
-                    if (is_cu_plane_nz(bst_info->num_nz, i)) {
-                        com_mcpy(bst_info->rec[i], cur_info->rec[i], size * sizeof(pel));
-                    } else {
-                        com_mcpy(bst_info->rec[i], pred[i], size * sizeof(pel));
-                    }
                 }
             }
         }
@@ -724,6 +660,8 @@ static void analyze_direct_skip(core_t *core, lbac_t *lbac_best)
 
     make_cand_list(core, mode_list, cost_list, num_cands_woUMVE, num_cands_all, num_rdo, pmv_cands, refi_cands);
 
+    memset(core->skip_emvr_mode, 0, sizeof(core->skip_emvr_mode));
+
     for (int skip_idx = 0; skip_idx < num_rdo; skip_idx++) {
         int mode = mode_list[skip_idx];
 
@@ -739,9 +677,8 @@ static void analyze_direct_skip(core_t *core, lbac_t *lbac_best)
         CP32(cur_info->mv[REFP_1], pmv_cands[mode][REFP_1]);
         CP16(cur_info->refi, refi_cands[mode]);
 
-        if (!REFI_IS_VALID(cur_info->refi[REFP_0]) && !REFI_IS_VALID(cur_info->refi[REFP_1])) {
-            continue;
-        }
+        com_assert(REFI_IS_VALID(refi_cands[REFP_0]) || REFI_IS_VALID(refi_cands[REFP_1]));
+
         if ((core->pichdr->slice_type == SLICE_P) && (cur_info->skip_idx == 1 || cur_info->skip_idx == 2) && (cur_info->umve_flag == 0)) {
             continue;
         }
@@ -750,10 +687,16 @@ static void analyze_direct_skip(core_t *core, lbac_t *lbac_best)
         s64 dist_pred[N_C] = { 0 };
 
         cur_info->cu_mode = MODE_DIR;
-        inter_rdcost(core, lbac_best, 0, 1, dist, dist_pred);
+        double cost_dir  = inter_rdcost(core, lbac_best, 0, 1, dist, dist_pred);
 
         cur_info->cu_mode = MODE_SKIP;
-        inter_rdcost(core, lbac_best, 1, 0, dist, dist_pred);
+        double cost_skip = inter_rdcost(core, lbac_best, 1, 0, dist, dist_pred);
+
+        int emvr_idx = mode - TRADITIONAL_SKIP_NUM;
+
+        if (!cur_info->umve_flag && emvr_idx >= 0 && emvr_idx <= 4) {
+            core->skip_emvr_mode[emvr_idx] = cost_skip < cost_dir;
+        }
     }
 }
 
@@ -772,7 +715,6 @@ static void analyze_affine_merge(core_t *core, lbac_t *lbac_best)
     s8           mrg_list_refi[AFF_MAX_NUM_MRG][REFP_NUM];
     int          mrg_list_cp_num[AFF_MAX_NUM_MRG];
     CPMV         mrg_list_cp_mv[AFF_MAX_NUM_MRG][REFP_NUM][VER_NUM][MV_D];
-    double       cost = MAX_D_COST;
     int          mrg_idx, num_cands = 0;
 
     pel*y_org = pic_org->y + x + y * pic_org->stride_luma;
@@ -844,10 +786,10 @@ static void analyze_affine_merge(core_t *core, lbac_t *lbac_best)
         s64 dist_pred[N_C] = { 0 };
 
         cur_info->cu_mode = MODE_DIR;
-        cost = inter_rdcost(core, lbac_best, 0, 1, dist, dist_pred);
+        inter_rdcost(core, lbac_best, 0, 1, dist, dist_pred);
 
         cur_info->cu_mode = MODE_SKIP;
-        cost = inter_rdcost(core, lbac_best, 1, 0, dist, dist_pred);
+        inter_rdcost(core, lbac_best, 1, 0, dist, dist_pred);
     }
 }
 
@@ -1668,7 +1610,7 @@ static void analyze_affine_bi(core_t *core, lbac_t *lbac_best, CPMV aff_mv_L0L1[
     inter_rdcost(core, lbac_best, 0, 1, NULL, NULL);
 }
 
-static int is_same_mv(core_t *core, com_motion_t hmvp_motion)
+static int is_same_with_tr(core_t *core, com_motion_t hmvp_motion)
 {
     com_info_t *info    = core->info;
     int x_scu           = core->cu_scu_x;
@@ -1754,10 +1696,10 @@ void analyze_inter_cu(core_t *core, lbac_t *lbac_best)
             pi->curr_mvr = cur_info->mvr_idx;
 
             if (cur_info->hmvp_flag) {
-                if (is_same_mv(core, core->motion_cands[core->cnt_hmvp_cands - 1 - cur_info->mvr_idx])) {
+                if (is_same_with_tr(core, core->motion_cands[core->cnt_hmvp_cands - 1 - cur_info->mvr_idx])) {
                     continue;
                 }
-                if (bst_info->cu_mode == MODE_SKIP && bst_info->skip_idx >= TRADITIONAL_SKIP_NUM && bst_info->skip_idx - TRADITIONAL_SKIP_NUM == cur_info->mvr_idx) {
+                if (bst_info->cu_mode == MODE_SKIP && core->skip_emvr_mode[cur_info->mvr_idx]) {
                     continue;
                 }
             }

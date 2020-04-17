@@ -301,7 +301,7 @@ typedef struct uavs3e_core_t {
     s16            coef[N_C][MAX_CU_DIM];
     s16            ctmp[N_C][MAX_CU_DIM];
 
-    lbac_t     lbac_rdo;
+    lbac_t         lbac_rdo;
     lbac_t         lbac_bakup; // lbac ctx before mode decision
     lbac_t         lbac_intra_prev_pu;
     lbac_t         lbac_tree_c;
@@ -315,7 +315,7 @@ typedef struct uavs3e_core_t {
     com_mode_t     mod_info_best;
     com_mode_t     mod_info_curr;
 
-    inter_search_t     pinter;  /* inter prediction analysis */
+    inter_search_t pinter;  /* inter prediction analysis */
 
     pel            intra_pred_all[IPD_CNT][MAX_CU_DIM]; // only for luma
 
@@ -332,6 +332,7 @@ typedef struct uavs3e_core_t {
 #if TR_EARLY_TERMINATE
     s64            dist_pred_luma;
 #endif
+    u8             skip_emvr_mode[5];
 } core_t;
 
 typedef struct uavs3e_enc_pic_t {

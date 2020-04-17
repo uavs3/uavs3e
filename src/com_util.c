@@ -2868,13 +2868,6 @@ void check_set_tb_part(com_mode_t *mode)
     }
 }
 
-void check_tb_part(com_mode_t *mode)
-{
-    if (!is_cu_plane_nz(mode->num_nz, Y_C) && mode->tb_part != SIZE_2Nx2N) {
-        com_assert(0);
-    }
-}
-
 void copy_rec_y_to_pic(pel *src, int x, int y, int w, int h, int stride, com_pic_t *pic)
 {
     pel *dst;
