@@ -1687,7 +1687,7 @@ void uavs3e_if_hor_ver_chroma_w4_avx2(const pel *src, int i_src, pel *dst, int i
 
         T0 = _mm256_add_epi16(T0, T1);
 
-        _mm256_store_si256((__m256i *)(tmp + 12), T0);
+        _mm256_storeu_si256((__m256i *)(tmp + 12), T0);
         src += i_src << 2;
 
         // ver
@@ -2327,8 +2327,8 @@ void uavs3e_if_hor_ver_luma_w8_avx2(const pel *src, int i_src, pel *dst, int i_d
     int row;
     int shift = 12;
 
-    __m256i T0, T1, T2, T3, T4, T5, T6, T7, T8, T9;
-    __m256i r0, r1, r2, r3, r4, r5, r6, r7, r8, r9;
+    __m256i T0, T1, T2, T3, T4, T5, T6, T7;
+    __m256i r0, r1, r2, r3, r4, r5, r6, r7;
     __m256i mVal[6];
     __m256i mSwitch1 = _mm256_setr_epi8(0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8);
     __m256i mSwitch2 = _mm256_setr_epi8(2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10);
@@ -2339,55 +2339,53 @@ void uavs3e_if_hor_ver_luma_w8_avx2(const pel *src, int i_src, pel *dst, int i_d
     __m256i mCoefy3_hor = _mm256_set1_epi16(*(s16*)(coef_x + 4));
     __m256i mCoefy4_hor = _mm256_set1_epi16(*(s16*)(coef_x + 6));
 
-    //HOR
+    src = src - 3 * i_src - 3;
+
+    // first row
     {
-        src = src - 3 * i_src - 3;
+        __m128i mSrc0 = _mm_loadu_si128((__m128i*)(src));
+        T0 = _mm256_set_m128i(mSrc0, mSrc0);
 
-        // first row
-        {
-            __m128i mSrc0 = _mm_loadu_si128((__m128i*)(src));
-            T0 = _mm256_set_m128i(mSrc0, mSrc0);
+        r0 = _mm256_shuffle_epi8(T0, mSwitch1);
+        r1 = _mm256_shuffle_epi8(T0, mSwitch2);
+        r2 = _mm256_shuffle_epi8(T0, mSwitch3);
+        r3 = _mm256_shuffle_epi8(T0, mSwitch4);
 
-            r0 = _mm256_shuffle_epi8(T0, mSwitch1);
-            r1 = _mm256_shuffle_epi8(T0, mSwitch2);
-            r2 = _mm256_shuffle_epi8(T0, mSwitch3);
-            r3 = _mm256_shuffle_epi8(T0, mSwitch4);
+        T0 = _mm256_maddubs_epi16(r0, mCoefy1_hor);
+        T1 = _mm256_maddubs_epi16(r1, mCoefy2_hor);
+        T2 = _mm256_maddubs_epi16(r2, mCoefy3_hor);
+        T3 = _mm256_maddubs_epi16(r3, mCoefy4_hor);
 
-            T0 = _mm256_maddubs_epi16(r0, mCoefy1_hor);
-            T1 = _mm256_maddubs_epi16(r1, mCoefy2_hor);
-            T2 = _mm256_maddubs_epi16(r2, mCoefy3_hor);
-            T3 = _mm256_maddubs_epi16(r3, mCoefy4_hor);
+        T0 = _mm256_add_epi16(T0, T1);
+        T1 = _mm256_add_epi16(T2, T3);
+        mVal[0] = _mm256_add_epi16(T0, T1);
 
-            T0 = _mm256_add_epi16(T0, T1);
-            T1 = _mm256_add_epi16(T2, T3);
-            mVal[0] = _mm256_add_epi16(T0, T1);
+        mVal[0] = _mm256_permute4x64_epi64(mVal[0], 0x44);
 
-            mVal[0] = _mm256_permute4x64_epi64(mVal[0], 0x44);
+        src += i_src;
+    }
 
-            src += i_src;
-        }
+    // row[1-6]
+    for (row = 1; row < 4; row++) {
+        __m128i mSrc0 = _mm_loadu_si128((__m128i*)(src));
+        __m128i mSrc1 = _mm_loadu_si128((__m128i*)(src + i_src));
+        T0 = _mm256_set_m128i(mSrc1, mSrc0);
 
-        for (row = 1; row < 4; row++) {
-            __m128i mSrc0 = _mm_loadu_si128((__m128i*)(src));
-            __m128i mSrc1 = _mm_loadu_si128((__m128i*)(src + i_src));
-            T0 = _mm256_set_m128i(mSrc1, mSrc0);
+        r0 = _mm256_shuffle_epi8(T0, mSwitch1);
+        r1 = _mm256_shuffle_epi8(T0, mSwitch2);
+        r2 = _mm256_shuffle_epi8(T0, mSwitch3);
+        r3 = _mm256_shuffle_epi8(T0, mSwitch4);
 
-            r0 = _mm256_shuffle_epi8(T0, mSwitch1);
-            r1 = _mm256_shuffle_epi8(T0, mSwitch2);
-            r2 = _mm256_shuffle_epi8(T0, mSwitch3);
-            r3 = _mm256_shuffle_epi8(T0, mSwitch4);
+        T0 = _mm256_maddubs_epi16(r0, mCoefy1_hor);
+        T1 = _mm256_maddubs_epi16(r1, mCoefy2_hor);
+        T2 = _mm256_maddubs_epi16(r2, mCoefy3_hor);
+        T3 = _mm256_maddubs_epi16(r3, mCoefy4_hor);
 
-            T0 = _mm256_maddubs_epi16(r0, mCoefy1_hor);
-            T1 = _mm256_maddubs_epi16(r1, mCoefy2_hor);
-            T2 = _mm256_maddubs_epi16(r2, mCoefy3_hor);
-            T3 = _mm256_maddubs_epi16(r3, mCoefy4_hor);
+        T0 = _mm256_add_epi16(T0, T1);
+        T1 = _mm256_add_epi16(T2, T3);
+        mVal[row] = _mm256_add_epi16(T0, T1);
 
-            T0 = _mm256_add_epi16(T0, T1);
-            T1 = _mm256_add_epi16(T2, T3);
-            mVal[row] = _mm256_add_epi16(T0, T1);
-
-            src += i_src2;
-        }
+        src += i_src2;
     }
 
     {
@@ -2453,8 +2451,6 @@ void uavs3e_if_hor_ver_luma_w8_avx2(const pel *src, int i_src, pel *dst, int i_d
             T5 = mVal[3];
             T6 = _mm256_permute2x128_si256(mVal[3], mVal[4], 0x21);
             T7 = mVal[4];
-            T8 = _mm256_permute2x128_si256(mVal[4], mVal[5], 0x21);
-            T9 = mVal[5];
 
             mVal[0] = mVal[2];
             mVal[1] = mVal[3];
@@ -2465,19 +2461,19 @@ void uavs3e_if_hor_ver_luma_w8_avx2(const pel *src, int i_src, pel *dst, int i_d
             r1 = _mm256_unpacklo_epi16(T2, T3);
             r2 = _mm256_unpacklo_epi16(T4, T5);
             r3 = _mm256_unpacklo_epi16(T6, T7);
-            r5 = _mm256_unpackhi_epi16(T0, T1);
-            r6 = _mm256_unpackhi_epi16(T2, T3);
-            r7 = _mm256_unpackhi_epi16(T4, T5);
-            r8 = _mm256_unpackhi_epi16(T6, T7);
+            r4 = _mm256_unpackhi_epi16(T0, T1);
+            r5 = _mm256_unpackhi_epi16(T2, T3);
+            r6 = _mm256_unpackhi_epi16(T4, T5);
+            r7 = _mm256_unpackhi_epi16(T6, T7);
 
             T0 = _mm256_madd_epi16(r0, mCoefy1);
             T1 = _mm256_madd_epi16(r1, mCoefy2);
             T2 = _mm256_madd_epi16(r2, mCoefy3);
             T3 = _mm256_madd_epi16(r3, mCoefy4);
-            T4 = _mm256_madd_epi16(r5, mCoefy1);
-            T5 = _mm256_madd_epi16(r6, mCoefy2);
-            T6 = _mm256_madd_epi16(r7, mCoefy3);
-            T7 = _mm256_madd_epi16(r8, mCoefy4);
+            T4 = _mm256_madd_epi16(r4, mCoefy1);
+            T5 = _mm256_madd_epi16(r5, mCoefy2);
+            T6 = _mm256_madd_epi16(r6, mCoefy3);
+            T7 = _mm256_madd_epi16(r7, mCoefy4);
 
             T0 = _mm256_add_epi32(T0, T1);
             T2 = _mm256_add_epi32(T2, T3);
@@ -2494,20 +2490,22 @@ void uavs3e_if_hor_ver_luma_w8_avx2(const pel *src, int i_src, pel *dst, int i_d
             s0 = _mm_packus_epi16(_mm256_castsi256_si128(T0), _mm256_extracti128_si256(T0, 1));
             s1 = _mm_srli_si128(s0, 8);
 
+            T4 = _mm256_permute2x128_si256(mVal[2], mVal[3], 0x21);
+
             _mm_storel_epi64((__m128i*)(dst), s0);
             _mm_storel_epi64((__m128i*)(dst + i_dst), s1);
 
-            r4 = _mm256_unpacklo_epi16(T8, T9);
-            r9 = _mm256_unpackhi_epi16(T8, T9);
+            r0 = _mm256_unpacklo_epi16(T4, mVal[3]);
+            r4 = _mm256_unpackhi_epi16(T4, mVal[3]);
 
             T0 = _mm256_madd_epi16(r1, mCoefy1);
             T1 = _mm256_madd_epi16(r2, mCoefy2);
             T2 = _mm256_madd_epi16(r3, mCoefy3);
-            T3 = _mm256_madd_epi16(r4, mCoefy4);
-            T4 = _mm256_madd_epi16(r6, mCoefy1);
-            T5 = _mm256_madd_epi16(r7, mCoefy2);
-            T6 = _mm256_madd_epi16(r8, mCoefy3);
-            T7 = _mm256_madd_epi16(r9, mCoefy4);
+            T3 = _mm256_madd_epi16(r0, mCoefy4);
+            T4 = _mm256_madd_epi16(r5, mCoefy1);
+            T5 = _mm256_madd_epi16(r6, mCoefy2);
+            T6 = _mm256_madd_epi16(r7, mCoefy3);
+            T7 = _mm256_madd_epi16(r4, mCoefy4);
 
             T0 = _mm256_add_epi32(T0, T1);
             T2 = _mm256_add_epi32(T2, T3);
