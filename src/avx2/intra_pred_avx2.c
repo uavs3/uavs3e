@@ -429,7 +429,7 @@ void uavs3e_ipred_ang_x_avx2(pel *src, pel *dst, int i_dst, int mode, int width,
 
     if (width == 4) {
         int i, j;
-        int width2 = width << 1;
+        const int width2 = 8;
 
         for (j = 0; j < height; j++) {
             int c0, c1, c2, c3;
@@ -459,6 +459,7 @@ void uavs3e_ipred_ang_x_avx2(pel *src, pel *dst, int i_dst, int mode, int width,
         __m128i off = _mm_set1_epi16(64);
         __m256i mSwitch = _mm256_setr_epi8(0, 1, 2, 3, 1, 2, 3, 4, 2, 3, 4, 5, 3, 4, 5, 6, 0, 1, 2, 3, 1, 2, 3, 4, 2, 3, 4, 5, 3, 4, 5, 6);
         int j, i;
+        const int width2 = 16;
         for (j = 0; j < height; j++) {
             int idx = psteps[j];
             int offset = poffsets[j];
@@ -467,9 +468,9 @@ void uavs3e_ipred_ang_x_avx2(pel *src, pel *dst, int i_dst, int mode, int width,
             int c1 = 64 - offset;
             int c2 = 32 + offset;
             int c3 = offset;
-            int pred_width = COM_MIN(8, 16 - idx + 1);
+            int pred_width = COM_MIN(width, width2 - idx + 1);
             if (pred_width <= 0) {
-                dst[0] = (src[16] * c0 + src[16 + 1] * c1 + src[16 + 2] * c2 + src[16 + 3] * c3 + 64) >> 7;
+                dst[0] = (src[width2] * c0 + src[width2 + 1] * c1 + src[width2 + 2] * c2 + src[width2 + 3] * c3 + 64) >> 7;
                 pred_width = 1;
             }
             else {
@@ -500,17 +501,18 @@ void uavs3e_ipred_ang_x_avx2(pel *src, pel *dst, int i_dst, int mode, int width,
         __m128i off = _mm_set1_epi16(64);
         __m256i mSwitch = _mm256_setr_epi8(0, 1, 2, 3, 1, 2, 3, 4, 2, 3, 4, 5, 3, 4, 5, 6, 0, 1, 2, 3, 1, 2, 3, 4, 2, 3, 4, 5, 3, 4, 5, 6);
         int j, i;
+        const int width2 = 24;
         for (j = 0; j < height; j++) {
             int idx = psteps[j];
             int offset = poffsets[j];
             pel *psrc = src + idx;
-            int pred_width = COM_MIN(12, 24 - idx + 1);
+            int pred_width = COM_MIN(width, width2 - idx + 1);
             int c0 = 32 - offset;
             int c1 = 64 - offset;
             int c2 = 32 + offset;
             int c3 = offset;
             if (pred_width <= 0) {
-                dst[0] = (src[16] * c0 + src[16 + 1] * c1 + src[16 + 2] * c2 + src[16 + 3] * c3 + 64) >> 7;
+                dst[0] = (src[width2] * c0 + src[width2 + 1] * c1 + src[width2 + 2] * c2 + src[width2 + 3] * c3 + 64) >> 7;
                 pred_width = 1;
             }
             else {
@@ -547,17 +549,18 @@ void uavs3e_ipred_ang_x_avx2(pel *src, pel *dst, int i_dst, int mode, int width,
         __m256i mSwitch0 = _mm256_setr_epi8(0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8);
         __m256i mSwitch1 = _mm256_setr_epi8(2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10);
         int j, i;
+        const int width2 = 48;
         for (j = 0; j < height; j++) {
             int idx = psteps[j];
             int offset = poffsets[j];
             pel *p0 = src + idx;
-            int pred_width = COM_MIN(24, 48 - idx + 1);
+            int pred_width = COM_MIN(width, width2 - idx + 1);
             if (pred_width <= 0) {
                 int c0 = 32 - offset;
                 int c1 = 64 - offset;
                 int c2 = 32 + offset;
                 int c3 = offset;
-                dst[0] = (src[16] * c0 + src[16 + 1] * c1 + src[16 + 2] * c2 + src[16 + 3] * c3 + 64) >> 7;
+                dst[0] = (src[width2] * c0 + src[width2 + 1] * c1 + src[width2 + 2] * c2 + src[width2 + 3] * c3 + 64) >> 7;
                 pred_width = 1;
             }
             else {
@@ -614,7 +617,7 @@ void uavs3e_ipred_ang_x_avx2(pel *src, pel *dst, int i_dst, int mode, int width,
                 int c1 = 64 - offset;
                 int c2 = 32 + offset;
                 int c3 = offset;
-                dst[0] = (src[16] * c0 + src[16 + 1] * c1 + src[16 + 2] * c2 + src[16 + 3] * c3 + 64) >> 7;
+                dst[0] = (src[width2] * c0 + src[width2 + 1] * c1 + src[width2 + 2] * c2 + src[width2 + 3] * c3 + 64) >> 7;
                 pred_width = 1;
             }
             else {

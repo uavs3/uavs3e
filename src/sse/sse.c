@@ -342,10 +342,10 @@ void uavs3e_funs_init_sse()
     uavs3e_funs_handle.intra_pred_ipf_core_s16 = uavs3e_ipred_ipf_core_s16_sse;
 
     for (i = IPD_BI + 1; i < IPD_VER; i++) {
-        uavs3e_funs_handle.intra_pred_ang[i] = uavs3e_ipred_ang_x_sse;
+        //uavs3e_funs_handle.intra_pred_ang[i] = uavs3e_ipred_ang_x_sse;
     }
     for (i = IPD_HOR + 1; i < IPD_CNT - 2; i++) {
-        uavs3e_funs_handle.intra_pred_ang[i] = uavs3e_ipred_ang_y_sse;
+        //uavs3e_funs_handle.intra_pred_ang[i] = uavs3e_ipred_ang_y_sse;
     }
 
     uavs3e_funs_handle.intra_pred_ang[4] = uavs3e_ipred_ang_x_4_sse;
