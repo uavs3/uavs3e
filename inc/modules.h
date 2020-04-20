@@ -34,7 +34,7 @@ int enc_alf_avs2(enc_pic_t *ep, com_pic_t *pic_rec, com_pic_t *pic_org, double l
 void enc_sao_rdo(core_t *core, const lbac_t *lbac);
 
 /*** transform ***/
-void transform(com_mode_t *mode, int plane, int blk_idx, s16 *coef, s16 *resi, int cu_width_log2, int cu_height_log2, int bIntra, int ch_type, int bit_depth, int secT_Ver_Hor, int use_alt4x4Trans);
+void transform(com_mode_t *mode, int plane, int blk_idx, s16 *coef, s16 *resi, int cu_width_log2, int cu_height_log2, int bit_depth, int secT_Ver_Hor, int use_alt4x4Trans);
 
 /*** quant ***/
 void rdoq_init_err_scale(int bit_depth);

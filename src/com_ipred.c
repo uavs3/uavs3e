@@ -822,22 +822,32 @@ void com_intra_get_mpm(int x_scu, int y_scu, com_scu_t *map_scu, s8 *map_ipm, in
     }
 }
 
-static void ipred_ang_x(pel *pSrc, pel *dst, int i_dst, int uiDirMode, int iWidth, int iHeight)
+static void ipred_ang_x(pel *src, pel *dst, int i_dst, int mode, int width, int height)
 {
     int i, j;
     int offset;
+    int width2 = width << 1;
 
-    for (j = 0; j < iHeight; j++) {
+    for (j = 0; j < height; j++) {
         int c1, c2, c3, c4;
-        pel *p = pSrc + getContextPixel(uiDirMode, 0, j + 1, &offset);
+        int idx = getContextPixel(mode, 0, j + 1, &offset);
+        pel *p = src + idx;
+        int pred_width = COM_MIN(width, width2 - idx + 1);
 
         c1 = 32 - offset;
         c2 = 64 - offset;
         c3 = 32 + offset;
         c4 = offset;
 
-        for (i = 0; i < iWidth; i++, p++) {
+        for (i = 0; i < pred_width; i++, p++) {
             dst[i] = (p[0] * c1 + p[1] * c2 + p[2] * c3 + p[3] * c4 + 64) >> 7;
+        }
+        if (pred_width <= 0) {
+            dst[0] = (src[width2] * c1 + src[width2 + 1] * c2 + src[width2 + 2] * c3 + src[width2 + 3] * c4 + 64) >> 7;
+            pred_width = 1;
+        }
+        for (; i < width; i++) {
+            dst[i] = dst[pred_width - 1];
         }
         dst += i_dst;
     }
@@ -977,6 +987,7 @@ static void xPredIntraAngAdi_Y(pel *pSrc, pel *dst, int i_dst, int uiDirMode, in
     int offset;
     int offsets[64];
     int xsteps[64];
+    int iHeight2 = iHeight << 1;
 
     for (i = 0; i < iWidth; i++) {
         xsteps[i] = getContextPixel(uiDirMode, 1, i + 1, &offsets[i]);
@@ -985,6 +996,7 @@ static void xPredIntraAngAdi_Y(pel *pSrc, pel *dst, int i_dst, int uiDirMode, in
     for (j = 0; j < iHeight; j++) {
         for (i = 0; i < iWidth; i++) {
             int idx = -j - xsteps[i];
+            idx = COM_MAX(-iHeight2, idx);
 
             offset = offsets[i];
             dst[i] = (pSrc[idx] * (32 - offset) + pSrc[idx - 1] * (64 - offset) + pSrc[idx - 2] * (32 + offset) + pSrc[idx - 3] * offset + 64) >> 7;

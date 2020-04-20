@@ -142,6 +142,10 @@ typedef int BOOL;
 #define com_mset_x128(dst,v,size) memset((dst), (v), (size))
 #define com_mcmp(dst,src,size)    memcmp((dst), (src), (size))
 
+#if defined(__GNUC__)
+#define offsetof(s,m) __builtin_offsetof(s,m)
+#endif
+
 #define ALIGN_SHIFT  5
 #define ALIGN_BASIC (1 << ALIGN_SHIFT)
 #define ALIGN_MASK (ALIGN_BASIC - 1)

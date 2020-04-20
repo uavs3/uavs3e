@@ -653,19 +653,18 @@ u32 com_had_4x8(pel *org, int s_org, pel *cur, int s_cur)
     return satd;
 }
 
-u32 com_had(int w, int h, void *addr_org, void *addr_curr, int s_org, int s_cur, int bit_depth)
+u32 com_had(int w, int h, pel *org, int s_org, pel *cur, int s_cur, int bit_depth)
 {
-    pel *org = addr_org;
-    pel *cur = addr_curr;
     int  x, y;
     int sum = 0;
     u32(*satd)(pel *p_org, int i_org, pel *p_pred, int i_pred);
+    int shift = bit_depth - 8;
 
     if (w == h) {
         if (w & 7) { // must be 4x4
-            sum = uavs3e_funs_handle.cost_satd[0][0](org, s_org, cur, s_cur);
+            return uavs3e_funs_handle.cost_satd[0][0](org, s_org, cur, s_cur) >> shift;
         } else if (w & 15) { // must be 8x8
-            sum = uavs3e_funs_handle.cost_satd[1][1](org, s_org, cur, s_cur);
+            return uavs3e_funs_handle.cost_satd[1][1](org, s_org, cur, s_cur) >> shift;
         } else {
             int  offset_org = s_org << 3;
             int  offset_cur = s_cur << 3;
@@ -678,20 +677,15 @@ u32 com_had(int w, int h, void *addr_org, void *addr_curr, int s_org, int s_cur,
                 org += offset_org;
                 cur += offset_cur;
             }
+            return sum >> shift;
         }
     } else if (w > h) {
         if (h == 4) {
-            if (w != 12) {
-                satd = uavs3e_funs_handle.cost_satd[1][0];
-                for (x = 0; x < w; x += 8) {
-                    sum += satd(&org[x], s_org, &cur[x], s_cur);
-                }
-            } else {
-                satd = uavs3e_funs_handle.cost_satd[0][0];
-                sum += satd(&org[0], s_org, &cur[0], s_cur);
-                sum += satd(&org[4], s_org, &cur[4], s_cur);
-                sum += satd(&org[8], s_org, &cur[8], s_cur);
+            satd = uavs3e_funs_handle.cost_satd[1][0];
+            for (x = 0; x < w; x += 8) {
+                sum += satd(&org[x], s_org, &cur[x], s_cur);
             }
+            return sum >> shift;
         } else if (h & 7) {
             int  offset_org = s_org << 2;
             int  offset_cur = s_cur << 2;
@@ -704,6 +698,7 @@ u32 com_had(int w, int h, void *addr_org, void *addr_curr, int s_org, int s_cur,
                 org += offset_org;
                 cur += offset_cur;
             }
+            return sum >> shift;
         } else {
             int  offset_org = s_org << 3;
             int  offset_cur = s_cur << 3;
@@ -716,31 +711,20 @@ u32 com_had(int w, int h, void *addr_org, void *addr_curr, int s_org, int s_cur,
                 org += offset_org;
                 cur += offset_cur;
             }
+            return sum >> shift;
         }
     } else {
         if (w == 4) {
-            if (h != 12) {
-                int  offset_org = s_org << 3;
-                int  offset_cur = s_cur << 3;
-                satd = uavs3e_funs_handle.cost_satd[0][1];
+            int  offset_org = s_org << 3;
+            int  offset_cur = s_cur << 3;
+            satd = uavs3e_funs_handle.cost_satd[0][1];
 
-                for (y = 0; y < h; y += 8) {
-                    sum += satd(org, s_org, cur, s_cur);
-                    org += offset_org;
-                    cur += offset_cur;
-                }
-            } else {
-                int  offset_org = s_org << 2;
-                int  offset_cur = s_cur << 2;
-                satd = uavs3e_funs_handle.cost_satd[0][0];
+            for (y = 0; y < h; y += 8) {
                 sum += satd(org, s_org, cur, s_cur);
                 org += offset_org;
                 cur += offset_cur;
-                sum += satd(org, s_org, cur, s_cur);
-                org += offset_org;
-                cur += offset_cur;
-                sum += satd(org, s_org, cur, s_cur);
             }
+            return sum >> shift;
         } else if (w & 7) {
             int  offset_org = s_org << 3;
             int  offset_cur = s_cur << 3;
@@ -753,6 +737,7 @@ u32 com_had(int w, int h, void *addr_org, void *addr_curr, int s_org, int s_cur,
                 org += offset_org;
                 cur += offset_cur;
             }
+            return sum >> shift;
         } else {
             int  offset_org = s_org << 4;
             int  offset_cur = s_cur << 4;
@@ -765,9 +750,9 @@ u32 com_had(int w, int h, void *addr_org, void *addr_curr, int s_org, int s_cur,
                 org += offset_org;
                 cur += offset_cur;
             }
+            return sum >> shift;
         }
     }
-    return (sum >> (bit_depth - 8));
 }
 
 void uavs3e_funs_init_cost_c()

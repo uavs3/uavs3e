@@ -184,10 +184,7 @@ static avs3_inline void com_mv_rounding_s16(s32 hor, s32 ver, s16 *rounded_hor, 
 
 void com_get_affine_mvp_scaling(s64 ptr, int scup, int lidx, s8 cur_refi, \
                                 s16(*map_mv)[REFP_NUM][MV_D], s8(*map_refi)[REFP_NUM], com_ref_pic_t(*refp)[REFP_NUM], \
-                                int cu_width, int cu_height, int i_scu, CPMV mvp[VER_NUM][MV_D],
-                                com_scu_t *map_scu, u32 *map_pos, int vertex_num
-                                , u8 curr_mvr
-                               );
+                                int cu_width, int cu_height, int i_scu, CPMV mvp[VER_NUM][MV_D], com_scu_t *map_scu, u32 *map_pos, u8 curr_mvr);
 
 int com_get_affine_memory_access(CPMV mv[VER_NUM][MV_D], int cu_width, int cu_height);
 
@@ -212,7 +209,7 @@ void com_check_split_mode(com_seqh_t *sqh, int *split_allow, int cu_width_log2, 
                           const int parent_split, int qt_depth, int bet_depth, int slice_type);
 
 
-void com_sbac_ctx_init(com_lbac_all_ctx_t *sbac_ctx);
+void com_lbac_ctx_init(com_lbac_all_ctx_t *lbac_ctx);
 
 int  com_dt_allow(int cu_w, int cu_h, int pred_mode, int max_dt_size);
 
@@ -242,7 +239,6 @@ void cu_plane_nz_cln(int dst[MAX_NUM_TB][N_C], int plane);
 int is_cu_nz_equ(int dst[MAX_NUM_TB][N_C], int src[MAX_NUM_TB][N_C]);
 void cu_nz_cln(int dst[MAX_NUM_TB][N_C]);
 void check_set_tb_part(com_mode_t *mode);
-void check_tb_part(com_mode_t *mode);
 void copy_rec_y_to_pic(pel *src, int x, int y, int w, int h, int stride, com_pic_t *pic);
 
 u8 is_use_cons(int w, int h, split_mode_t split, u8 slice_type);
@@ -279,9 +275,11 @@ typedef struct uavs3e_funs_handle_t {
     void(*deblock_chroma[2])(pel *srcu, pel *srcv, int stride, int alphau, int betau, int alphav, int betav, int flag);
 
     void(*sao)(pel *src, int i_src, pel *dst, int i_dst, com_sao_param_t *sao_params, int height, int width, int avail_left, int avail_right, int avail_up, int avail_down, int bit_depth);
+    void(*sao_stat)(com_pic_t *pic_org, com_pic_t *pic_rec, com_sao_stat_t *saostatsData, int bit_depth, int compIdx, int pix_x, int pix_y, int lcu_pix_width, int lcu_pix_height, int lcu_available_left, int lcu_available_right, int lcu_available_up, int lcu_available_down);
 
     void(*alf)(pel *dst, int i_dst, pel *src, int i_src, int lcu_width, int lcu_height, int *coef, int sample_bit_depth);
     void(*alf_fix)(pel *dst, int i_dst, pel *src, int i_src, int lcu_width, int lcu_height, int *coef, int sample_bit_depth);
+    void(*alf_calc)(pel *p_org, int i_org, pel *p_alf, int i_alf, int xPos, int yPos, int width, int height, double eCorr[9][9], double yCorr[9], int isAboveAvail, int isBelowAvail);
 
     void(*ipcpy                      [CU_SIZE_NUM])(const pel *src, int i_src, pel *dst, int i_dst, int width, int height);
     void(*ipflt    [NUM_IPFILTER    ][CU_SIZE_NUM])(const pel *src, int i_src, pel *dst, int i_dst, int width, int height, const s8 *coeff, int max_val);
@@ -310,9 +308,9 @@ typedef struct uavs3e_funs_handle_t {
     void(*pel_diff[CU_SIZE_NUM])(pel *org, int i_org, pel *pred, int i_pred, s16 *resi, int i_resi, int height);
     void(*pel_avrg[CU_SIZE_NUM])(pel *dst, int i_dst, pel *src1, pel *src2, int height);
 
-    void(*affine_sobel_flt_hor)(pel *pred, int i_pred, int *deriv, int i_deriv, int width, int height);
-    void(*affine_sobel_flt_ver)(pel *pred, int i_pred, int *deriv, int i_deriv, int width, int height);
-    void(*affine_coef_computer)(s16 *resi, int i_resi, int(*deriv)[MAX_CU_DIM], int i_deriv, s64(*coef)[7], int width, int height, int vertex_num);
+    void(*affine_sobel_flt_hor)(pel *pred, int i_pred, s16 *deriv, int i_deriv, int width, int height);
+    void(*affine_sobel_flt_ver)(pel *pred, int i_pred, s16 *deriv, int i_deriv, int width, int height);
+    void(*affine_coef_computer)(s16 *resi, int i_resi, s16(*deriv)[MAX_CU_DIM], int i_deriv, s64(*coef)[5], int width, int height);
 
     int(*quant_rdoq)(s16 *coef, int num, int q_value, int q_bits, s32 err_scale, int precision_bits, u32* abs_coef, s16* abs_level, s64 *uncoded_err);
     int(*quant_check)(s16 *coef, int num, int threshold);
@@ -351,10 +349,6 @@ void uavs3e_funs_init_c();
 int  uavs3e_simd_avx_level(int *phwavx);
 void uavs3e_funs_init_sse();
 void uavs3e_funs_init_avx2();
-#endif
-
-#if ENABLE_FUNCTION_ARM64
-//void uavs3e_funs_init_arm64();
 #endif
 
 void *uavs3e_align_malloc(int i_size);
@@ -397,7 +391,7 @@ static void avs3_always_inline wait_ref_available(com_pic_t *pic, int lines)
     }
 }
 
-u32 com_had(int w, int h, void *addr_org, void *addr_curr, int s_org, int s_cur, int bit_depth);
+u32 com_had(int w, int h, pel *org, int s_org, pel *cur, int s_cur, int bit_depth);
 
 com_img_t *com_img_create(int w, int h, int pad[MAX_PLANES], int planes);
 void       com_img_free(com_img_t *img);

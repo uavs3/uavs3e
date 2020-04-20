@@ -24,15 +24,16 @@
 
 #define SHIFT_QP 11
 #define QCompress 0.6
+#define CRF_DEFAULT_C 15.0
 
 static __inline double uavs3e_qScale2qp(double qScale)
 {
-    return 16.0 + 8.0 * COM_LOG2(qScale / 1.43631);
+    return 13.131 + 5.661 * COM_LOG2(qScale);
 }
 
 static __inline double uavs3e_qp2qScale(double qp)
 {
-    return 1.43631 * pow(2.0, (qp - 16.0) / 8.0);
+    return pow(2.0, (qp - 13.131) / 5.661);
 }
 
 void rc_init(enc_rc_t* p, enc_cfg_t *param)
@@ -41,7 +42,7 @@ void rc_init(enc_rc_t* p, enc_cfg_t *param)
 
     /* const data */
     p->type           = param->rc_type;
-    p->rfConstant     = pow(15, 1 - QCompress) / uavs3e_qp2qScale(param->rc_crf);
+    p->rfConstant     = pow(CRF_DEFAULT_C, 1 - QCompress) / uavs3e_qp2qScale(param->rc_crf);
     p->target_bitrate = param->rc_bitrate * 1000.0;
     p->max_bitrate    = param->rc_max_bitrate * 1000.0;
     p->frame_rate     = param->fps_num * 1.0 / param->fps_den;
@@ -49,13 +50,16 @@ void rc_init(enc_rc_t* p, enc_cfg_t *param)
     p->min_qp         = param->rc_min_qp;
     p->max_qp         = param->rc_max_qp;
     p->low_delay      = !param->max_b_frames;
-    p->win_size       = (int)(p->frame_rate * 1.0 + 0.5);
+    p->win_size       = ((int)(p->frame_rate + 0.5) + param->max_b_frames) / (param->max_b_frames + 1) * (param->max_b_frames + 1);
 
     p->total_subgops  = p->low_delay ? -1 : -2;
     p->win_idx        = 0;
     p->win_bits       = 0;
     p->win_frames     = 0;
     p->win_bits_list  = com_malloc(sizeof(int) * p->win_size);
+
+    p->shortTermCplxSum = CRF_DEFAULT_C;
+    p->shortTermCplxCount = 1;
 
     uavs3e_pthread_mutex_init(&p->mutex, NULL);
 }
@@ -79,7 +83,7 @@ void rc_update(enc_rc_t *p, com_pic_t *pic, char *ext_info, int info_buf_size)
         p->total_subgops++;
         p->subgop_frms = 0;
         p->subgop_bits = 0;
-        p->subgop_cplx = pic->picture_satd_blur;
+        p->subgop_cplx = pow(pic->picture_satd, 1 - QCompress);
         p->subgop_qscale = uavs3e_qp2qScale(pic->picture_qp_real);
     }
     p->subgop_frms++;
@@ -97,10 +101,10 @@ void rc_update(enc_rc_t *p, com_pic_t *pic, char *ext_info, int info_buf_size)
     p->win_frames = COM_MIN(p->win_frames + 1, p->win_size);
 
     if (ext_info) {
-        sprintf(ext_info, "layer:%d cost:%5.2f br:%9.2fkbps", pic->layer_id, pic->picture_satd, p->total_bits / (p->total_frms / p->frame_rate) / 1000);
+        sprintf(ext_info, "layer:%d cost:%5.2f brTal:%9.2fkbps", pic->layer_id, pic->picture_satd, p->total_bits / (p->total_frms / p->frame_rate) / 1000);
 
         if (p->total_subgops > 0) {
-            sprintf(ext_info, "%s C:%9.2f", ext_info, p->total_factor / p->total_subgops);
+            sprintf(ext_info, "%s factor:%9.2f", ext_info, p->total_factor / p->total_subgops);
         }
         if (p->win_frames == p->win_size) {
             sprintf(ext_info, "%s brCur:%9.2fkbps", ext_info, p->win_bits * p->frame_rate / p->win_frames / 1000);
@@ -124,22 +128,31 @@ int rc_get_qp(enc_rc_t *p,  com_pic_t *pic, int qp_l0, int qp_l1)
     long long ptr = pic->img->ptr;
 
     if (layer_id > FRM_DEPTH_1) {
+        com_assert(qp_l0 > 0);
+
         if (p->low_delay) {
             qp = enc_get_hgop_qp(qp_l0, layer_id, 1);
         } else {
-            qp = enc_get_hgop_qp((qp_l0 + qp_l1 * 3) / 4, layer_id, 0);
+            int weighted_qp = qp_l0;
+
+            if (qp_l1 > 0) {
+                weighted_qp = (qp_l0 + qp_l1 * 3) / 4;
+            }
+            qp = enc_get_hgop_qp(weighted_qp, layer_id, 0);
         }
         return (int)(COM_CLIP3(min_qp, max_qp, (qp + 0.5)));
     }
 
     /*** frames in top layer ***/
 
-    p->shortTermCplxSum *= 0.5;
-    p->shortTermCplxCount *= 0.5;
-    p->shortTermCplxSum += pic->picture_satd;
-    p->shortTermCplxCount++;
+    if (layer_id == FRM_DEPTH_1) {
+        p->shortTermCplxSum *= 0.5;
+        p->shortTermCplxCount *= 0.5;
+        p->shortTermCplxSum += pic->picture_satd;
+        p->shortTermCplxCount++;
+    }
 
-    double blurredComplexity = pic->picture_satd_blur = pow(p->shortTermCplxSum / p->shortTermCplxCount, 1 - QCompress);
+    double blurredComplexity = pow(p->shortTermCplxSum / p->shortTermCplxCount, 1 - QCompress);
 
     if (p->max_bitrate != 0) {
         int sub_win = 16;
@@ -157,7 +170,6 @@ int rc_get_qp(enc_rc_t *p,  com_pic_t *pic, int qp_l0, int qp_l1)
             double qScale = blurredComplexity * (p->total_factor / p->total_subgops) / frame_bits;
 
             min_qp = uavs3e_qScale2qp(qScale) - (layer_id == 0 ? 3 : 0);
-            //printf("%d  %f  %f  %f\n", sub_gop_frms, frame_bits, qScale, min_qp);
             min_qp = COM_MIN(min_qp, max_qp);
         }
     }
@@ -174,6 +186,7 @@ int rc_get_qp(enc_rc_t *p,  com_pic_t *pic, int qp_l0, int qp_l1)
                 double lambda = 6.7542 / 256 * pow(bpp * ratio / cpp, -1.7860);
                 qp = (int)(5.661 * log(lambda) + 13.131 + 0.5);
             } else {
+                com_assert(qp_l0 > 0);
                 qp = enc_get_hgop_qp(qp_l0, layer_id, p->low_delay);
             }
         } else {

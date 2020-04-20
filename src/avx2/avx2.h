@@ -61,8 +61,7 @@ void uavs3e_sao_on_lcu_chroma_avx2(pel *src, int i_src, pel *dst, int i_dst, com
                                    int smb_available_left, int smb_available_right, int smb_available_up, int smb_available_down, int sample_bit_depth);
 
 void uavs3e_alf_one_lcu_avx2(pel *dst, int i_dst, pel *src, int stride, int lcu_width, int lcu_height, int *coef, int sample_bit_depth);
-void uavs3e_alf_one_lcu_chroma_avx2(pel *dst, int i_dst, pel *src, int stride, int lcu_width, int lcu_height, int *coef, int sample_bit_depth);
-void uavs3e_alf_one_lcu_one_chroma_avx2(pel *dst, int i_dst, pel *src, int stride, int lcu_width, int lcu_height, int *coef, int sample_bit_depth);
+void uavs3e_alf_calc_corr_avx2(pel *p_org, int i_org, pel *p_alf, int i_alf, int xPos, int yPos, int width, int height, double eCorr[9][9], double yCorr[9], int isAboveAvail, int isBelowAvail);
 
 void uavs3e_if_cpy_w16_avx2(const pel *src, int i_src, pel *dst, int i_dst, int width, int height);
 void uavs3e_if_cpy_w32_avx2(const pel *src, int i_src, pel *dst, int i_dst, int width, int height);
@@ -132,11 +131,18 @@ void uavs3e_ipred_ang_y_26_avx2(pel *src, pel *dst, int i_dst, int mode, int wid
 void uavs3e_ipred_ang_y_28_avx2(pel *src, pel *dst, int i_dst, int mode, int width, int height);
 void uavs3e_ipred_ang_y_30_avx2(pel *src, pel *dst, int i_dst, int mode, int width, int height);
 void uavs3e_ipred_ang_y_32_avx2(pel *src, pel *dst, int i_dst, int mode, int width, int height);
+void uavs3e_ipred_ang_xy_13_avx2(pel *src, pel *dst, int i_dst, int mode, int width, int height);
 void uavs3e_ipred_ang_xy_14_avx2(pel *src, pel *dst, int i_dst, int mode, int width, int height);
+void uavs3e_ipred_ang_xy_15_avx2(pel *src, pel *dst, int i_dst, int mode, int width, int height);
 void uavs3e_ipred_ang_xy_16_avx2(pel *src, pel *dst, int i_dst, int mode, int width, int height);
+void uavs3e_ipred_ang_xy_17_avx2(pel *src, pel *dst, int i_dst, int mode, int width, int height);
 void uavs3e_ipred_ang_xy_18_avx2(pel *src, pel *dst, int i_dst, int mode, int width, int height);
+void uavs3e_ipred_ang_xy_19_avx2(pel *src, pel *dst, int i_dst, int mode, int width, int height);
 void uavs3e_ipred_ang_xy_20_avx2(pel *src, pel *dst, int i_dst, int mode, int width, int height);
+void uavs3e_ipred_ang_xy_21_avx2(pel *src, pel *dst, int i_dst, int mode, int width, int height);
 void uavs3e_ipred_ang_xy_22_avx2(pel *src, pel *dst, int i_dst, int mode, int width, int height);
+void uavs3e_ipred_ang_xy_23_avx2(pel *src, pel *dst, int i_dst, int mode, int width, int height);
+void uavs3e_ipred_offsets_seteps_init();
 
 void uavs3e_recon_w8_avx2(s16 *resi, pel *pred, int i_pred, int width, int height, pel *rec, int i_rec, int cbf, int bit_depth);
 void uavs3e_recon_w16_avx2(s16 *resi, pel *pred, int i_pred, int width, int height, pel *rec, int i_rec, int cbf, int bit_depth);
@@ -263,8 +269,8 @@ u32 uavs3e_had_8x8_avx2(pel *p_org, int i_org, pel *p_pred, int i_pred);
 u32 uavs3e_had_16x8_avx2(pel *p_org, int i_org, pel *p_pred, int i_pred);
 u32 uavs3e_had_8x16_avx2(pel *p_org, int i_org, pel *p_pred, int i_pred);
 
-void affine_sobel_flt_hor_avx2(pel *pred, int i_pred, int *deriv, int i_deriv, int width, int height);
-void affine_sobel_flt_ver_avx2(pel *pred, int i_pred, int *deriv, int i_deriv, int width, int height);
-void affine_coef_computer_avx2(s16 *resi, int i_resi, int(*deriv)[MAX_CU_DIM], int i_deriv, s64(*coef)[7], int width, int height, int vertex_num);
+void affine_sobel_flt_hor_avx2(pel *pred, int i_pred, s16 *deriv, int i_deriv, int width, int height);
+void affine_sobel_flt_ver_avx2(pel *pred, int i_pred, s16 *deriv, int i_deriv, int width, int height);
+void affine_coef_computer_avx2(s16 *resi, int i_resi, s16(*deriv)[MAX_CU_DIM], int i_deriv, s64(*coef)[5], int width, int height);
 
 #endif

@@ -205,13 +205,9 @@ typedef enum uavs3e_pred_direction {
 #define MV_D                               2
 
 #define CPMV_BIT_DEPTH                     18
-#if CPMV_BIT_DEPTH == 18
-typedef int                                CPMV;
-#else
-typedef short                              CPMV;
-#endif
 #define COM_CPMV_MAX                       ((s32)((1<<(CPMV_BIT_DEPTH - 1)) - 1))
 #define COM_CPMV_MIN                       ((s32)(-(1<<(CPMV_BIT_DEPTH - 1))))
+typedef int                                CPMV;
 
 #define NUM_AVS2_SPATIAL_MV                3
 #define NUM_SKIP_SPATIAL_MV                6

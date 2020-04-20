@@ -40,7 +40,7 @@ void com_alf_recon_coef(com_alf_pic_param_t *alfParam, int (*filterCoeff)[ALF_MA
 //startY: y start postion of the current filtering unit
 //endX: x end postion of the current filtering unit
 //endY: y end postion of the current filtering unit
-int com_alf_check_boundary(int x, int y, int lcuPosX, int lcuPosY, int startX, int startY, int endX,
+static int com_alf_check_boundary(int x, int y, int lcuPosX, int lcuPosY, int startX, int startY, int endX,
         int endY, int isAboveLeftAvail, int isLeftAvail, int isAboveRightAvail, int isRightAvail)
 {
     int modifiedX;
@@ -132,40 +132,42 @@ void com_alf_copy_param(com_alf_pic_param_t *dst, com_alf_pic_param_t *src)
 
 void com_alf_copy_frm(com_pic_t *pic_dst, com_pic_t *pic_src)
 {
-    int i, j;
-    int src_Stride, dst_Stride;
-    pel *src;
-    pel *dst;
-    //assert(pic_src->stride_luma == pic_dst->stride_luma);
-    src_Stride = pic_src->stride_luma;
-    dst_Stride = pic_dst->stride_luma;
-    src = pic_src->y;
-    dst = pic_dst->y;
-    for (j = 0; j < pic_src->height_luma; j++) {
-        for (i = 0; i < pic_src->width_luma; i++) {
-            dst[i] = src[i];
-        }
+    int src_Stride = pic_src->stride_luma;
+    int dst_Stride = pic_dst->stride_luma;
+    pel *src = pic_src->y;
+    pel *dst = pic_dst->y;
+
+    for (int j = 0; j < pic_src->height_luma; j++) {
+        memcpy(dst, src, pic_src->width_luma * sizeof(pel));
+        pel *pl = dst, *pr = dst + pic_src->width_luma - 1;
+        pl[-3] = pl[-2] = pl[-1] = pl[0];
+        pr[ 3] = pr[ 2] = pr[ 1] = pr[0];
         dst += dst_Stride;
         src += src_Stride;
     }
-    //assert(pic_src->stride_luma == pic_dst->stride_luma);
+
     src_Stride = pic_src->stride_chroma;
     dst_Stride = pic_dst->stride_chroma;
     src = pic_src->u;
     dst = pic_dst->u;
-    for (j = 0; j < pic_src->height_chroma; j++) {
-        for (i = 0; i < pic_src->width_chroma; i++) {
-            dst[i] = src[i];
-        }
+
+    for (int j = 0; j < pic_src->height_chroma; j++) {
+        memcpy(dst, src, pic_src->width_chroma * sizeof(pel));
+        pel *pl = dst, *pr = dst + pic_src->width_chroma - 1;
+        pl[-3] = pl[-2] = pl[-1] = pl[0];
+        pr[ 3] = pr[ 2] = pr[ 1] = pr[0];
         dst += dst_Stride;
         src += src_Stride;
     }
+
     src = pic_src->v;
     dst = pic_dst->v;
-    for (j = 0; j < pic_src->height_chroma; j++) {
-        for (i = 0; i < pic_src->width_chroma; i++) {
-            dst[i] = src[i];
-        }
+
+    for (int j = 0; j < pic_src->height_chroma; j++) {
+        memcpy(dst, src, pic_src->width_chroma * sizeof(pel));
+        pel *pl = dst, *pr = dst + pic_src->width_chroma - 1;
+        pl[-3] = pl[-2] = pl[-1] = pl[0];
+        pr[ 3] = pr[ 2] = pr[ 1] = pr[0];
         dst += dst_Stride;
         src += src_Stride;
     }
@@ -229,7 +231,7 @@ static void alf_filter_block(pel *dst, int i_dst, pel *src, int i_src, int lcu_w
             int xLeft = j - 1;
             int xRight = j + 1;
 
-            pixelInt = coef[0] * (imgPad5[j] + imgPad6[j]);
+            pixelInt  = coef[0] * (imgPad5[j] + imgPad6[j]);
             pixelInt += coef[1] * (imgPad3[j] + imgPad4[j]);
             pixelInt += coef[2] * (imgPad1[xRight] + imgPad2[xLeft]);
             pixelInt += coef[3] * (imgPad1[j] + imgPad2[j]);
@@ -363,8 +365,71 @@ static void alf_filter_block_fix(pel *dst, int i_dst, pel *src, int i_src,  int 
     }
 }
 
+static void alf_calc(pel *imgOrg, int i_org, pel *imgPad, int stride, int xPos, int yPos, int width, int height, double eCorr[9][9], double yCorr[9], int isAboveAvail, int isBelowAvail)
+{
+    int xPosEnd = xPos + width;
+    int startPosLuma = isAboveAvail ? (yPos - 4) : yPos;
+    int endPosLuma = isBelowAvail ? (yPos + height - 4) : (yPos + height);
+
+    int yUp, yBottom;
+    int ELocal[ALF_MAX_NUM_COEF];
+    pel *imgPad1, *imgPad2, *imgPad3, *imgPad4, *imgPad5, *imgPad6;
+    int i, j, k, l, yLocal;
+
+    imgPad += startPosLuma * stride;
+    imgOrg += startPosLuma * i_org;
+
+    for (i = startPosLuma; i < endPosLuma; i++) {
+        yUp = COM_CLIP3(startPosLuma, endPosLuma - 1, i - 1);
+        yBottom = COM_CLIP3(startPosLuma, endPosLuma - 1, i + 1);
+        imgPad1 = imgPad + (yBottom - i) * stride;
+        imgPad2 = imgPad + (yUp - i) * stride;
+
+        yUp = COM_CLIP3(startPosLuma, endPosLuma - 1, i - 2);
+        yBottom = COM_CLIP3(startPosLuma, endPosLuma - 1, i + 2);
+        imgPad3 = imgPad + (yBottom - i) * stride;
+        imgPad4 = imgPad + (yUp - i) * stride;
+
+        yUp = COM_CLIP3(startPosLuma, endPosLuma - 1, i - 3);
+        yBottom = COM_CLIP3(startPosLuma, endPosLuma - 1, i + 3);
+        imgPad5 = imgPad + (yBottom - i) * stride;
+        imgPad6 = imgPad + (yUp - i) * stride;
+
+        for (j = xPos; j < xPosEnd; j++) {
+            ELocal[0] = (imgPad5[j] + imgPad6[j]);
+            ELocal[1] = (imgPad3[j] + imgPad4[j]);
+            ELocal[2] = (imgPad1[j + 1] + imgPad2[j - 1]);
+            ELocal[3] = (imgPad1[j] + imgPad2[j]);
+            ELocal[4] = (imgPad1[j - 1] + imgPad2[j + 1]);
+            ELocal[7] = (imgPad[j + 1] + imgPad[j - 1]);
+            ELocal[6] = (imgPad[j + 2] + imgPad[j - 2]);
+            ELocal[5] = (imgPad[j + 3] + imgPad[j - 3]);
+            ELocal[8] = (imgPad[j]);
+
+            yLocal = imgOrg[j];
+
+            for (k = 0; k < ALF_MAX_NUM_COEF; k++) {
+                for (l = k; l < ALF_MAX_NUM_COEF; l++) {
+                    eCorr[k][l] += (double)(ELocal[k] * ELocal[l]);
+                }
+                yCorr[k] += (double)(ELocal[k] * yLocal);
+            }
+        }
+        imgPad += stride;
+        imgOrg += i_org;
+    }
+
+    for (k = 1; k < ALF_MAX_NUM_COEF; k++) {
+        for (l = 0; l < k; l++) {
+            eCorr[k][l] = eCorr[l][k];
+        }
+    }
+
+}
+
 void uavs3e_funs_init_alf_c()
 {
-    uavs3e_funs_handle.alf     = alf_filter_block;
-    uavs3e_funs_handle.alf_fix = alf_filter_block_fix;
+    uavs3e_funs_handle.alf      = alf_filter_block;
+    uavs3e_funs_handle.alf_fix  = alf_filter_block_fix;
+    uavs3e_funs_handle.alf_calc = alf_calc;
 }

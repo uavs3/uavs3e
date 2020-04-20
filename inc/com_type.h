@@ -51,7 +51,6 @@ typedef struct uavs3e_com_pic_t {
     
     /*** extension info **/
     double       picture_satd;                   /* [org] */
-    double       picture_satd_blur;              /* [rec] */
     int          picture_qp;                     /* [org] */
     double       picture_qp_real;                /* [rec] - real qp in bit depth of 8 */
     int          picture_bits;                   /* [rec] */
@@ -88,6 +87,7 @@ typedef struct uavs3e_com_pic_manager_t {
     int                max_pb_size;               /* max number of picture buffer */
     long long          ptr_l_ip;                  /* ptr of last I/P/top-B frame */
     long long          ptr_l_l_ip;                /* ptr of last last I/P/top-B frame */
+    long long          ptr_l_i;                   /* ptr of last I frame */
 
     int                pic_width;
     int                pic_height;
@@ -340,52 +340,42 @@ typedef struct uavs3e_com_seqh_t {
 
 } com_seqh_t;
 
-
-
-
-
-
 /*****************************************************************************
 * mode decision structure
 *****************************************************************************/
 typedef struct uavs3e_com_mode_t {
     int  cu_mode;
-    //note: DT can apply to intra CU and only use normal amvp for inter CU (no skip, direct, amvr, affine, hmvp)
-    part_size_t  pb_part;
-    part_size_t  tb_part;
+
+    part_size_t      pb_part;
+    part_size_t      tb_part;
     com_part_info_t  pb_info;
     com_part_info_t  tb_info;
 
-    ALIGNED_32(pel rec[N_C][MAX_CU_DIM]);
-    ALIGNED_32(s16 coef[N_C][MAX_CU_DIM]);
-    ALIGNED_32(pel pred[N_C][MAX_CU_DIM]);
+    s8   refi[REFP_NUM];
+    s16  mvd [REFP_NUM][MV_D];
+    s16  mv  [REFP_NUM][MV_D];
+
+    CPMV affine_mv [REFP_NUM][VER_NUM][MV_D];
+    s16  affine_mvd[REFP_NUM][VER_NUM][MV_D];
 
     int  num_nz[MAX_NUM_TB][N_C];
 
-    /* reference indices */
-    s8   refi[REFP_NUM];
-
-    /* MVR indices */
     u8   mvr_idx;
     u8   umve_flag;
     u8   umve_idx;
-    u8   skip_idx;
     u8   hmvp_flag;
-
-    /* mv difference */
-    s16  mvd[REFP_NUM][MV_D];
-    /* mv */
-    s16  mv[REFP_NUM][MV_D];
-
-    u8   affine_flag;
-    CPMV affine_mv[REFP_NUM][VER_NUM][MV_D];
-    s16  affine_mvd[REFP_NUM][VER_NUM][MV_D];
     u8   smvd_flag;
+    u8   affine_flag;
+    u8   skip_idx;
 
     /* intra prediction mode */
     u8   mpm[MAX_NUM_PB][2];
     s8   ipm[MAX_NUM_PB][2];
     u8   ipf_flag;
+
+    ALIGNED_32(pel rec [N_C][MAX_CU_DIM]);
+    ALIGNED_32(s16 coef[N_C][MAX_CU_DIM]);
+    ALIGNED_32(pel pred[N_C][MAX_CU_DIM]);
 } com_mode_t;
 
 
@@ -432,6 +422,10 @@ typedef struct uavs3e_com_info_t {
 
     int                     max_b_frames;
     int                     gop_size;
+
+    /* global table for ME */
+    u8  *tab_mvbits;
+
 } com_info_t;
 
 #endif /* _COM_H_ */

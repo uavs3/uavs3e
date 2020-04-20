@@ -19,6 +19,7 @@
 #include "sse.h"
 
 #if (BIT_DEPTH == 8)
+
 void uavs3e_alf_one_lcu_sse(pel *dst, int i_dst, pel *src, int i_src, int lcu_width, int lcu_height, int *coef, int sample_bit_depth)
 {
     pel *imgPad1, *imgPad2, *imgPad3, *imgPad4, *imgPad5, *imgPad6;
@@ -210,6 +211,494 @@ void uavs3e_alf_one_lcu_sse(pel *dst, int i_dst, pel *src, int i_src, int lcu_wi
     }
 }
 
+void uavs3e_alf_calc_corr_sse(pel *p_org, int i_org, pel *p_alf, int i_alf, int xPos, int yPos, int width, int height, double eCorr[9][9], double yCorr[9], int isAboveAvail, int isBelowAvail)
+{
+
+    __m128i T00, T01, T10, T11, T20, T21, T30, T31, T40, T41, T50, T51, T60, T61, T70, T71;
+    __m128i T8;
+    __m128i E00, E01, E10, E11, E20, E21, E30, E31, E40, E41, E50, E51, E60, E61, E70, E71, E80, E81, E0, E1, E2, E3;
+    __m128i C0, C1, C;
+    __m128i S0, S1, S2, S3, S00, S01;
+    __m128i mZero = _mm_set1_epi16(0);
+    __m128i R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, R11, R12, R13, R14;
+
+    int xPosEnd = xPos + width;
+    int startPos = isAboveAvail ? (yPos - 4) : yPos;
+    int endPos = isBelowAvail ? (yPos + height - 4) : (yPos + height);
+
+    int yUp, yBottom;
+
+    pel *imgPad1, *imgPad2, *imgPad3, *imgPad4, *imgPad5, *imgPad6;
+    int i, j, k, l;
+
+    pel *imgPad = p_alf + startPos * i_alf;
+    pel *imgOrg = p_org + startPos * i_org;
+
+    R1 = R2 = R3 = R4 = R5 = R6 = R7 = R8 = R9 = R10 = R11 = R12 = R13 = R14 = mZero;
+
+    for (i = startPos; i < endPos; i++) {
+        yUp = COM_CLIP3(startPos, endPos - 1, i - 1);
+        yBottom = COM_CLIP3(startPos, endPos - 1, i + 1);
+        imgPad1 = imgPad + (yBottom - i) * i_alf;
+        imgPad2 = imgPad + (yUp - i) * i_alf;
+
+        yUp = COM_CLIP3(startPos, endPos - 1, i - 2);
+        yBottom = COM_CLIP3(startPos, endPos - 1, i + 2);
+        imgPad3 = imgPad + (yBottom - i) * i_alf;
+        imgPad4 = imgPad + (yUp - i) * i_alf;
+
+        yUp = COM_CLIP3(startPos, endPos - 1, i - 3);
+        yBottom = COM_CLIP3(startPos, endPos - 1, i + 3);
+        imgPad5 = imgPad + (yBottom - i) * i_alf;
+        imgPad6 = imgPad + (yUp - i) * i_alf;
+
+        for (j = xPos; j < xPosEnd; j += 16) {
+            T00 = _mm_loadu_si128((__m128i*)&imgPad6[j]);
+            T01 = _mm_loadu_si128((__m128i*)&imgPad5[j]);
+            E0 = _mm_unpacklo_epi8(T00, mZero);
+            E1 = _mm_unpackhi_epi8(T00, mZero);
+            E2 = _mm_unpacklo_epi8(T01, mZero);
+            E3 = _mm_unpackhi_epi8(T01, mZero);
+            E00 = _mm_add_epi16(E0, E2);
+            E01 = _mm_add_epi16(E1, E3);
+
+            T10 = _mm_loadu_si128((__m128i*)&imgPad4[j]);
+            T11 = _mm_loadu_si128((__m128i*)&imgPad3[j]);
+            E0 = _mm_unpacklo_epi8(T10, mZero);
+            E1 = _mm_unpackhi_epi8(T10, mZero);
+            E2 = _mm_unpacklo_epi8(T11, mZero);
+            E3 = _mm_unpackhi_epi8(T11, mZero);
+            E10 = _mm_add_epi16(E0, E2);
+            E11 = _mm_add_epi16(E1, E3);
+
+            T20 = _mm_loadu_si128((__m128i*)&imgPad2[j - 1]);
+            T21 = _mm_loadu_si128((__m128i*)&imgPad1[j + 1]);
+            E0 = _mm_unpacklo_epi8(T20, mZero);
+            E1 = _mm_unpackhi_epi8(T20, mZero);
+            E2 = _mm_unpacklo_epi8(T21, mZero);
+            E3 = _mm_unpackhi_epi8(T21, mZero);
+            E20 = _mm_add_epi16(E0, E2);
+            E21 = _mm_add_epi16(E1, E3);
+
+            T30 = _mm_loadu_si128((__m128i*)&imgPad2[j]);
+            T31 = _mm_loadu_si128((__m128i*)&imgPad1[j]);
+            E0 = _mm_unpacklo_epi8(T30, mZero);
+            E1 = _mm_unpackhi_epi8(T30, mZero);
+            E2 = _mm_unpacklo_epi8(T31, mZero);
+            E3 = _mm_unpackhi_epi8(T31, mZero);
+            E30 = _mm_add_epi16(E0, E2);
+            E31 = _mm_add_epi16(E1, E3);
+
+            T40 = _mm_loadu_si128((__m128i*)&imgPad2[j + 1]);
+            T41 = _mm_loadu_si128((__m128i*)&imgPad1[j - 1]);
+            E0 = _mm_unpacklo_epi8(T40, mZero);
+            E1 = _mm_unpackhi_epi8(T40, mZero);
+            E2 = _mm_unpacklo_epi8(T41, mZero);
+            E3 = _mm_unpackhi_epi8(T41, mZero);
+            E40 = _mm_add_epi16(E0, E2);
+            E41 = _mm_add_epi16(E1, E3);
+
+            T50 = _mm_loadu_si128((__m128i*)&imgPad[j - 3]);
+            T51 = _mm_loadu_si128((__m128i*)&imgPad[j + 3]);
+            E0 = _mm_unpacklo_epi8(T50, mZero);
+            E1 = _mm_unpackhi_epi8(T50, mZero);
+            E2 = _mm_unpacklo_epi8(T51, mZero);
+            E3 = _mm_unpackhi_epi8(T51, mZero);
+            E50 = _mm_add_epi16(E0, E2);
+            E51 = _mm_add_epi16(E1, E3);
+
+            T60 = _mm_loadu_si128((__m128i*)&imgPad[j - 2]);
+            T61 = _mm_loadu_si128((__m128i*)&imgPad[j + 2]);
+            E0 = _mm_unpacklo_epi8(T60, mZero);
+            E1 = _mm_unpackhi_epi8(T60, mZero);
+            E2 = _mm_unpacklo_epi8(T61, mZero);
+            E3 = _mm_unpackhi_epi8(T61, mZero);
+            E60 = _mm_add_epi16(E0, E2);
+            E61 = _mm_add_epi16(E1, E3);
+
+            T70 = _mm_loadu_si128((__m128i*)&imgPad[j - 1]);
+            T71 = _mm_loadu_si128((__m128i*)&imgPad[j + 1]);
+            E0 = _mm_unpacklo_epi8(T70, mZero);
+            E1 = _mm_unpackhi_epi8(T70, mZero);
+            E2 = _mm_unpacklo_epi8(T71, mZero);
+            E3 = _mm_unpackhi_epi8(T71, mZero);
+            E70 = _mm_add_epi16(E0, E2);
+            E71 = _mm_add_epi16(E1, E3);
+
+            T8 = _mm_loadu_si128((__m128i*)&imgPad[j]);
+            E80 = _mm_unpacklo_epi8(T8, mZero);
+            E81 = _mm_unpackhi_epi8(T8, mZero);
+
+            C = _mm_loadu_si128((__m128i*)&imgOrg[j]);
+            C0 = _mm_unpacklo_epi8(C, mZero);
+            C1 = _mm_unpackhi_epi8(C, mZero);
+
+            S00 = _mm_madd_epi16(E00, E00);
+            S01 = _mm_madd_epi16(E01, E01);
+            S0 = _mm_add_epi32(S00, S01);
+
+            S00 = _mm_madd_epi16(E00, E10);
+            S01 = _mm_madd_epi16(E01, E11);
+            S1 = _mm_add_epi32(S00, S01);
+
+            S00 = _mm_madd_epi16(E00, E20);
+            S01 = _mm_madd_epi16(E01, E21);
+            S2 = _mm_add_epi32(S00, S01);
+
+            S00 = _mm_madd_epi16(E00, E30);
+            S01 = _mm_madd_epi16(E01, E31);
+            S3 = _mm_add_epi32(S00, S01);
+
+            S0 = _mm_hadd_epi32(S0, S1);
+            S2 = _mm_hadd_epi32(S2, S3);
+            S0 = _mm_hadd_epi32(S0, S2);
+            R1 = _mm_add_epi32(R1, S0);
+
+            S00 = _mm_madd_epi16(E00, E40);
+            S01 = _mm_madd_epi16(E01, E41);
+            S0 = _mm_add_epi32(S00, S01);
+
+            S00 = _mm_madd_epi16(E00, E50);
+            S01 = _mm_madd_epi16(E01, E51);
+            S1 = _mm_add_epi32(S00, S01);
+
+            S00 = _mm_madd_epi16(E00, E60);
+            S01 = _mm_madd_epi16(E01, E61);
+            S2 = _mm_add_epi32(S00, S01);
+
+            S00 = _mm_madd_epi16(E00, E70);
+            S01 = _mm_madd_epi16(E01, E71);
+            S3 = _mm_add_epi32(S00, S01);
+
+            S0 = _mm_hadd_epi32(S0, S1);
+            S2 = _mm_hadd_epi32(S2, S3);
+            S0 = _mm_hadd_epi32(S0, S2);
+            R2 = _mm_add_epi32(R2, S0);
+
+            S00 = _mm_madd_epi16(E00, E80);
+            S01 = _mm_madd_epi16(E01, E81);
+            S0 = _mm_add_epi32(S00, S01);
+
+            S00 = _mm_madd_epi16(E10, E10);
+            S01 = _mm_madd_epi16(E11, E11);
+            S1 = _mm_add_epi32(S00, S01);
+
+            S00 = _mm_madd_epi16(E10, E20);
+            S01 = _mm_madd_epi16(E11, E21);
+            S2 = _mm_add_epi32(S00, S01);
+
+            S00 = _mm_madd_epi16(E10, E30);
+            S01 = _mm_madd_epi16(E11, E31);
+            S3 = _mm_add_epi32(S00, S01);
+
+            S0 = _mm_hadd_epi32(S0, S1);
+            S2 = _mm_hadd_epi32(S2, S3);
+            S0 = _mm_hadd_epi32(S0, S2);
+            R3 = _mm_add_epi32(R3, S0);
+
+            S00 = _mm_madd_epi16(E10, E40);
+            S01 = _mm_madd_epi16(E11, E41);
+            S0 = _mm_add_epi32(S00, S01);
+
+            S00 = _mm_madd_epi16(E10, E50);
+            S01 = _mm_madd_epi16(E11, E51);
+            S1 = _mm_add_epi32(S00, S01);
+
+            S00 = _mm_madd_epi16(E10, E60);
+            S01 = _mm_madd_epi16(E11, E61);
+            S2 = _mm_add_epi32(S00, S01);
+
+            S00 = _mm_madd_epi16(E10, E70);
+            S01 = _mm_madd_epi16(E11, E71);
+            S3 = _mm_add_epi32(S00, S01);
+
+            S0 = _mm_hadd_epi32(S0, S1);
+            S2 = _mm_hadd_epi32(S2, S3);
+            S0 = _mm_hadd_epi32(S0, S2);
+            R4 = _mm_add_epi32(R4, S0);
+
+            S00 = _mm_madd_epi16(E10, E80);
+            S01 = _mm_madd_epi16(E11, E81);
+            S0 = _mm_add_epi32(S00, S01);
+
+            S00 = _mm_madd_epi16(E20, E20);
+            S01 = _mm_madd_epi16(E21, E21);
+            S1 = _mm_add_epi32(S00, S01);
+
+            S00 = _mm_madd_epi16(E20, E30);
+            S01 = _mm_madd_epi16(E21, E31);
+            S2 = _mm_add_epi32(S00, S01);
+
+            S00 = _mm_madd_epi16(E20, E40);
+            S01 = _mm_madd_epi16(E21, E41);
+            S3 = _mm_add_epi32(S00, S01);
+
+            S0 = _mm_hadd_epi32(S0, S1);
+            S2 = _mm_hadd_epi32(S2, S3);
+            S0 = _mm_hadd_epi32(S0, S2);
+            R5 = _mm_add_epi32(R5, S0);
+
+            S00 = _mm_madd_epi16(E20, E50);
+            S01 = _mm_madd_epi16(E21, E51);
+            S0 = _mm_add_epi32(S00, S01);
+
+            S00 = _mm_madd_epi16(E20, E60);
+            S01 = _mm_madd_epi16(E21, E61);
+            S1 = _mm_add_epi32(S00, S01);
+
+            S00 = _mm_madd_epi16(E20, E70);
+            S01 = _mm_madd_epi16(E21, E71);
+            S2 = _mm_add_epi32(S00, S01);
+
+            S00 = _mm_madd_epi16(E20, E80);
+            S01 = _mm_madd_epi16(E21, E81);
+            S3 = _mm_add_epi32(S00, S01);
+
+            S0 = _mm_hadd_epi32(S0, S1);
+            S2 = _mm_hadd_epi32(S2, S3);
+            S0 = _mm_hadd_epi32(S0, S2);
+            R6 = _mm_add_epi32(R6, S0);
+
+            S00 = _mm_madd_epi16(E30, E30);
+            S01 = _mm_madd_epi16(E31, E31);
+            S0 = _mm_add_epi32(S00, S01);
+
+            S00 = _mm_madd_epi16(E30, E40);
+            S01 = _mm_madd_epi16(E31, E41);
+            S1 = _mm_add_epi32(S00, S01);
+
+            S00 = _mm_madd_epi16(E30, E50);
+            S01 = _mm_madd_epi16(E31, E51);
+            S2 = _mm_add_epi32(S00, S01);
+
+            S00 = _mm_madd_epi16(E30, E60);
+            S01 = _mm_madd_epi16(E31, E61);
+            S3 = _mm_add_epi32(S00, S01);
+
+            S0 = _mm_hadd_epi32(S0, S1);
+            S2 = _mm_hadd_epi32(S2, S3);
+            S0 = _mm_hadd_epi32(S0, S2);
+            R7 = _mm_add_epi32(R7, S0);
+
+            S00 = _mm_madd_epi16(E30, E70);
+            S01 = _mm_madd_epi16(E31, E71);
+            S0 = _mm_add_epi32(S00, S01);
+
+            S00 = _mm_madd_epi16(E30, E80);
+            S01 = _mm_madd_epi16(E31, E81);
+            S1 = _mm_add_epi32(S00, S01);
+
+            S00 = _mm_madd_epi16(E40, E40);
+            S01 = _mm_madd_epi16(E41, E41);
+            S2 = _mm_add_epi32(S00, S01);
+
+            S00 = _mm_madd_epi16(E40, E50);
+            S01 = _mm_madd_epi16(E41, E51);
+            S3 = _mm_add_epi32(S00, S01);
+
+            S0 = _mm_hadd_epi32(S0, S1);
+            S2 = _mm_hadd_epi32(S2, S3);
+            S0 = _mm_hadd_epi32(S0, S2);
+            R8 = _mm_add_epi32(R8, S0);
+
+            S00 = _mm_madd_epi16(E40, E60);
+            S01 = _mm_madd_epi16(E41, E61);
+            S0 = _mm_add_epi32(S00, S01);
+
+            S00 = _mm_madd_epi16(E40, E70);
+            S01 = _mm_madd_epi16(E41, E71);
+            S1 = _mm_add_epi32(S00, S01);
+
+            S00 = _mm_madd_epi16(E40, E80);
+            S01 = _mm_madd_epi16(E41, E81);
+            S2 = _mm_add_epi32(S00, S01);
+
+            S00 = _mm_madd_epi16(E50, E50);
+            S01 = _mm_madd_epi16(E51, E51);
+            S3 = _mm_add_epi32(S00, S01);
+
+            S0 = _mm_hadd_epi32(S0, S1);
+            S2 = _mm_hadd_epi32(S2, S3);
+            S0 = _mm_hadd_epi32(S0, S2);
+            R9 = _mm_add_epi32(R9, S0);
+
+            S00 = _mm_madd_epi16(E50, E60);
+            S01 = _mm_madd_epi16(E51, E61);
+            S0 = _mm_add_epi32(S00, S01);
+
+            S00 = _mm_madd_epi16(E50, E70);
+            S01 = _mm_madd_epi16(E51, E71);
+            S1 = _mm_add_epi32(S00, S01);
+
+            S00 = _mm_madd_epi16(E50, E80);
+            S01 = _mm_madd_epi16(E51, E81);
+            S2 = _mm_add_epi32(S00, S01);
+
+            S00 = _mm_madd_epi16(E60, E60);
+            S01 = _mm_madd_epi16(E61, E61);
+            S3 = _mm_add_epi32(S00, S01);
+
+            S0 = _mm_hadd_epi32(S0, S1);
+            S2 = _mm_hadd_epi32(S2, S3);
+            S0 = _mm_hadd_epi32(S0, S2);
+            R10 = _mm_add_epi32(R10, S0);
+
+            S00 = _mm_madd_epi16(E60, E70);
+            S01 = _mm_madd_epi16(E61, E71);
+            S0 = _mm_add_epi32(S00, S01);
+
+            S00 = _mm_madd_epi16(E60, E80);
+            S01 = _mm_madd_epi16(E61, E81);
+            S1 = _mm_add_epi32(S00, S01);
+
+            S00 = _mm_madd_epi16(E70, E70);
+            S01 = _mm_madd_epi16(E71, E71);
+            S2 = _mm_add_epi32(S00, S01);
+
+            S00 = _mm_madd_epi16(E70, E80);
+            S01 = _mm_madd_epi16(E71, E81);
+            S3 = _mm_add_epi32(S00, S01);
+
+            S0 = _mm_hadd_epi32(S0, S1);
+            S2 = _mm_hadd_epi32(S2, S3);
+            S0 = _mm_hadd_epi32(S0, S2);
+            R11 = _mm_add_epi32(R11, S0);
+
+            S00 = _mm_madd_epi16(E80, E80);
+            S01 = _mm_madd_epi16(E81, E81);
+            S0 = _mm_add_epi32(S00, S01);
+
+            S00 = _mm_madd_epi16(E00, C0);
+            S01 = _mm_madd_epi16(E01, C1);
+            S1 = _mm_add_epi32(S00, S01);
+
+            S00 = _mm_madd_epi16(E10, C0);
+            S01 = _mm_madd_epi16(E11, C1);
+            S2 = _mm_add_epi32(S00, S01);
+
+            S00 = _mm_madd_epi16(E20, C0);
+            S01 = _mm_madd_epi16(E21, C1);
+            S3 = _mm_add_epi32(S00, S01);
+
+            S0 = _mm_hadd_epi32(S0, S1);
+            S2 = _mm_hadd_epi32(S2, S3);
+            S0 = _mm_hadd_epi32(S0, S2);
+            R12 = _mm_add_epi32(R12, S0);
+
+            S00 = _mm_madd_epi16(E30, C0);
+            S01 = _mm_madd_epi16(E31, C1);
+            S0 = _mm_add_epi32(S00, S01);
+
+            S00 = _mm_madd_epi16(E40, C0);
+            S01 = _mm_madd_epi16(E41, C1);
+            S1 = _mm_add_epi32(S00, S01);
+
+            S00 = _mm_madd_epi16(E50, C0);
+            S01 = _mm_madd_epi16(E51, C1);
+            S2 = _mm_add_epi32(S00, S01);
+
+            S00 = _mm_madd_epi16(E60, C0);
+            S01 = _mm_madd_epi16(E61, C1);
+            S3 = _mm_add_epi32(S00, S01);
+
+            S0 = _mm_hadd_epi32(S0, S1);
+            S2 = _mm_hadd_epi32(S2, S3);
+            S0 = _mm_hadd_epi32(S0, S2);
+            R13 = _mm_add_epi32(R13, S0);
+
+            S00 = _mm_madd_epi16(E70, C0);
+            S01 = _mm_madd_epi16(E71, C1);
+            S0 = _mm_add_epi32(S00, S01);
+
+            S00 = _mm_madd_epi16(E80, C0);
+            S01 = _mm_madd_epi16(E81, C1);
+            S1 = _mm_add_epi32(S00, S01);
+
+            S0 = _mm_hadd_epi32(S0, S1);
+            R14 = _mm_add_epi32(R14, S0);
+        }
+
+        imgPad += i_alf;
+        imgOrg += i_org;
+    }
+
+    eCorr[0][0] = (u32)_mm_extract_epi32(R1, 0);
+    eCorr[0][1] = (u32)_mm_extract_epi32(R1, 1);
+    eCorr[0][2] = (u32)_mm_extract_epi32(R1, 2);
+    eCorr[0][3] = (u32)_mm_extract_epi32(R1, 3);
+
+    eCorr[0][4] = (u32)_mm_extract_epi32(R2, 0);
+    eCorr[0][5] = (u32)_mm_extract_epi32(R2, 1);
+    eCorr[0][6] = (u32)_mm_extract_epi32(R2, 2);
+    eCorr[0][7] = (u32)_mm_extract_epi32(R2, 3);
+
+    eCorr[0][8] = (u32)_mm_extract_epi32(R3, 0);
+    eCorr[1][1] = (u32)_mm_extract_epi32(R3, 1);
+    eCorr[1][2] = (u32)_mm_extract_epi32(R3, 2);
+    eCorr[1][3] = (u32)_mm_extract_epi32(R3, 3);
+
+    eCorr[1][4] = (u32)_mm_extract_epi32(R4, 0);
+    eCorr[1][5] = (u32)_mm_extract_epi32(R4, 1);
+    eCorr[1][6] = (u32)_mm_extract_epi32(R4, 2);
+    eCorr[1][7] = (u32)_mm_extract_epi32(R4, 3);
+
+    eCorr[1][8] = (u32)_mm_extract_epi32(R5, 0);
+    eCorr[2][2] = (u32)_mm_extract_epi32(R5, 1);
+    eCorr[2][3] = (u32)_mm_extract_epi32(R5, 2);
+    eCorr[2][4] = (u32)_mm_extract_epi32(R5, 3);
+
+    eCorr[2][5] = (u32)_mm_extract_epi32(R6, 0);
+    eCorr[2][6] = (u32)_mm_extract_epi32(R6, 1);
+    eCorr[2][7] = (u32)_mm_extract_epi32(R6, 2);
+    eCorr[2][8] = (u32)_mm_extract_epi32(R6, 3);
+
+    eCorr[3][3] = (u32)_mm_extract_epi32(R7, 0);
+    eCorr[3][4] = (u32)_mm_extract_epi32(R7, 1);
+    eCorr[3][5] = (u32)_mm_extract_epi32(R7, 2);
+    eCorr[3][6] = (u32)_mm_extract_epi32(R7, 3);
+
+    eCorr[3][7] = (u32)_mm_extract_epi32(R8, 0);
+    eCorr[3][8] = (u32)_mm_extract_epi32(R8, 1);
+    eCorr[4][4] = (u32)_mm_extract_epi32(R8, 2);
+    eCorr[4][5] = (u32)_mm_extract_epi32(R8, 3);
+
+    eCorr[4][6] = (u32)_mm_extract_epi32(R9, 0);
+    eCorr[4][7] = (u32)_mm_extract_epi32(R9, 1);
+    eCorr[4][8] = (u32)_mm_extract_epi32(R9, 2);
+    eCorr[5][5] = (u32)_mm_extract_epi32(R9, 3);
+
+    eCorr[5][6] = (u32)_mm_extract_epi32(R10, 0);
+    eCorr[5][7] = (u32)_mm_extract_epi32(R10, 1);
+    eCorr[5][8] = (u32)_mm_extract_epi32(R10, 2);
+    eCorr[6][6] = (u32)_mm_extract_epi32(R10, 3);
+
+    eCorr[6][7] = (u32)_mm_extract_epi32(R11, 0);
+    eCorr[6][8] = (u32)_mm_extract_epi32(R11, 1);
+    eCorr[7][7] = (u32)_mm_extract_epi32(R11, 2);
+    eCorr[7][8] = (u32)_mm_extract_epi32(R11, 3);
+
+    eCorr[8][8] = (u32)_mm_extract_epi32(R12, 0);
+    yCorr[0] = (u32)_mm_extract_epi32(R12, 1);
+    yCorr[1] = (u32)_mm_extract_epi32(R12, 2);
+    yCorr[2] = (u32)_mm_extract_epi32(R12, 3);
+
+    yCorr[3] = (u32)_mm_extract_epi32(R13, 0);
+    yCorr[4] = (u32)_mm_extract_epi32(R13, 1);
+    yCorr[5] = (u32)_mm_extract_epi32(R13, 2);
+    yCorr[6] = (u32)_mm_extract_epi32(R13, 3);
+
+    R14 = _mm_hadd_epi32(R14, R14);
+
+    yCorr[7] = (u32)_mm_extract_epi32(R14, 0);
+    yCorr[8] = (u32)_mm_extract_epi32(R14, 1);
+
+    for (k = 1; k < ALF_MAX_NUM_COEF; k++) {
+        for (l = 0; l < k; l++) {
+            eCorr[k][l] = eCorr[l][k];
+        }
+    }
+}
+
 #else
 
 void uavs3e_alf_one_lcu_sse(pel *dst, int i_dst, pel *src, int i_src, int lcu_width, int lcu_height, int *coef, int sample_bit_depth)
@@ -358,6 +847,530 @@ void uavs3e_alf_one_lcu_sse(pel *dst, int i_dst, pel *src, int i_src, int lcu_wi
 
         src += i_src;
         dst += i_dst;
+    }
+}
+
+void uavs3e_alf_calc_corr_sse(pel *p_org, int i_org, pel *p_alf, int i_alf, int xPos, int yPos, int width, int height, double eCorr[9][9], double yCorr[9], int isAboveAvail, int isBelowAvail)
+{
+    __m128i E00, E01, E10, E11, E20, E21, E30, E31, E40, E41, E50, E51, E60, E61, E70, E71, E80, E81, E0, E1, E2, E3;
+    __m128i C0, C1;
+    __m128i S0, S1, S2, S3, S00, S01;
+    __m128i mZero = _mm_set1_epi16(0);
+    __m128i R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, R11, R12, R13, R14;
+    __m128i M1, M2, M3, M4, M5, M6, M7, M8, M9, M10, M11, M12, M13, M14;
+    __m128i C;
+
+    int xPosEnd = xPos + width;
+    int startPos = isAboveAvail ? (yPos - 4) : yPos;
+    int endPos = isBelowAvail ? (yPos + height - 4) : (yPos + height);
+
+    int yUp, yBottom;
+
+    pel *imgPad1, *imgPad2, *imgPad3, *imgPad4, *imgPad5, *imgPad6;
+    int i, j, k, l;
+
+    pel *imgPad = p_alf + startPos * i_alf;
+    pel *imgOrg = p_org + startPos * i_org;
+
+    R1 = R2 = R3 = R4 = R5 = R6 = R7 = R8 = R9 = R10 = R11 = R12 = R13 = R14 = mZero;
+    M1 = M2 = M3 = M4 = M5 = M6 = M7 = M8 = M9 = M10 = M11 = M12 = M13 = M14 = mZero;
+
+    for (i = startPos; i < endPos; i++) {
+        yUp = COM_CLIP3(startPos, endPos - 1, i - 1);
+        yBottom = COM_CLIP3(startPos, endPos - 1, i + 1);
+        imgPad1 = imgPad + (yBottom - i) * i_alf;
+        imgPad2 = imgPad + (yUp - i) * i_alf;
+
+        yUp = COM_CLIP3(startPos, endPos - 1, i - 2);
+        yBottom = COM_CLIP3(startPos, endPos - 1, i + 2);
+        imgPad3 = imgPad + (yBottom - i) * i_alf;
+        imgPad4 = imgPad + (yUp - i) * i_alf;
+
+        yUp = COM_CLIP3(startPos, endPos - 1, i - 3);
+        yBottom = COM_CLIP3(startPos, endPos - 1, i + 3);
+        imgPad5 = imgPad + (yBottom - i) * i_alf;
+        imgPad6 = imgPad + (yUp - i) * i_alf;
+
+        for (j = xPos; j < xPosEnd; j += 16) {
+            E0 = _mm_loadu_si128((__m128i*)&imgPad6[j]);
+            E1 = _mm_loadu_si128((__m128i*)&imgPad6[j + 8]);
+            E2 = _mm_loadu_si128((__m128i*)&imgPad5[j]);
+            E3 = _mm_loadu_si128((__m128i*)&imgPad5[j + 8]);
+            E00 = _mm_add_epi16(E0, E2);
+            E01 = _mm_add_epi16(E1, E3);
+
+            E0 = _mm_loadu_si128((__m128i*)&imgPad4[j]);
+            E1 = _mm_loadu_si128((__m128i*)&imgPad4[j + 8]);
+            E2 = _mm_loadu_si128((__m128i*)&imgPad3[j]);
+            E3 = _mm_loadu_si128((__m128i*)&imgPad3[j + 8]);
+            E10 = _mm_add_epi16(E0, E2);
+            E11 = _mm_add_epi16(E1, E3);
+
+            E0 = _mm_loadu_si128((__m128i*)&imgPad2[j - 1]);
+            E1 = _mm_loadu_si128((__m128i*)&imgPad2[j + 7]);
+            E2 = _mm_loadu_si128((__m128i*)&imgPad1[j + 1]);
+            E3 = _mm_loadu_si128((__m128i*)&imgPad1[j + 9]);
+            E20 = _mm_add_epi16(E0, E2);
+            E21 = _mm_add_epi16(E1, E3);
+
+            E0 = _mm_loadu_si128((__m128i*)&imgPad2[j]);
+            E1 = _mm_loadu_si128((__m128i*)&imgPad2[j + 8]);
+            E2 = _mm_loadu_si128((__m128i*)&imgPad1[j]);
+            E3 = _mm_loadu_si128((__m128i*)&imgPad1[j + 8]);
+            E30 = _mm_add_epi16(E0, E2);
+            E31 = _mm_add_epi16(E1, E3);
+
+            E0 = _mm_loadu_si128((__m128i*)&imgPad2[j + 1]);
+            E1 = _mm_loadu_si128((__m128i*)&imgPad2[j + 9]);
+            E2 = _mm_loadu_si128((__m128i*)&imgPad1[j - 1]);
+            E3 = _mm_loadu_si128((__m128i*)&imgPad1[j + 7]);
+            E40 = _mm_add_epi16(E0, E2);
+            E41 = _mm_add_epi16(E1, E3);
+
+            E0 = _mm_loadu_si128((__m128i*)&imgPad[j - 3]);
+            E1 = _mm_loadu_si128((__m128i*)&imgPad[j + 5]);
+            E2 = _mm_loadu_si128((__m128i*)&imgPad[j + 3]);
+            E3 = _mm_loadu_si128((__m128i*)&imgPad[j + 11]);
+            E50 = _mm_add_epi16(E0, E2);
+            E51 = _mm_add_epi16(E1, E3);
+
+            E0 = _mm_loadu_si128((__m128i*)&imgPad[j - 2]);
+            E1 = _mm_loadu_si128((__m128i*)&imgPad[j + 6]);
+            E2 = _mm_loadu_si128((__m128i*)&imgPad[j + 2]);
+            E3 = _mm_loadu_si128((__m128i*)&imgPad[j + 10]);
+            E60 = _mm_add_epi16(E0, E2);
+            E61 = _mm_add_epi16(E1, E3);
+
+            E0 = _mm_loadu_si128((__m128i*)&imgPad[j - 1]);
+            E1 = _mm_loadu_si128((__m128i*)&imgPad[j + 7]);
+            E2 = _mm_loadu_si128((__m128i*)&imgPad[j + 1]);
+            E3 = _mm_loadu_si128((__m128i*)&imgPad[j + 9]);
+            E70 = _mm_add_epi16(E0, E2);
+            E71 = _mm_add_epi16(E1, E3);
+
+            E80 = _mm_loadu_si128((__m128i*)&imgPad[j]);
+            E81 = _mm_loadu_si128((__m128i*)&imgPad[j + 8]);
+
+            C0 = _mm_loadu_si128((__m128i*)&imgOrg[j]);
+            C1 = _mm_loadu_si128((__m128i*)&imgOrg[j + 8]);
+
+            S00 = _mm_madd_epi16(E00, E00);
+            S01 = _mm_madd_epi16(E01, E01);
+            S0 = _mm_add_epi32(S00, S01);
+
+            S00 = _mm_madd_epi16(E00, E10);
+            S01 = _mm_madd_epi16(E01, E11);
+            S1 = _mm_add_epi32(S00, S01);
+
+            S00 = _mm_madd_epi16(E00, E20);
+            S01 = _mm_madd_epi16(E01, E21);
+            S2 = _mm_add_epi32(S00, S01);
+
+            S00 = _mm_madd_epi16(E00, E30);
+            S01 = _mm_madd_epi16(E01, E31);
+            S3 = _mm_add_epi32(S00, S01);
+
+            S0 = _mm_hadd_epi32(S0, S1);
+            S2 = _mm_hadd_epi32(S2, S3);
+            S0 = _mm_hadd_epi32(S0, S2);
+            C = _mm_cvtepi32_epi64(S0);
+            S0 = _mm_srli_si128(S0, 8);
+            S0 = _mm_cvtepi32_epi64(S0);
+            R1 = _mm_add_epi64(R1, C);
+            M1 = _mm_add_epi64(M1, S0);
+
+            S00 = _mm_madd_epi16(E00, E40);
+            S01 = _mm_madd_epi16(E01, E41);
+            S0 = _mm_add_epi32(S00, S01);
+
+            S00 = _mm_madd_epi16(E00, E50);
+            S01 = _mm_madd_epi16(E01, E51);
+            S1 = _mm_add_epi32(S00, S01);
+
+            S00 = _mm_madd_epi16(E00, E60);
+            S01 = _mm_madd_epi16(E01, E61);
+            S2 = _mm_add_epi32(S00, S01);
+
+            S00 = _mm_madd_epi16(E00, E70);
+            S01 = _mm_madd_epi16(E01, E71);
+            S3 = _mm_add_epi32(S00, S01);
+
+            S0 = _mm_hadd_epi32(S0, S1);
+            S2 = _mm_hadd_epi32(S2, S3);
+            S0 = _mm_hadd_epi32(S0, S2);
+            C = _mm_cvtepi32_epi64(S0);
+            S0 = _mm_srli_si128(S0, 8);
+            S0 = _mm_cvtepi32_epi64(S0);
+            R2 = _mm_add_epi64(R2, C);
+            M2 = _mm_add_epi64(M2, S0);
+
+            S00 = _mm_madd_epi16(E00, E80);
+            S01 = _mm_madd_epi16(E01, E81);
+            S0 = _mm_add_epi32(S00, S01);
+
+            S00 = _mm_madd_epi16(E10, E10);
+            S01 = _mm_madd_epi16(E11, E11);
+            S1 = _mm_add_epi32(S00, S01);
+
+            S00 = _mm_madd_epi16(E10, E20);
+            S01 = _mm_madd_epi16(E11, E21);
+            S2 = _mm_add_epi32(S00, S01);
+
+            S00 = _mm_madd_epi16(E10, E30);
+            S01 = _mm_madd_epi16(E11, E31);
+            S3 = _mm_add_epi32(S00, S01);
+
+            S0 = _mm_hadd_epi32(S0, S1);
+            S2 = _mm_hadd_epi32(S2, S3);
+            S0 = _mm_hadd_epi32(S0, S2);
+            C = _mm_cvtepi32_epi64(S0);
+            S0 = _mm_srli_si128(S0, 8);
+            S0 = _mm_cvtepi32_epi64(S0);
+            R3 = _mm_add_epi64(R3, C);
+            M3 = _mm_add_epi64(M3, S0);
+
+            S00 = _mm_madd_epi16(E10, E40);
+            S01 = _mm_madd_epi16(E11, E41);
+            S0 = _mm_add_epi32(S00, S01);
+
+            S00 = _mm_madd_epi16(E10, E50);
+            S01 = _mm_madd_epi16(E11, E51);
+            S1 = _mm_add_epi32(S00, S01);
+
+            S00 = _mm_madd_epi16(E10, E60);
+            S01 = _mm_madd_epi16(E11, E61);
+            S2 = _mm_add_epi32(S00, S01);
+
+            S00 = _mm_madd_epi16(E10, E70);
+            S01 = _mm_madd_epi16(E11, E71);
+            S3 = _mm_add_epi32(S00, S01);
+
+            S0 = _mm_hadd_epi32(S0, S1);
+            S2 = _mm_hadd_epi32(S2, S3);
+            S0 = _mm_hadd_epi32(S0, S2);
+            C = _mm_cvtepi32_epi64(S0);
+            S0 = _mm_srli_si128(S0, 8);
+            S0 = _mm_cvtepi32_epi64(S0);
+            R4 = _mm_add_epi64(R4, C);
+            M4 = _mm_add_epi64(M4, S0);
+
+            S00 = _mm_madd_epi16(E10, E80);
+            S01 = _mm_madd_epi16(E11, E81);
+            S0 = _mm_add_epi32(S00, S01);
+
+            S00 = _mm_madd_epi16(E20, E20);
+            S01 = _mm_madd_epi16(E21, E21);
+            S1 = _mm_add_epi32(S00, S01);
+
+            S00 = _mm_madd_epi16(E20, E30);
+            S01 = _mm_madd_epi16(E21, E31);
+            S2 = _mm_add_epi32(S00, S01);
+
+            S00 = _mm_madd_epi16(E20, E40);
+            S01 = _mm_madd_epi16(E21, E41);
+            S3 = _mm_add_epi32(S00, S01);
+
+            S0 = _mm_hadd_epi32(S0, S1);
+            S2 = _mm_hadd_epi32(S2, S3);
+            S0 = _mm_hadd_epi32(S0, S2);
+            C = _mm_cvtepi32_epi64(S0);
+            S0 = _mm_srli_si128(S0, 8);
+            S0 = _mm_cvtepi32_epi64(S0);
+            R5 = _mm_add_epi64(R5, C);
+            M5 = _mm_add_epi64(M5, S0);
+
+            S00 = _mm_madd_epi16(E20, E50);
+            S01 = _mm_madd_epi16(E21, E51);
+            S0 = _mm_add_epi32(S00, S01);
+
+            S00 = _mm_madd_epi16(E20, E60);
+            S01 = _mm_madd_epi16(E21, E61);
+            S1 = _mm_add_epi32(S00, S01);
+
+            S00 = _mm_madd_epi16(E20, E70);
+            S01 = _mm_madd_epi16(E21, E71);
+            S2 = _mm_add_epi32(S00, S01);
+
+            S00 = _mm_madd_epi16(E20, E80);
+            S01 = _mm_madd_epi16(E21, E81);
+            S3 = _mm_add_epi32(S00, S01);
+
+            S0 = _mm_hadd_epi32(S0, S1);
+            S2 = _mm_hadd_epi32(S2, S3);
+            S0 = _mm_hadd_epi32(S0, S2);
+            C = _mm_cvtepi32_epi64(S0);
+            S0 = _mm_srli_si128(S0, 8);
+            S0 = _mm_cvtepi32_epi64(S0);
+            R6 = _mm_add_epi64(R6, C);
+            M6 = _mm_add_epi64(M6, S0);
+
+            S00 = _mm_madd_epi16(E30, E30);
+            S01 = _mm_madd_epi16(E31, E31);
+            S0 = _mm_add_epi32(S00, S01);
+
+            S00 = _mm_madd_epi16(E30, E40);
+            S01 = _mm_madd_epi16(E31, E41);
+            S1 = _mm_add_epi32(S00, S01);
+
+            S00 = _mm_madd_epi16(E30, E50);
+            S01 = _mm_madd_epi16(E31, E51);
+            S2 = _mm_add_epi32(S00, S01);
+
+            S00 = _mm_madd_epi16(E30, E60);
+            S01 = _mm_madd_epi16(E31, E61);
+            S3 = _mm_add_epi32(S00, S01);
+
+            S0 = _mm_hadd_epi32(S0, S1);
+            S2 = _mm_hadd_epi32(S2, S3);
+            S0 = _mm_hadd_epi32(S0, S2);
+            C = _mm_cvtepi32_epi64(S0);
+            S0 = _mm_srli_si128(S0, 8);
+            S0 = _mm_cvtepi32_epi64(S0);
+            R7 = _mm_add_epi64(R7, C);
+            M7 = _mm_add_epi64(M7, S0);
+
+            S00 = _mm_madd_epi16(E30, E70);
+            S01 = _mm_madd_epi16(E31, E71);
+            S0 = _mm_add_epi32(S00, S01);
+
+            S00 = _mm_madd_epi16(E30, E80);
+            S01 = _mm_madd_epi16(E31, E81);
+            S1 = _mm_add_epi32(S00, S01);
+
+            S00 = _mm_madd_epi16(E40, E40);
+            S01 = _mm_madd_epi16(E41, E41);
+            S2 = _mm_add_epi32(S00, S01);
+
+            S00 = _mm_madd_epi16(E40, E50);
+            S01 = _mm_madd_epi16(E41, E51);
+            S3 = _mm_add_epi32(S00, S01);
+
+            S0 = _mm_hadd_epi32(S0, S1);
+            S2 = _mm_hadd_epi32(S2, S3);
+            S0 = _mm_hadd_epi32(S0, S2);
+            C = _mm_cvtepi32_epi64(S0);
+            S0 = _mm_srli_si128(S0, 8);
+            S0 = _mm_cvtepi32_epi64(S0);
+            R8 = _mm_add_epi64(R8, C);
+            M8 = _mm_add_epi64(M8, S0);
+
+            S00 = _mm_madd_epi16(E40, E60);
+            S01 = _mm_madd_epi16(E41, E61);
+            S0 = _mm_add_epi32(S00, S01);
+
+            S00 = _mm_madd_epi16(E40, E70);
+            S01 = _mm_madd_epi16(E41, E71);
+            S1 = _mm_add_epi32(S00, S01);
+
+            S00 = _mm_madd_epi16(E40, E80);
+            S01 = _mm_madd_epi16(E41, E81);
+            S2 = _mm_add_epi32(S00, S01);
+
+            S00 = _mm_madd_epi16(E50, E50);
+            S01 = _mm_madd_epi16(E51, E51);
+            S3 = _mm_add_epi32(S00, S01);
+
+            S0 = _mm_hadd_epi32(S0, S1);
+            S2 = _mm_hadd_epi32(S2, S3);
+            S0 = _mm_hadd_epi32(S0, S2);
+            C = _mm_cvtepi32_epi64(S0);
+            S0 = _mm_srli_si128(S0, 8);
+            S0 = _mm_cvtepi32_epi64(S0);
+            R9 = _mm_add_epi64(R9, C);
+            M9 = _mm_add_epi64(M9, S0);
+
+            S00 = _mm_madd_epi16(E50, E60);
+            S01 = _mm_madd_epi16(E51, E61);
+            S0 = _mm_add_epi32(S00, S01);
+
+            S00 = _mm_madd_epi16(E50, E70);
+            S01 = _mm_madd_epi16(E51, E71);
+            S1 = _mm_add_epi32(S00, S01);
+
+            S00 = _mm_madd_epi16(E50, E80);
+            S01 = _mm_madd_epi16(E51, E81);
+            S2 = _mm_add_epi32(S00, S01);
+
+            S00 = _mm_madd_epi16(E60, E60);
+            S01 = _mm_madd_epi16(E61, E61);
+            S3 = _mm_add_epi32(S00, S01);
+
+            S0 = _mm_hadd_epi32(S0, S1);
+            S2 = _mm_hadd_epi32(S2, S3);
+            S0 = _mm_hadd_epi32(S0, S2);
+            C = _mm_cvtepi32_epi64(S0);
+            S0 = _mm_srli_si128(S0, 8);
+            S0 = _mm_cvtepi32_epi64(S0);
+            R10 = _mm_add_epi64(R10, C);
+            M10 = _mm_add_epi64(M10, S0);
+
+            S00 = _mm_madd_epi16(E60, E70);
+            S01 = _mm_madd_epi16(E61, E71);
+            S0 = _mm_add_epi32(S00, S01);
+
+            S00 = _mm_madd_epi16(E60, E80);
+            S01 = _mm_madd_epi16(E61, E81);
+            S1 = _mm_add_epi32(S00, S01);
+
+            S00 = _mm_madd_epi16(E70, E70);
+            S01 = _mm_madd_epi16(E71, E71);
+            S2 = _mm_add_epi32(S00, S01);
+
+            S00 = _mm_madd_epi16(E70, E80);
+            S01 = _mm_madd_epi16(E71, E81);
+            S3 = _mm_add_epi32(S00, S01);
+
+            S0 = _mm_hadd_epi32(S0, S1);
+            S2 = _mm_hadd_epi32(S2, S3);
+            S0 = _mm_hadd_epi32(S0, S2);
+            C = _mm_cvtepi32_epi64(S0);
+            S0 = _mm_srli_si128(S0, 8);
+            S0 = _mm_cvtepi32_epi64(S0);
+            R11 = _mm_add_epi64(R11, C);
+            M11 = _mm_add_epi64(M11, S0);
+
+            S00 = _mm_madd_epi16(E80, E80);
+            S01 = _mm_madd_epi16(E81, E81);
+            S0 = _mm_add_epi32(S00, S01);
+
+            S00 = _mm_madd_epi16(E00, C0);
+            S01 = _mm_madd_epi16(E01, C1);
+            S1 = _mm_add_epi32(S00, S01);
+
+            S00 = _mm_madd_epi16(E10, C0);
+            S01 = _mm_madd_epi16(E11, C1);
+            S2 = _mm_add_epi32(S00, S01);
+
+            S00 = _mm_madd_epi16(E20, C0);
+            S01 = _mm_madd_epi16(E21, C1);
+            S3 = _mm_add_epi32(S00, S01);
+
+            S0 = _mm_hadd_epi32(S0, S1);
+            S2 = _mm_hadd_epi32(S2, S3);
+            S0 = _mm_hadd_epi32(S0, S2);
+            C = _mm_cvtepi32_epi64(S0);
+            S0 = _mm_srli_si128(S0, 8);
+            S0 = _mm_cvtepi32_epi64(S0);
+            R12 = _mm_add_epi64(R12, C);
+            M12 = _mm_add_epi64(M12, S0);
+
+            S00 = _mm_madd_epi16(E30, C0);
+            S01 = _mm_madd_epi16(E31, C1);
+            S0 = _mm_add_epi32(S00, S01);
+
+            S00 = _mm_madd_epi16(E40, C0);
+            S01 = _mm_madd_epi16(E41, C1);
+            S1 = _mm_add_epi32(S00, S01);
+
+            S00 = _mm_madd_epi16(E50, C0);
+            S01 = _mm_madd_epi16(E51, C1);
+            S2 = _mm_add_epi32(S00, S01);
+
+            S00 = _mm_madd_epi16(E60, C0);
+            S01 = _mm_madd_epi16(E61, C1);
+            S3 = _mm_add_epi32(S00, S01);
+
+            S0 = _mm_hadd_epi32(S0, S1);
+            S2 = _mm_hadd_epi32(S2, S3);
+            S0 = _mm_hadd_epi32(S0, S2);
+            C = _mm_cvtepi32_epi64(S0);
+            S0 = _mm_srli_si128(S0, 8);
+            S0 = _mm_cvtepi32_epi64(S0);
+            R13 = _mm_add_epi64(R13, C);
+            M13 = _mm_add_epi64(M13, S0);
+
+            S00 = _mm_madd_epi16(E70, C0);
+            S01 = _mm_madd_epi16(E71, C1);
+            S0 = _mm_add_epi32(S00, S01);
+
+            S00 = _mm_madd_epi16(E80, C0);
+            S01 = _mm_madd_epi16(E81, C1);
+            S1 = _mm_add_epi32(S00, S01);
+
+            S0 = _mm_hadd_epi32(S0, S1);
+            C = _mm_cvtepi32_epi64(S0);
+            S0 = _mm_srli_si128(S0, 8);
+            S0 = _mm_cvtepi32_epi64(S0);
+            R14 = _mm_add_epi64(R14, C);
+            M14 = _mm_add_epi64(M14, S0);
+        }
+
+        imgPad += i_alf;
+        imgOrg += i_org;
+    }
+
+    eCorr[0][0] = (double)_mm_extract_epi64(R1, 0);
+    eCorr[0][1] = (double)_mm_extract_epi64(R1, 1);
+    eCorr[0][2] = (double)_mm_extract_epi64(M1, 0);
+    eCorr[0][3] = (double)_mm_extract_epi64(M1, 1);
+
+    eCorr[0][4] = (double)_mm_extract_epi64(R2, 0);
+    eCorr[0][5] = (double)_mm_extract_epi64(R2, 1);
+    eCorr[0][6] = (double)_mm_extract_epi64(M2, 0);
+    eCorr[0][7] = (double)_mm_extract_epi64(M2, 1);
+
+    eCorr[0][8] = (double)_mm_extract_epi64(R3, 0);
+    eCorr[1][1] = (double)_mm_extract_epi64(R3, 1);
+    eCorr[1][2] = (double)_mm_extract_epi64(M3, 0);
+    eCorr[1][3] = (double)_mm_extract_epi64(M3, 1);
+
+    eCorr[1][4] = (double)_mm_extract_epi64(R4, 0);
+    eCorr[1][5] = (double)_mm_extract_epi64(R4, 1);
+    eCorr[1][6] = (double)_mm_extract_epi64(M4, 0);
+    eCorr[1][7] = (double)_mm_extract_epi64(M4, 1);
+
+    eCorr[1][8] = (double)_mm_extract_epi64(R5, 0);
+    eCorr[2][2] = (double)_mm_extract_epi64(R5, 1);
+    eCorr[2][3] = (double)_mm_extract_epi64(M5, 0);
+    eCorr[2][4] = (double)_mm_extract_epi64(M5, 1);
+
+    eCorr[2][5] = (double)_mm_extract_epi64(R6, 0);
+    eCorr[2][6] = (double)_mm_extract_epi64(R6, 1);
+    eCorr[2][7] = (double)_mm_extract_epi64(M6, 0);
+    eCorr[2][8] = (double)_mm_extract_epi64(M6, 1);
+
+    eCorr[3][3] = (double)_mm_extract_epi64(R7, 0);
+    eCorr[3][4] = (double)_mm_extract_epi64(R7, 1);
+    eCorr[3][5] = (double)_mm_extract_epi64(M7, 0);
+    eCorr[3][6] = (double)_mm_extract_epi64(M7, 1);
+
+    eCorr[3][7] = (double)_mm_extract_epi64(R8, 0);
+    eCorr[3][8] = (double)_mm_extract_epi64(R8, 1);
+    eCorr[4][4] = (double)_mm_extract_epi64(M8, 0);
+    eCorr[4][5] = (double)_mm_extract_epi64(M8, 1);
+
+    eCorr[4][6] = (double)_mm_extract_epi64(R9, 0);
+    eCorr[4][7] = (double)_mm_extract_epi64(R9, 1);
+    eCorr[4][8] = (double)_mm_extract_epi64(M9, 0);
+    eCorr[5][5] = (double)_mm_extract_epi64(M9, 1);
+
+    eCorr[5][6] = (double)_mm_extract_epi64(R10, 0);
+    eCorr[5][7] = (double)_mm_extract_epi64(R10, 1);
+    eCorr[5][8] = (double)_mm_extract_epi64(M10, 0);
+    eCorr[6][6] = (double)_mm_extract_epi64(M10, 1);
+
+    eCorr[6][7] = (double)_mm_extract_epi64(R11, 0);
+    eCorr[6][8] = (double)_mm_extract_epi64(R11, 1);
+    eCorr[7][7] = (double)_mm_extract_epi64(M11, 0);
+    eCorr[7][8] = (double)_mm_extract_epi64(M11, 1);
+
+    eCorr[8][8] = (double)_mm_extract_epi64(R12, 0);
+    yCorr[0] = (double)_mm_extract_epi64(R12, 1);
+    yCorr[1] = (double)_mm_extract_epi64(M12, 0);
+    yCorr[2] = (double)_mm_extract_epi64(M12, 1);
+
+    yCorr[3] = (double)_mm_extract_epi64(R13, 0);
+    yCorr[4] = (double)_mm_extract_epi64(R13, 1);
+    yCorr[5] = (double)_mm_extract_epi64(M13, 0);
+    yCorr[6] = (double)_mm_extract_epi64(M13, 1);
+
+    yCorr[7] = (double)(_mm_extract_epi64(R14, 0) + _mm_extract_epi64(R14, 1));
+    yCorr[8] = (double)(_mm_extract_epi64(M14, 0) + _mm_extract_epi64(M14, 1));
+
+    for (k = 1; k < ALF_MAX_NUM_COEF; k++) {
+        for (l = 0; l < k; l++) {
+            eCorr[k][l] = eCorr[l][k];
+        }
     }
 }
 

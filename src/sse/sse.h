@@ -78,6 +78,7 @@ void uavs3e_sao_on_lcu_sse(pel *src, int i_src, pel *dst, int i_dst, com_sao_par
 void uavs3e_sao_on_lcu_chroma_sse(pel *src, int i_src, pel *dst, int i_dst, com_sao_param_t *sao_params, int smb_pix_height,
                                   int smb_pix_width, int smb_available_left, int smb_available_right, int smb_available_up, int smb_available_down, int sample_bit_depth);
 void uavs3e_alf_one_lcu_sse(pel *dst, int i_dst, pel *src, int i_src, int lcu_width, int lcu_height, int *coef, int sample_bit_depth);
+void uavs3e_alf_calc_corr_sse(pel *p_org, int i_org, pel *p_alf, int i_alf, int xPos, int yPos, int width, int height, double eCorr[9][9], double yCorr[9], int isAboveAvail, int isBelowAvail);
 
 void uavs3e_pel_avrg_4_sse(pel *dst, int i_dst, pel *src1, pel *src2, int height);
 void uavs3e_pel_avrg_8_sse(pel *dst, int i_dst, pel *src1, pel *src2, int height);
@@ -208,8 +209,8 @@ void uavs3e_pel_diff_32_sse(pel *p_org, int i_org, pel *p_pred, int i_pred, s16 
 void uavs3e_pel_diff_64_sse(pel *p_org, int i_org, pel *p_pred, int i_pred, s16 *p_resi, int i_resi, int height);
 void uavs3e_pel_diff_128_sse(pel *p_org, int i_org, pel *p_pred, int i_pred, s16 *p_resi, int i_resi, int height);
 
-void affine_sobel_flt_hor_sse(pel *pred, int i_pred, int *deriv, int i_deriv, int width, int height);
-void affine_sobel_flt_ver_sse(pel *pred, int i_pred, int *deriv, int i_deriv, int width, int height);
-void affine_coef_computer_sse(s16 *resi, int i_resi, int(*deriv)[MAX_CU_DIM], int i_deriv, s64(*coef)[7], int width, int height, int vertex_num);
+void affine_sobel_flt_hor_sse(pel *pred, int i_pred, s16 *deriv, int i_deriv, int width, int height);
+void affine_sobel_flt_ver_sse(pel *pred, int i_pred, s16 *deriv, int i_deriv, int width, int height);
+void affine_coef_computer_sse(s16 *resi, int i_resi, s16(*deriv)[MAX_CU_DIM], int i_deriv, s64(*coef)[5], int width, int height);
 
 #endif // #ifndef __INTRINSIC_H__

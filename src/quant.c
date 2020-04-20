@@ -76,10 +76,10 @@ static void rdoq_get_sym_bits(s32 *pbits, lbac_ctx_model_t *cm)
     u16 prob_lps = ((*cm) & PROB_MASK) >> 1;
 
     if ((*cm) & 1) {
-        pbits[0] = tbl_rdoq_prob_2_bits[prob_lps              >> ENTROPY_BITS_TABLE_BiTS_SHIFP];
+        pbits[0] = tbl_rdoq_prob_2_bits[            prob_lps  >> ENTROPY_BITS_TABLE_BiTS_SHIFP];
         pbits[1] = tbl_rdoq_prob_2_bits[(MAX_PROB - prob_lps) >> ENTROPY_BITS_TABLE_BiTS_SHIFP];
     } else {
-        pbits[1] = tbl_rdoq_prob_2_bits[prob_lps              >> ENTROPY_BITS_TABLE_BiTS_SHIFP];
+        pbits[1] = tbl_rdoq_prob_2_bits[            prob_lps  >> ENTROPY_BITS_TABLE_BiTS_SHIFP];
         pbits[0] = tbl_rdoq_prob_2_bits[(MAX_PROB - prob_lps) >> ENTROPY_BITS_TABLE_BiTS_SHIFP];
     }
 }
@@ -116,28 +116,21 @@ static void rdoq_get_sym_bitsW(s32 *pbits, lbac_ctx_model_t *cm1, lbac_ctx_model
 
 void rdoq_init_cu_est_bits(core_t *core, lbac_t *lbac)
 {
-    int h;
- 
     rdoq_get_sym_bits(core->rdoq_bin_est_ctp, lbac->h.ctp_zero_flag);
 
-    for (h = 0; h < LBAC_CTX_CBF; h++) {
+    for (int h = 0; h < LBAC_CTX_CBF; h++) {
         rdoq_get_sym_bits(core->rdoq_bin_est_cbf[h], lbac->h.cbf + h);
     }
-    for (h = 0; h < LBAC_CTX_RUN_RDOQ; h++) {
+    for (int h = 0; h < LBAC_CTX_RUN_RDOQ; h++) {
         rdoq_get_sym_bits(core->rdoq_bin_est_run[h], lbac->h.run_rdoq + h);
     }
-    for (h = 0; h < LBAC_CTX_LEVEL; h++) {
+    for (int h = 0; h < LBAC_CTX_LEVEL; h++) {
         rdoq_get_sym_bits(core->rdoq_bin_est_lvl[h], lbac->h.level + h);
     }
-    for (h = 0; h < 2; h++) { // luma / chroma
-        int i, j;
-        int chroma_offset1 = h * LBAC_CTX_LAST1;
-        int chroma_offset2 = h * LBAC_CTX_LAST2;
-
-        for (i = 0; i < LBAC_CTX_LAST1; i++) {
-            for (j = 0; j < LBAC_CTX_LAST2; j++) {
-                rdoq_get_sym_bitsW(core->rdoq_bin_est_lst[h][i][j], lbac->h.last1 + i + chroma_offset1, lbac->h.last2 + j + chroma_offset2);
-            }
+    for (int i = 0; i < LBAC_CTX_LAST1; i++) {
+        for (int j = 0; j < LBAC_CTX_LAST2; j++) {
+            rdoq_get_sym_bitsW(core->rdoq_bin_est_lst[0][i][j], lbac->h.last1 + i,                  lbac->h.last2 + j);
+            rdoq_get_sym_bitsW(core->rdoq_bin_est_lst[1][i][j], lbac->h.last1 + i + LBAC_CTX_LAST1, lbac->h.last2 + j + LBAC_CTX_LAST2);
         }
     }
 }
@@ -192,14 +185,10 @@ static int rdoq_quant_block(core_t *core, int slice_type, int qp, double d_lambd
     const int ns_offset = ((cu_width_log2 + cu_height_log2) & 1) ? (1 << (ns_shift - 1)) : 0;
     const int q_value = (scale * ns_scale + ns_offset) >> ns_shift;
     const int max_num_coef = 1 << (cu_width_log2 + cu_height_log2);
-
-#define FAST_RDOQ_INTRA_RND_OFST  201
-#define FAST_RDOQ_INTER_RND_OFST  153 
-
-    int offset = ((slice_type == SLICE_I) ? FAST_RDOQ_INTRA_RND_OFST : FAST_RDOQ_INTER_RND_OFST) << (q_bits - 9);
-    int nz_threshold = ((((1 << q_bits) - offset) << 10) / q_value - 1) >> 10;
-
     const int max_used_coef = 1 << (cu_width_log2 + COM_MIN(5, cu_height_log2));
+
+    int offset = ((slice_type == SLICE_I) ? 201 : 153) << (q_bits - 9);
+    int nz_threshold = ((((1 << q_bits) - offset) << 10) / q_value - 1) >> 10;
 
     if (uavs3e_funs_handle.quant_check(coef, max_used_coef, nz_threshold)) {
         return 0;
@@ -320,6 +309,9 @@ int quant_non_zero(core_t *core, int qp, double lambda, int is_intra, s16 *coef,
             p += width;
         }
     }
+    if (height > 32) {
+        memset(coef + width * height / 2, 0, width * height / 2 * sizeof(s16));
+    }
 
     if (!core->pichdr->pic_wq_enable) {
         num_nz_coef = rdoq_quant_block(core, slice_type, qp, lambda, is_intra, coef, cu_width_log2, cu_height_log2, ch_type, bit_depth);
@@ -337,10 +329,6 @@ int quant_non_zero(core_t *core, int qp, double lambda, int is_intra, s16 *coef,
         int idx_shift;
         int idx_step;
         u8 *wq;
-
-        if (height > 32) {
-            memset(coef + 32 * width, 0, sizeof(s16) * width * height - 32 * width);
-        }
 
         tr_shift = COM_GET_TRANS_SHIFT(bit_depth, log2_size - ns_shift);
         shift = QUANT_SHIFT + tr_shift;

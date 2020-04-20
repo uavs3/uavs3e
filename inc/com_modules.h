@@ -25,7 +25,6 @@
 void com_alf_recon_coef(com_alf_pic_param_t *alfParam, int(*filterCoeff)[ALF_MAX_NUM_COEF]);
 void com_alf_check_coef(int *filter, int filterLength);
 void com_alf_copy_param(com_alf_pic_param_t *dst, com_alf_pic_param_t *src);
-int  com_alf_check_boundary(int x, int y, int lcuPosX, int lcuPosY, int startX, int startY, int endX, int endY, int isAboveLeftAvail, int isLeftAvail, int isAboveRightAvail, int isRightAvail);
 void com_alf_copy_frm(com_pic_t *pic_dst, com_pic_t *pic_src);
 void com_alf_buf_init(com_info_t *info, u8 *alf_var_map);
 
@@ -50,9 +49,10 @@ void com_invqt_inter_plane(com_mode_t *mode, int plane, s16 coef[MAX_CU_DIM], s1
 
 ////////////// MC
 void com_mc_blk_luma(com_pic_t *pic, pel *dst, int dst_stride, int x_pos, int y_pos, int width, int height, int widx, int max_posx, int max_posy, int max_val, int hp_flag);
+pel* com_mc_blk_luma_pointer(com_pic_t *pic, int x_pos, int y_pos, int max_posx, int max_posy);
 void com_mc_cu(int x, int y, int pic_w, int pic_h, int w, int h, s8 refi[REFP_NUM], s16 mv[REFP_NUM][MV_D], com_ref_pic_t(*refp)[REFP_NUM], pel pred_buf[N_C][MAX_CU_DIM], int pred_stride, channel_type_t channel, int bit_depth);
-void com_mc_cu_affine(int x, int y, int pic_w, int pic_h, int w, int h, s8 refi[REFP_NUM], CPMV mv[REFP_NUM][VER_NUM][MV_D], com_ref_pic_t(*refp)[REFP_NUM], pel pred[N_C][MAX_CU_DIM], int cp_num, com_pic_header_t *pichdr, s16(*map_mv)[REFP_NUM][MV_D], int bit_depth);
-void com_mc_blk_affine_luma(int x, int y, int pic_w, int pic_h, int w, int h, CPMV ac_mv[VER_NUM][MV_D], com_pic_t *ref_pic, pel pred[MAX_CU_DIM], int cp_num, int sub_w, int sub_h, int bit_depth);
+void com_mc_cu_affine(int x, int y, int pic_w, int pic_h, int w, int h, s8 refi[REFP_NUM], CPMV mv[REFP_NUM][VER_NUM][MV_D], com_ref_pic_t(*refp)[REFP_NUM], pel pred[N_C][MAX_CU_DIM], int cp_num, com_pic_header_t *pichdr, int bit_depth);
+void com_mc_blk_affine_luma(int x, int y, int pic_w, int pic_h, int w, int h, CPMV ac_mv[VER_NUM][MV_D], com_pic_t *ref_pic, pel pred[MAX_CU_DIM], int sub_w, int sub_h, int bit_depth);
 void com_if_luma_frame(com_img_t *img_list[4][4], s16 *tmp_buf[3], int bit_depth);
 
 ////////////// PICMAN

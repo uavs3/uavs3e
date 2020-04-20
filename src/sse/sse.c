@@ -278,6 +278,7 @@ void uavs3e_funs_init_sse()
 
     uavs3e_funs_handle.sao = uavs3e_sao_on_lcu_sse;
     //uavs3e_funs_handle.alf = uavs3e_alf_one_lcu_sse; // ERROR
+    uavs3e_funs_handle.alf_calc = uavs3e_alf_calc_corr_sse;
 
     uavs3e_funs_handle.cost_sad[0] = uavs3e_get_sad_4_sse;
     uavs3e_funs_handle.cost_sad[1] = uavs3e_get_sad_8_sse;
@@ -341,10 +342,10 @@ void uavs3e_funs_init_sse()
     uavs3e_funs_handle.intra_pred_ipf_core_s16 = uavs3e_ipred_ipf_core_s16_sse;
 
     for (i = IPD_BI + 1; i < IPD_VER; i++) {
-        uavs3e_funs_handle.intra_pred_ang[i] = uavs3e_ipred_ang_x_sse;
+        //uavs3e_funs_handle.intra_pred_ang[i] = uavs3e_ipred_ang_x_sse;
     }
-    for (i = IPD_HOR + 1; i < IPD_CNT; i++) {
-        uavs3e_funs_handle.intra_pred_ang[i] = uavs3e_ipred_ang_y_sse;
+    for (i = IPD_HOR + 1; i < IPD_CNT - 2; i++) {
+        //uavs3e_funs_handle.intra_pred_ang[i] = uavs3e_ipred_ang_y_sse;
     }
 
     uavs3e_funs_handle.intra_pred_ang[4] = uavs3e_ipred_ang_x_4_sse;
@@ -426,6 +427,7 @@ void uavs3e_funs_init_sse()
 
     uavs3e_funs_handle.sao = uavs3e_sao_on_lcu_sse;
     //uavs3e_funs_handle.alf = uavs3e_alf_one_lcu_sse; // ERROR
+    uavs3e_funs_handle.alf_calc = uavs3e_alf_calc_corr_sse;
 
     uavs3e_funs_handle.cost_satd[0][0] = uavs3e_had_4x4_sse;
 
