@@ -52,11 +52,11 @@ void cu_pel_sub(u8 tree_status, int x, int y, int cu_width_log2, int cu_height_l
 double enc_get_hgop_qp(double base_qp, int frm_depth, int is_ld)
 {
     static const enc_aqp_param_t tbl_qp_adapt_param_ra[8] = {
-        { -4,  0,      0 },
-        {  1,  0,      0 },
-        {  1, -4.0604, 0.154575 },
-        {  5, -4.8332, 0.17145 },
-        {  7, -4.9668, 0.174975 },
+        { -5,  0,      0 },
+        { -1,  0,      0 },
+        {  2, -4.0604, 0.154575 },
+        {  4, -4.8332, 0.17145 },
+        {  6, -4.9668, 0.174975 },
         {  8, -5.9444, 0.225 },
         {  9, -5.9444, 0.225 },
         { 10, -5.9444, 0.225 }
@@ -76,7 +76,7 @@ double enc_get_hgop_qp(double base_qp, int frm_depth, int is_ld)
     base_qp += qp_adapt_param[frm_depth].qp_offset_layer;
 
     double dqp_offset = COM_MAX(0, base_qp) * qp_adapt_param[frm_depth].qp_offset_model_scale + qp_adapt_param[frm_depth].qp_offset_model_offset;
-    return base_qp + COM_CLIP3(0.0, 4.0, dqp_offset);
+    return base_qp + COM_CLIP3(0.0, 5.0, dqp_offset);
 }
 
 static void enc_malloc_1d(void **dst, int size)

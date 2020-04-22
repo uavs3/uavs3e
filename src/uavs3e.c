@@ -862,7 +862,7 @@ void enc_get_pic_qp(enc_pic_t *ep, pic_thd_param_t *p)
 
     //find a qp_offset_cb that makes com_tbl_qp_chroma_ajudst[qp + qp_offset_cb] equal to com_tbl_qp_chroma_adjust_enc[qp + 1]
     int opt_c_dqp;
-    int qp_l = pic_org->picture_qp - info->qp_offset_bit_depth;
+    /*int qp_l = pic_org->picture_qp - info->qp_offset_bit_depth;
     int target_chroma_qp = com_tbl_qp_chroma_adjust_enc[COM_CLIP(qp_l + 1, 0, 63)];
 
     for (opt_c_dqp = -5; opt_c_dqp < 10; opt_c_dqp++) {
@@ -870,7 +870,8 @@ void enc_get_pic_qp(enc_pic_t *ep, pic_thd_param_t *p)
             break;
         }
     }
-    opt_c_dqp = COM_MIN(opt_c_dqp, 63 - qp_l);
+    opt_c_dqp = COM_MIN(opt_c_dqp, 63 - qp_l);*/
+	opt_c_dqp = 0;
 
     pichdr->chroma_quant_param_delta_cb = param->qp_offset_cb + opt_c_dqp;
     pichdr->chroma_quant_param_delta_cr = param->qp_offset_cr + opt_c_dqp;

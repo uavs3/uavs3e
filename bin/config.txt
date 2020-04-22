@@ -43,8 +43,8 @@ lookahead               : 40                               # size of lookahead w
 
 #======= Quantization ============================
 qp                      : 34                               # QP value (-16~63 for 10-bit internal encoding precision, 0~63 for 8-bit internal encoding precision)
-qp_offset_cb            : 0                                # qp offset for cb, disable:0 (default)
-qp_offset_cr            : 0                                # qp offset for cr, disable:0 (default)
+qp_offset_cb            : -2                                # qp offset for cb, disable:0 (default)
+qp_offset_cr            : -2                                # qp offset for cr, disable:0 (default)
 lcu_delta_qp            : 0                                # delta qp for lcu (on: 1, off: 0, default: 0)
 
 #========== Rate Control =========================
