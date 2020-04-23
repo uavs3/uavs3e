@@ -176,6 +176,9 @@ int rc_get_qp(enc_rc_t *p,  com_pic_t *pic, int qp_l0, int qp_l1)
 
     if (p->type == RC_TYPE_CRF) {
         qp = uavs3e_qScale2qp(blurredComplexity / p->rfConstant);
+        if (layer_id == FRM_DEPTH_0) {
+            qp -= 1;
+        }
     } else if(p->type == RC_TYPE_ABR) {
         if (p->total_factor == 0) {
             if (layer_id == FRM_DEPTH_0) { // first I frame, r-lambda model
