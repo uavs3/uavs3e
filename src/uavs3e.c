@@ -954,7 +954,7 @@ void *enc_pic_thread(enc_pic_t *ep, pic_thd_param_t *p)
 
     lbac_t *lbac_fst_row = &ep->array_row[0].lbac_row;
     lbac_reset(lbac_fst_row);
-    com_lbac_ctx_init(&lbac_fst_row->h);
+    lbac_ctx_init(&lbac_fst_row->h);
 
     if (info->wpp_threads == 1) {
         for (int lcu_y = 0; lcu_y < info->pic_height_in_lcu; lcu_y++) {
@@ -1069,7 +1069,7 @@ void *enc_pic_thread(enc_pic_t *ep, pic_thd_param_t *p)
     lbac_t lbac_enc;
     lbac_t *lbac = &lbac_enc;
     lbac_reset(lbac);
-    com_lbac_ctx_init(&lbac->h);
+    lbac_ctx_init(&lbac->h);
 
     /* Encode slice data */
     int last_lcu_qp = pathdr.slice_qp;

@@ -1284,7 +1284,7 @@ int enc_alf_avs2(enc_pic_t *ep, com_pic_t *pic_rec, com_pic_t *pic_org, double l
     com_alf_copy_frm(alf_rec, pic_rec);
 
     lbac_reset(lbac);
-    com_lbac_ctx_init(&lbac->h);
+    lbac_ctx_init(&lbac->h);
 
     lambda *= (ep->info.bit_depth_internal == 10) ? ep->info.qp_offset_bit_depth : 1;
 

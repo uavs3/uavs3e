@@ -1085,6 +1085,19 @@ static avs3_always_inline int get_shift(int v)
 #endif
 }
 
+void lbac_ctx_init(com_lbac_all_ctx_t *lbac_ctx)
+{
+    com_mset(lbac_ctx, 0x00, sizeof(*lbac_ctx));
+
+    /* Initialization of the context models */
+    int num = sizeof(com_lbac_all_ctx_t) / sizeof(lbac_ctx_model_t);
+    lbac_ctx_model_t *p = (lbac_ctx_model_t *)lbac_ctx;
+
+    for (int i = 0; i < num; i++) {
+        p[i] = PROB_INIT;
+    }
+}
+
 void lbac_reset(lbac_t *lbac)
 {
     lbac->range           = 0x1FF;

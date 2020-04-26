@@ -208,9 +208,6 @@ void com_md5_img(com_img_t *img, u8 digest[16]);
 void com_check_split_mode(com_seqh_t *sqh, int *split_allow, int cu_width_log2, int cu_height_log2, int boundary, int boundary_b, int boundary_r, int log2_max_cuwh,
                           const int parent_split, int qt_depth, int bet_depth, int slice_type);
 
-
-void com_lbac_ctx_init(com_lbac_all_ctx_t *lbac_ctx);
-
 int  com_dt_allow(int cu_w, int cu_h, int pred_mode, int max_dt_size);
 
 void init_tb_part(com_mode_t *mode);

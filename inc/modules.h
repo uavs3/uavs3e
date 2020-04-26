@@ -43,6 +43,7 @@ void rdoq_init_cu_est_bits(core_t *core, lbac_t *lbac);
 int quant_non_zero(core_t *core, int qp, double lambda, int is_intra, s16 *coef, int cu_width_log2, int cu_height_log2, int ch_type, int slice_type);
 
 /*** entropy ***/
+void lbac_ctx_init(com_lbac_all_ctx_t *lbac_ctx);
 void lbac_reset(lbac_t *lbac);
 void lbac_finish(lbac_t *lbac, bs_t *bs);
 void lbac_encode_bin(u32 bin, lbac_t *lbac, lbac_ctx_model_t *ctx_model, bs_t *bs);
