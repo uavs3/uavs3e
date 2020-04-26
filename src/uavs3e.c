@@ -833,6 +833,7 @@ void enc_get_pic_qp(enc_pic_t *ep, pic_thd_param_t *p)
     com_img_t        *ref_l0[4];
     com_img_t        *ref_l1[4];
     int               base_qp;
+    double            icost, icost_uv[2];
 
     for (int refi = 0; refi < p->num_refp[PRED_L0]; refi++) {
         ref_l0[refi] = p->refp[refi][PRED_L0].pic->img;
@@ -849,8 +850,11 @@ void enc_get_pic_qp(enc_pic_t *ep, pic_thd_param_t *p)
         }
     }
 
-    pic_org->picture_satd = loka_estimate_coding_cost(&ep->pinter, img_org, ref_l0, ref_l1, p->num_refp, info->bit_depth_internal, NULL);
-
+    if (p->param->adaptive_chroma_dqp) {
+        pic_org->picture_satd = loka_estimate_coding_cost(&ep->pinter, img_org, ref_l0, ref_l1, p->num_refp, info->bit_depth_internal, &icost, icost_uv);
+    } else {
+        pic_org->picture_satd = loka_estimate_coding_cost(&ep->pinter, img_org, ref_l0, ref_l1, p->num_refp, info->bit_depth_internal, NULL, NULL);
+    }
     if (param->rc_type == RC_TYPE_NULL) {
         base_qp = (int)(enc_get_hgop_qp(param->qp, pic_org->layer_id, info->sqh.low_delay) + 0.5);
     } else {
@@ -860,20 +864,40 @@ void enc_get_pic_qp(enc_pic_t *ep, pic_thd_param_t *p)
     }
     pic_org->picture_qp = (u8)COM_CLIP3(0, (MAX_QUANT_BASE + info->qp_offset_bit_depth), base_qp + info->qp_offset_bit_depth);
 
-    //find a qp_offset_cb that makes com_tbl_qp_chroma_ajudst[qp + qp_offset_cb] equal to com_tbl_qp_chroma_adjust_enc[qp + 1]
-    int opt_c_dqp;
     int qp_l = pic_org->picture_qp - info->qp_offset_bit_depth;
-    int target_chroma_qp = com_tbl_qp_chroma_adjust_enc[COM_CLIP(qp_l + 1, 0, 63)];
+    int target_chroma_qp, opt_c_dqp;
 
-    for (opt_c_dqp = -5; opt_c_dqp < 10; opt_c_dqp++) {
+    // delta QP of Cb
+    if (p->param->adaptive_chroma_dqp) {
+        target_chroma_qp = com_tbl_qp_chroma_adjust_enc[COM_CLIP(qp_l + 1, 0, 63)] - (int)(icost / icost_uv[0]) + 1;
+    } else {
+        target_chroma_qp = com_tbl_qp_chroma_adjust_enc[COM_CLIP(qp_l + 1, 0, 63)];
+    }
+    target_chroma_qp = COM_MAX(0, target_chroma_qp);
+    for (opt_c_dqp = -10; opt_c_dqp < 10; opt_c_dqp++) {
         if (target_chroma_qp == com_tbl_qp_chroma_ajudst[COM_CLIP(qp_l + opt_c_dqp, 0, 63)]) {
             break;
         }
     }
-    opt_c_dqp = COM_MIN(opt_c_dqp, 63 - qp_l);
-
+    opt_c_dqp = COM_CLIP(opt_c_dqp, -qp_l, 63 - qp_l);
     pichdr->chroma_quant_param_delta_cb = param->qp_offset_cb + opt_c_dqp;
+    pichdr->chroma_quant_param_delta_cb = COM_CLIP(pichdr->chroma_quant_param_delta_cb, -16, 16);
+
+    // delta QP of Cr
+    if (p->param->adaptive_chroma_dqp) {
+        target_chroma_qp = com_tbl_qp_chroma_adjust_enc[COM_CLIP(qp_l + 1, 0, 63)] - (int)(icost / icost_uv[1]) + 1;
+    } else {
+        target_chroma_qp = com_tbl_qp_chroma_adjust_enc[COM_CLIP(qp_l + 1, 0, 63)];
+    }
+    target_chroma_qp = COM_MAX(0, target_chroma_qp);
+    for (opt_c_dqp = -10; opt_c_dqp < 10; opt_c_dqp++) {
+        if (target_chroma_qp == com_tbl_qp_chroma_ajudst[COM_CLIP(qp_l + opt_c_dqp, 0, 63)]) {
+            break;
+        }
+    }
+    opt_c_dqp = COM_CLIP(opt_c_dqp, -qp_l, 63 - qp_l);
     pichdr->chroma_quant_param_delta_cr = param->qp_offset_cr + opt_c_dqp;
+    pichdr->chroma_quant_param_delta_cr = COM_CLIP(pichdr->chroma_quant_param_delta_cr, -16, 16);
 
     if (pichdr->chroma_quant_param_delta_cb == 0 && pichdr->chroma_quant_param_delta_cr == 0) {
         pichdr->chroma_quant_param_disable_flag = 1;

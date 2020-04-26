@@ -63,22 +63,59 @@ typedef struct uavs3e_enc_stat_t {
 } enc_stat_t;
 
 typedef struct uavs3e_enc_cfg_t {
+    //#=========== input ===============================
     int            horizontal_size;
     int            vertical_size;
     int            pic_width;
     int            pic_height;
-    int            qp;
     int            fps_num;
     int            fps_den;
-    int            i_period;
     int            bit_depth_input;
-    int            bit_depth_internal;
+
+    //#=========== Misc. ===============================
     int            use_pic_sign;
+    int            bit_depth_internal;
+    int            chroma_format;
+
+    //#========== speed/quality trade-off ==============
+    int            speed_level;
+
+    //#========== parallel configuration ===============
+    int            wpp_threads;
+    int            frm_threads;
+
+    //#=========== split configuration =================
+    int            ctu_size;
+    int            min_cu_size;
+    int            max_part_ratio;
+    int            max_split_times;
+    int            min_qt_size;
+    int            max_bt_size;
+    int            max_eqt_size;
+    int            max_dt_size;
+
+    //#======== Coding Structure =======================
+    int            i_period;
     int            max_b_frames;
     int            close_gop;
     int            scenecut;
-    int            lookahead;
     int            adaptive_gop;
+    int            lookahead;
+
+    //#========== Rate Control =========================
+    int            rc_type;
+    int            rc_bitrate;
+    int            rc_max_bitrate;
+    int            rc_min_qp;
+    int            rc_max_qp;
+    int            rc_crf;
+
+    int            qp;
+    int            qp_offset_cb;
+    int            qp_offset_cr;
+    int            dqp_enable;
+
+    //#=========== Coding Tools ========================
     int            amvr_enable;
     int            affine_enable;
     int            smvd_enable;
@@ -89,6 +126,12 @@ typedef struct uavs3e_enc_cfg_t {
     int            umve_enable;
     int            emvr_enable;
     int            dt_enable;
+    int            sao_enable;
+    int            alf_enable;
+    int            sectrans_enable;
+    int            pbt_enable;
+
+    //#=========== weight quant ========================
     int            wq_enable;
     int            seq_wq_mode;
     char           seq_wq_user[2048];
@@ -98,37 +141,15 @@ typedef struct uavs3e_enc_cfg_t {
     int            wq_model;
     char           wq_param_detailed[256];
     char           wq_param_undetailed[256];
-    int            sao_enable;
-    int            alf_enable;
-    int            sectrans_enable;
-    int            pbt_enable;
-    int            dqp_enable;
-    int            chroma_format;
+
+    //#=========== patch ===============================
     int            filter_cross_patch;
     int            colocated_patch;
     int            patch_width;
     int            patch_height;
-    int            ctu_size;
-    int            min_cu_size;
-    int            max_part_ratio;
-    int            max_split_times;
-    int            min_qt_size;
-    int            max_bt_size;
-    int            max_eqt_size;
-    int            max_dt_size;
-    int            qp_offset_cb;
-    int            qp_offset_cr;
 
-    int            speed_level;
-    int            wpp_threads;
-    int            frm_threads;
-
-    int            rc_type;
-    int            rc_bitrate;
-    int            rc_max_bitrate;
-    int            rc_crf;
-    int            rc_min_qp;
-    int            rc_max_qp;
+    //#======= other encoder-size tools ================
+    int            adaptive_chroma_dqp;
 } enc_cfg_t;
 
 typedef    void*  (__cdecl *uavs3e_create_t)(enc_cfg_t *param, int *err);

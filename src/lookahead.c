@@ -4,6 +4,10 @@
 #define UNIT_SIZE (1 << UNIT_SIZE_LOG2)
 #define UNIT_WIDX (UNIT_SIZE_LOG2 - MIN_CU_LOG2)
 
+#define UNITC_SIZE_LOG2 (UNIT_SIZE_LOG2 - 1)
+#define UNITC_SIZE (1 << UNITC_SIZE_LOG2)
+#define UNITC_WIDX (UNITC_SIZE_LOG2 - MIN_CU_LOG2)
+
 static void get_ipred_neighbor(pel *dst, int x, int y, int w, int h, int pic_width, int pic_height, pel *src, int s_src, int bit_depth)
 {
     pel *srcT  = src - s_src;
@@ -46,7 +50,7 @@ static void get_ipred_neighbor(pel *dst, int x, int y, int w, int h, int pic_wid
     }
 }
 
-double loka_estimate_coding_cost(inter_search_t *pi, com_img_t *img_org, com_img_t **ref_l0, com_img_t **ref_l1, int num_ref[2], int bit_depth, double *icost)
+double loka_estimate_coding_cost(inter_search_t *pi, com_img_t *img_org, com_img_t **ref_l0, com_img_t **ref_l1, int num_ref[2], int bit_depth, double *icost, double icost_uv[2])
 {
     const int    base_qp = 32;
     const double base_lambda = 1.43631 * pow(2.0, (base_qp - 16.0) / 4.0);
@@ -57,7 +61,11 @@ double loka_estimate_coding_cost(inter_search_t *pi, com_img_t *img_org, com_img
 
     double total_cost = 0;
     double total_icost = 0;
-    int i_org = STRIDE_IMGB2PIC(img_org->stride[0]);
+    double total_icost_u = 0;
+    double total_icost_v = 0;
+
+    int i_org   = STRIDE_IMGB2PIC(img_org->stride[0]);
+    int i_org_c = STRIDE_IMGB2PIC(img_org->stride[1]);
     com_pic_t pic = { 0 };
     com_subpel_t subpel;
 
@@ -167,6 +175,7 @@ double loka_estimate_coding_cost(inter_search_t *pi, com_img_t *img_org, com_img
             int avaliable_nb = (x ? AVAIL_LE : 0) | (y ? AVAIL_UP : 0) | ((x && y) ? AVAIL_UP_LE : 0);
             static tab_s8 ipm_tab[] = { 0, 1, 2, 4, 8, 12, 16, 20, 24, 28, 32 };
             u32 min_icost = COM_UINT64_MAX;
+            int best_mode;
 
             for (int i = 0; i < sizeof(ipm_tab); i++) {
                 com_intra_pred(nb_buf + INTRA_NEIB_MID, pred_buf, ipm_tab[i], UNIT_SIZE, UNIT_SIZE, bit_depth, avaliable_nb, 0);
@@ -180,9 +189,25 @@ double loka_estimate_coding_cost(inter_search_t *pi, com_img_t *img_org, com_img
                 }
                 if (cost < min_icost) {
                     min_icost = cost;
+                    best_mode = ipm_tab[i];
                 }
             }
-            total_cost += min_cost;
+            if (icost_uv) {
+                int xc = x >> 1;
+                int yc = y >> 1;
+                pel *orgu = (pel*)img_org->planes[1] + yc * i_org_c + xc;
+                pel *orgv = (pel*)img_org->planes[2] + yc * i_org_c + xc;
+
+                get_ipred_neighbor(nb_buf + INTRA_NEIB_MID, xc, yc, UNITC_SIZE, UNITC_SIZE, pic_width / 2, pic_height / 2, orgu, i_org_c, bit_depth);
+                com_intra_pred(nb_buf + INTRA_NEIB_MID, pred_buf, best_mode, UNITC_SIZE, UNITC_SIZE, bit_depth, avaliable_nb, 0);
+                total_icost_u += com_had(UNITC_SIZE, UNITC_SIZE, orgu, i_org_c, pred_buf, UNITC_SIZE, bit_depth);
+
+                get_ipred_neighbor(nb_buf + INTRA_NEIB_MID, xc, yc, UNITC_SIZE, UNITC_SIZE, pic_width / 2, pic_height / 2, orgv, i_org_c, bit_depth);
+                com_intra_pred(nb_buf + INTRA_NEIB_MID, pred_buf, best_mode, UNITC_SIZE, UNITC_SIZE, bit_depth, avaliable_nb, 0);
+                total_icost_v += com_had(UNITC_SIZE, UNITC_SIZE, orgv, i_org_c, pred_buf, UNITC_SIZE, bit_depth);
+            }
+
+            total_cost  += min_cost;
             total_icost += min_icost;
         }        
     }
@@ -194,11 +219,17 @@ double loka_estimate_coding_cost(inter_search_t *pi, com_img_t *img_org, com_img
 
 #undef WRITE_REC_PIC
 
+    int blk_num = (pic_width / UNIT_SIZE) * (pic_height / UNIT_SIZE);
+
     if (icost) {
-        *icost = total_icost / (pic_width / UNIT_SIZE) / (pic_height / UNIT_SIZE) / UNIT_SIZE / UNIT_SIZE;
+        *icost = total_icost / blk_num / UNIT_SIZE / UNIT_SIZE;
+    }
+    if (icost_uv) {
+        icost_uv[0] = total_icost_u / blk_num / UNITC_SIZE / UNITC_SIZE;
+        icost_uv[1] = total_icost_v / blk_num / UNITC_SIZE / UNITC_SIZE;
     }
 
-    return total_cost / (pic_width / UNIT_SIZE) / (pic_height / UNIT_SIZE) / UNIT_SIZE / UNIT_SIZE;
+    return total_cost / blk_num / UNIT_SIZE / UNIT_SIZE;
 }
 
 double loka_get_sc_ratio(inter_search_t *pi, com_img_t *img_org, com_img_t *img_last, int bit_depth)
@@ -207,7 +238,7 @@ double loka_get_sc_ratio(inter_search_t *pi, com_img_t *img_org, com_img_t *img_
     com_img_t *ref_l0[1] = { img_last };
 
     double icost;
-    double pcost = loka_estimate_coding_cost(pi, img_org, ref_l0, NULL, num_refp, bit_depth, &icost);
+    double pcost = loka_estimate_coding_cost(pi, img_org, ref_l0, NULL, num_refp, bit_depth, &icost, NULL);
     return pcost / icost;
 }
 
@@ -219,7 +250,7 @@ static double loka_get_ref_cost(inter_search_t *pi, com_img_t *img_org, com_img_
     num_refp[0] = (ref0 == NULL ? 0 : 1);
     num_refp[1] = (ref1 == NULL ? 0 : 1);
 
-    double pcost = loka_estimate_coding_cost(pi, img_org, ref_l0, ref_l1, num_refp, bit_depth, NULL);
+    double pcost = loka_estimate_coding_cost(pi, img_org, ref_l0, ref_l1, num_refp, bit_depth, NULL, NULL);
     return pcost;
 }
 
