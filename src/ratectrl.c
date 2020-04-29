@@ -45,6 +45,11 @@ void rc_init(enc_rc_t* p, enc_cfg_t *param)
     p->rfConstant     = pow(CRF_DEFAULT_C, 1 - QCompress) / uavs3e_qp2qScale(param->rc_crf);
     p->target_bitrate = param->rc_bitrate * 1000.0;
     p->max_bitrate    = param->rc_max_bitrate * 1000.0;
+
+    if (p->max_bitrate && p->max_bitrate < p->target_bitrate) {
+        p->max_bitrate = p->target_bitrate;
+    }
+
     p->frame_rate     = param->fps_num * 1.0 / param->fps_den;
     p->frame_pixels   = param->pic_width * param->pic_height;
     p->min_qp         = param->rc_min_qp;
