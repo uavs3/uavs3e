@@ -133,7 +133,7 @@ int rc_get_qp(enc_rc_t *p,  com_pic_t *pic, int qp_l0, int qp_l1)
     long long ptr = pic->img->ptr;
 
     if (layer_id > FRM_DEPTH_1) {
-        com_assert(qp_l0 > 0);
+        com_assert(qp_l0 >= 0);
 
         if (p->low_delay) {
             qp = enc_get_hgop_qp(qp_l0, layer_id, 1);

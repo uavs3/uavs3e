@@ -520,13 +520,6 @@ static void set_pic_header(enc_ctrl_t *h, com_pic_t *pic_rec)
         int is_ld = h->info.sqh.low_delay;
         int is_top = pic_rec->layer_id < FRM_DEPTH_2 && !is_ld;
 
-        for (int i = 0; i < h->rpm.cur_num_ref_pics; i++) {
-            com_pic_t *ref = h->rpm.pic[i];
-            if (ref && ref->b_ref && ref->layer_id <= FRM_DEPTH_1 && (h->top_pic[0] == NULL || h->top_pic[0]->ptr < ref->ptr)) {
-                h->top_pic[0] = ref;
-            }
-        }
-
         com_refm_remove_ref_pic(&h->rpm, pichdr, pic_rec, h->cfg.close_gop, is_ld);
         com_refm_build_ref_buf (&h->rpm);
 
@@ -539,6 +532,13 @@ static void set_pic_header(enc_ctrl_t *h, com_pic_t *pic_rec)
         } else {
             pichdr->rpl_l0.active = MAX_RA_ACTIVE;
             pichdr->rpl_l1.active = MAX_RA_ACTIVE;
+        }
+
+        for (int i = 0; i < h->rpm.cur_num_ref_pics; i++) {
+            com_pic_t *ref = h->rpm.pic[i];
+            if (ref && ref->b_ref && ref->layer_id <= FRM_DEPTH_1 && (h->top_pic[0] == NULL || h->top_pic[0]->ptr < ref->ptr)) {
+                h->top_pic[0] = ref;
+            }
         }
         com_refm_create_rpl(&h->rpm, pichdr, h->refp, h->top_pic, is_top);
         com_refm_pick_seqhdr_idx(&h->info.sqh, pichdr);
