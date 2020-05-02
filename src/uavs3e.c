@@ -1425,3 +1425,87 @@ int uavs3e_enc(void *id, enc_stat_t *stat, com_img_t *img_enc)
         return COM_OK_OUT_NOT_AVAILABLE;
     }
 }
+
+void uavs3e_load_default_cfg(enc_cfg_t *cfg)
+{
+    memset(cfg, 0, sizeof(enc_cfg_t));
+
+    //#=========== Misc. ===============================
+    cfg->use_pic_sign        =   1;
+    cfg->bit_depth_internal  =   8;
+    cfg->chroma_format       =   1;
+
+    //#========== speed/quality trade-off ==============
+    cfg->speed_level         =   1;
+
+    //#========== parallel configuration ===============
+    cfg->wpp_threads         =   1;
+    cfg->frm_threads         =   1;
+
+    //#=========== split configuration =================
+    cfg->ctu_size            = 128;
+    cfg->min_cu_size         =   4;
+    cfg->max_part_ratio      =   8;
+    cfg->max_split_times     =   6;
+    cfg->min_qt_size         =   8;
+    cfg->max_bt_size         = 128;
+    cfg->max_eqt_size        =  64;
+    cfg->max_dt_size         =  64;
+
+    //#======== Coding Structure =======================
+    cfg->i_period            =  64;
+    cfg->max_b_frames        =  15;
+    cfg->close_gop           =   0;
+    cfg->scenecut            =   0;
+    cfg->adaptive_gop        =   0;
+    cfg->lookahead           =  40;
+
+    //#========== Rate Control =========================
+    cfg->rc_type             =    0;
+    cfg->rc_bitrate          = 3000; 
+    cfg->rc_max_bitrate      =    0;
+    cfg->rc_min_qp           =    0;
+    cfg->rc_max_qp           =   63;
+    cfg->rc_crf              =   34;
+
+    cfg->qp                  =   34;
+    cfg->qp_offset_cb        =    0;
+    cfg->qp_offset_cr        =    0;
+    cfg->dqp_enable          =    0;
+
+    //#=========== Coding Tools ========================
+    cfg->amvr_enable         =   1;
+    cfg->affine_enable       =   1;
+    cfg->smvd_enable         =   1;
+    cfg->num_of_hmvp         =   8;
+    cfg->ipf_flag            =   1;
+    cfg->tscpm_enable        =   1;
+    cfg->umve_enable         =   1;
+    cfg->emvr_enable         =   1;
+    cfg->dt_enable           =   1;
+    cfg->sectrans_enable     =   1;
+    cfg->pbt_enable          =   1;
+    cfg->use_deblock         =   1;
+    cfg->sao_enable          =   1;
+    cfg->alf_enable          =   1;
+
+    //#=========== weight quant ========================
+    cfg->wq_enable           =   0;
+    cfg->seq_wq_mode         =   0;
+    cfg->pic_wq_data_idx     =   1;
+    strcpy(cfg->seq_wq_user, "[64,64,64,68,64,64,68,72,64,68,76,80,72,76,84,96,64,64,64,64,68,68,72,76,64,64,64,68,72,76,84,92,64,64,68,72,76,80,88,100,64,68,72,80,84,92,100,112,68,72,80,84,92,104,112,128,76,80,84,92,104,116,132,152,96,100,104,116,124,140,164,188,104,108,116,128,152,172,192,216]");
+    strcpy(cfg->pic_wq_user, "[64,64,64,68,64,64,68,72,64,68,76,80,72,76,84,96,64,64,64,64,68,68,72,76,64,64,64,68,72,76,84,92,64,64,68,72,76,80,88,100,64,68,72,80,84,92,100,112,68,72,80,84,92,104,112,128,76,80,84,92,104,116,132,152,96,100,104,116,124,140,164,188,104,108,116,128,152,172,192,216]");
+    cfg->wq_param = 0;
+    cfg->wq_model = 1;
+    strcpy(cfg->wq_param_detailed, "[64,49,53,58,58,64]");
+    strcpy(cfg->wq_param_undetailed, "[67,71,71,80,80,106]");
+
+    //#=========== patch ===============================
+    cfg->filter_cross_patch  =   1;
+    cfg->colocated_patch     =   0;
+    cfg->patch_width         =   0;
+    cfg->patch_height        =   0;
+
+    //#======= other encoder-size tools ================
+    cfg->adaptive_chroma_dqp =   1;
+}

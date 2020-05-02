@@ -164,6 +164,9 @@ UAVS3E_API int     __cdecl  uavs3e_enc   (void *id, enc_stat_t *stat, com_img_t 
 typedef    int    (__cdecl *uavs3e_get_img_t)(void *id, com_img_t **img);
 UAVS3E_API int     __cdecl  uavs3e_get_img   (void *id, com_img_t **img);
 
+typedef    void   (__cdecl *uavs3e_load_default_cfg_t)(enc_cfg_t *cfg);
+UAVS3E_API void    __cdecl  uavs3e_load_default_cfg   (enc_cfg_t *cfg);
+
 #ifdef __cplusplus
 }
 #endif
