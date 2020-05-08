@@ -46,11 +46,13 @@ double enc_get_hgop_qp(double base_qp, int frm_depth, int is_ld);
 
 static void avs3_always_inline add_input_node(enc_ctrl_t *h, com_img_t *img, int bref, int layer, int type)
 {
-    input_node_t *node = &h->node_list[h->node_size++];
-    node->img = img; 
-    node->b_ref = bref;
+    input_node_t *node;
+
+    node           = &h->node_list[h->node_size++];
+    node->img      = img; 
+    node->b_ref    = bref;
     node->layer_id = layer; 
-    node->type = type;
+    node->type     = type;
 }
 
 static void avs3_always_inline shift_reorder_list(enc_ctrl_t *h, int cur_ip_idx)

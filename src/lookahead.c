@@ -269,35 +269,22 @@ static void push_sub_gop(enc_ctrl_t *h, int start, int num, int level)
 {
     if (num <= 2) {
         if (start < h->img_rsize) {
-            input_node_t *node = &h->node_list[h->node_size++];
-            node->img = h->img_rlist[start].img;
-            node->b_ref = 0;
-            node->layer_id = level;
-            node->type = SLICE_B;
+            add_input_node(h, h->img_rlist[start].img, 0, level, SLICE_B);
 
             if (num == 2 && start + 1 < h->img_rsize) {
-                node = &h->node_list[h->node_size++];
-                node->img = h->img_rlist[start + 1].img;
-                node->b_ref = 0;
-                node->layer_id = level;
-                node->type = SLICE_B;
+                add_input_node(h, h->img_rlist[start + 1].img, 0, level, SLICE_B);
             }
         }
     } else {
         int idx = start + num / 2;
 
         if (idx < h->img_rsize) {
-            input_node_t *node = &h->node_list[h->node_size++];
-            node->img = h->img_rlist[idx].img;
-            node->b_ref = 1;
-            node->layer_id = level;
-            node->type = SLICE_B;
+            add_input_node(h, h->img_rlist[idx].img, 1, level, SLICE_B);
         }
         push_sub_gop(h, start, num / 2, level + 1);
         push_sub_gop(h, idx + 1,  num - num / 2 - 1, level + 1);
     }
 }
-
 
 void loka_slicetype_decision(enc_ctrl_t *h)
 {
