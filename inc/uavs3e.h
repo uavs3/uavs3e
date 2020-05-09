@@ -46,13 +46,12 @@ extern "C"
 typedef struct uavs3e_enc_stat_t {
     void          *buf;                // [out] bitstream buffer                                       
     int            bytes;              // [out] size of bitstream
-    int            user_bytes;
-    int            bytes_seq_hdr;
+    int            user_bytes;         // [out] size of user data
     long long      pts;                // [out] pts  of current frame
     long long      dts;                // [out] dts  of current frame
-    int            type;               // [out] picture type 
-    int            qp;                 // [out] qp of current frame
-    long long      poc;                // [out] poc of current frame
+    int            type;               // [out] type of current frame
+    int            qp;                 // [out] qp   of current frame
+    long long      poc;                // [out] poc  of current frame
     int            refpic_num[2];      // [out] 
     long long      refpic[2][16];      // [out] 
     com_img_t     *rec_img;            // [out]
@@ -60,6 +59,8 @@ typedef struct uavs3e_enc_stat_t {
 
     char          *ext_info;           // [out] info buffer for log
     int            ext_info_buf_size;  // [out] info buffer size
+
+    int            insert_idr;         // [ in] 
 } enc_stat_t;
 
 typedef struct uavs3e_enc_cfg_t {

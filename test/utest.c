@@ -1059,6 +1059,7 @@ int main(int argc, const char **argv)
         }
         /* encoding */
         time_start = app_get_time();
+        stat.insert_idr = 0;
 
         ret = uavs3e_enc(h, &stat, img_enc);
 

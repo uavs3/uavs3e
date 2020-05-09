@@ -297,6 +297,21 @@ void loka_slicetype_decision(enc_ctrl_t *h)
 
     cur_ip_idx = COM_MIN(cur_ip_idx, next_ifrm_idx);
 
+    for (int i = 0; i < cur_ip_idx; i++) { 
+        if (h->img_rlist[i].insert_idr) { // insert user-defined IDR frame
+            if (i > 0) {
+                add_input_node(h, h->img_rlist[i - 1].img, 1, FRM_DEPTH_1, SLICE_B);
+                if (i > 1) {
+                    push_sub_gop(h, 0, i - 1, FRM_DEPTH_2);
+                }
+            }
+            add_input_node(h, h->img_rlist[i].img, 1, FRM_DEPTH_0, SLICE_I);
+            update_last_ip(h, h->img_rlist[i].img, SLICE_I);
+            shift_reorder_list(h, i);
+            return;
+        }
+    }
+
     if (h->cfg.scenecut) {
         if (h->img_rlist[0].sc_ratio > sc_threshold) {
             while (cur_ip_idx) {

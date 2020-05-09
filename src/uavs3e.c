@@ -1133,7 +1133,7 @@ void *enc_pic_thread(enc_pic_t *ep, pic_thd_param_t *p)
     return ep;
 }
 
-static void enc_push_frm(enc_ctrl_t *h, com_img_t *img)
+static void enc_push_frm(enc_ctrl_t *h, com_img_t *img, int insert_idr)
 {
     img->ptr = h->ptr++;
 
@@ -1145,7 +1145,7 @@ static void enc_push_frm(enc_ctrl_t *h, com_img_t *img)
         return;
     }
     if (h->info.sqh.low_delay) { // LD
-        if (h->lastI_ptr == -1 || (h->cfg.i_period && img->ptr - h->lastI_ptr == h->cfg.i_period)) {
+        if (h->lastI_ptr == -1 || insert_idr || (h->cfg.i_period && img->ptr - h->lastI_ptr == h->cfg.i_period)) {
             add_input_node(h, img, 1, FRM_DEPTH_0, SLICE_I);
             h->lastI_ptr = img->ptr;
         } else {
@@ -1157,7 +1157,6 @@ static void enc_push_frm(enc_ctrl_t *h, com_img_t *img)
     }
 
     /*** RA ***/
-
     if (h->lastI_ptr == -1) { // First frame
         add_input_node(h, img, 1, FRM_DEPTH_0, SLICE_I);
         h->lastI_ptr = img->ptr;
@@ -1169,8 +1168,9 @@ static void enc_push_frm(enc_ctrl_t *h, com_img_t *img)
     com_img_t *last_img = h->img_rsize ? h->img_rlist[h->img_rsize - 1].img : h->img_lastIP;
     int bit_depth = h->info.bit_depth_internal;
 
-    h->img_rlist[h->img_rsize].img = img;
-    h->img_rlist[h->img_rsize].sc_ratio = loka_get_sc_ratio(&h->pinter, img, last_img, bit_depth);
+    h->img_rlist[h->img_rsize].img        = img;
+    h->img_rlist[h->img_rsize].insert_idr = insert_idr;
+    h->img_rlist[h->img_rsize].sc_ratio   = loka_get_sc_ratio(&h->pinter, img, last_img, bit_depth);
     h->img_rsize++;
 
     if (h->img_rsize < h->cfg.lookahead) {
@@ -1305,7 +1305,7 @@ int uavs3e_enc(void *id, enc_stat_t *stat, com_img_t *img_enc)
     int gop_size = h->info.gop_size;
 
     if (img_enc) {
-        enc_push_frm(h, img_enc);
+        enc_push_frm(h, img_enc, stat->insert_idr);
 
         /* store input picture and return if needed */
         if (h->ptr < h->cfg.lookahead && h->cfg.max_b_frames) {
