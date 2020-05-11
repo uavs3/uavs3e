@@ -49,7 +49,7 @@ static double sao_rdcost_merge(core_t *core, const lbac_t *lbac, int lcu_pos, in
                 int type = merge_candidate[mergeIdx][compIdx].typeIdc;
                 temp_sao_param[compIdx].modeIdc = mergeIdx == SAO_MERGE_LEFT ? SAO_MODE_MERGE_LEFT : SAO_MODE_MERGE_ABOVE;
                 if (type != -1) {
-                    curdist += (get_distortion(compIdx, type, saostatData, temp_sao_param)) / sao_labmda[compIdx];
+                    curdist += (com_sao_get_dist(compIdx, type, saostatData, temp_sao_param)) / sao_labmda[compIdx];
                 }
             }
 
@@ -279,7 +279,7 @@ static double sao_rdcost_new(core_t *core, lbac_t *sao_sbac, int MergeLeftAvail,
                 temp_sao_param[compIdx].modeIdc = SAO_MODE_NEW;
                 temp_sao_param[compIdx].typeIdc = type;
                 sao_find_offset(compIdx, type, saostatData, temp_sao_param, sao_lambda[compIdx]);
-                curdist[compIdx] = get_distortion(compIdx, type, saostatData, temp_sao_param);
+                curdist[compIdx] = com_sao_get_dist(compIdx, type, saostatData, temp_sao_param);
                 currate[compIdx] = lbac_get_bits(&sao_lbac_tmp);
                 lbac_enc_sao_mode(&sao_lbac_tmp, NULL, &(temp_sao_param[compIdx]));
                 lbac_enc_sao_offset(&sao_lbac_tmp, NULL, &(temp_sao_param[compIdx]));

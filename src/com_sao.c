@@ -18,7 +18,7 @@
 
 #include "com_modules.h"
 
-long long int get_distortion(int compIdx, int type, com_sao_stat_t saostatData[N_C][NUM_SAO_NEW_TYPES], com_sao_param_t sao_cur_param[N_C])
+long long int com_sao_get_dist(int compIdx, int type, com_sao_stat_t saostatData[N_C][NUM_SAO_NEW_TYPES], com_sao_param_t sao_cur_param[N_C])
 {
     int classIdc, bandIdx;
     long long int dist = 0;

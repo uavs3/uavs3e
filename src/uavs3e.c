@@ -995,7 +995,7 @@ void *enc_pic_thread(enc_pic_t *ep, pic_thd_param_t *p)
         double lambda = 1.43631 * pow(2.0, (p->total_qp * 1.0 / info->f_lcu - 16.0) / 4.0);
         pichdr->m_alfPictureParam = ep->Enc_ALF.m_alfPictureParam;
         pichdr->pic_alf_on = ep->pic_alf_on;
-        enc_alf_avs2(ep, pic_rec, pic_org, lambda);
+        uavs3e_alf_frame(ep, pic_rec, pic_org, lambda);
     } else {
         pichdr->m_alfPictureParam = NULL;
         pichdr->pic_alf_on = NULL;

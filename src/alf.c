@@ -24,7 +24,7 @@
 
 #define Clip_post(high,val) ((val > high)? high: val)
 
-void copyToImage(pel *pDest, pel *pSrc, int stride_in, int img_height, int img_width, int formatShift)
+static void copyToImage(pel *pDest, pel *pSrc, int stride_in, int img_height, int img_width, int formatShift)
 {
     int height = img_height >> formatShift;
     int width  = img_width  >> formatShift;
@@ -38,7 +38,7 @@ void copyToImage(pel *pDest, pel *pSrc, int stride_in, int img_height, int img_w
     }
 }
 
-void copyOneAlfBlk(pel *picDst, pel *picSrc, int stride, int ypos, int xpos, int height, int width, int isAboveAvail, int isBelowAvail)
+static void copyOneAlfBlk(pel *picDst, pel *picSrc, int stride, int ypos, int xpos, int height, int width, int isAboveAvail, int isBelowAvail)
 {
     int posOffset = (ypos * stride) + xpos;
     pel *pelDst;
@@ -56,7 +56,7 @@ void copyOneAlfBlk(pel *picDst, pel *picSrc, int stride, int ypos, int xpos, int
     }
 }
 
-long long cal_lcu_ssd(enc_alf_var_t *Enc_ALF, pel *pOrg, int i_org, pel *pCmp, int iWidth, int iHeight, int iStride)
+static long long cal_lcu_ssd(enc_alf_var_t *Enc_ALF, pel *pOrg, int i_org, pel *pCmp, int iWidth, int iHeight, int iStride)
 {
     if (iWidth < 256 && CONV_LOG2(iWidth) != -1) {
         int widx = CONV_LOG2(iWidth) - MIN_CU_LOG2;
@@ -76,7 +76,7 @@ long long cal_lcu_ssd(enc_alf_var_t *Enc_ALF, pel *pOrg, int i_org, pel *pCmp, i
     }
 }
 
-long long cal_alf_lcu_dist(enc_pic_t *ep, int compIdx, int lcuAddr, int ctuYPos, int ctuXPos, int ctuHeight,
+static long long cal_alf_lcu_dist(enc_pic_t *ep, int compIdx, int lcuAddr, int ctuYPos, int ctuXPos, int ctuHeight,
     int ctuWidth, BOOL isAboveAvail, pel *picSrc, int i_src, pel *picCmp, int stride)
 {
     if (compIdx == Y_C) {
@@ -98,7 +98,7 @@ long long cal_alf_lcu_dist(enc_pic_t *ep, int compIdx, int lcuAddr, int ctuYPos,
     }
 }
 
-void mergeFrom(enc_alf_corr_t *dst, enc_alf_corr_t *src, int *mergeTable)
+static void mergeFrom(enc_alf_corr_t *dst, enc_alf_corr_t *src, int *mergeTable)
 {
     switch (dst->componentID) {
     case U_C:
@@ -141,7 +141,7 @@ void mergeFrom(enc_alf_corr_t *dst, enc_alf_corr_t *src, int *mergeTable)
     }
 }
 
-void predictALFCoeff(int(*coeff)[ALF_MAX_NUM_COEF], int numCoef, int numFilters)
+static void predictALFCoeff(int(*coeff)[ALF_MAX_NUM_COEF], int numCoef, int numFilters)
 {
     int g, pred, sum, i;
     for (g = 0; g < numFilters; g++) {
@@ -154,7 +154,7 @@ void predictALFCoeff(int(*coeff)[ALF_MAX_NUM_COEF], int numCoef, int numFilters)
     }
 }
 
-void deriveBoundaryAvail(enc_pic_t *ep, int numLCUInPicWidth, int numLCUInPicHeight, int ctu, BOOL *isAboveAvail, BOOL *isBelowAvail)
+static void deriveBoundaryAvail(enc_pic_t *ep, int numLCUInPicWidth, int numLCUInPicHeight, int ctu, BOOL *isAboveAvail, BOOL *isBelowAvail)
 {
     int numLCUsInFrame = numLCUInPicHeight * numLCUInPicWidth;
     int lcuHeight = 1 << ep->info.log2_max_cuwh;
@@ -203,7 +203,7 @@ void deriveBoundaryAvail(enc_pic_t *ep, int numLCUInPicWidth, int numLCUInPicHei
 * Return:
 *************************************************************************
 */
-void getStatisticsOneLCU(int varInd, int ctuYPos, int ctuXPos, int ctuHeight, int ctuWidth
+static void getStatisticsOneLCU(int varInd, int ctuYPos, int ctuXPos, int ctuHeight, int ctuWidth
     , BOOL isAboveAvail, BOOL isBelowAvail, enc_alf_corr_t *lcu_alfCorr, com_pic_t *pic_org, com_pic_t *pic_rec)
 {
     enc_alf_corr_t *alfCorr = lcu_alfCorr;
@@ -235,7 +235,7 @@ void getStatisticsOneLCU(int varInd, int ctuYPos, int ctuXPos, int ctuHeight, in
 * Return:
 *************************************************************************
 */
-void alf_get_statistics(enc_pic_t *ep, com_pic_t *pic_org, com_pic_t *pic_rec)
+static void alf_get_statistics(enc_pic_t *ep, com_pic_t *pic_org, com_pic_t *pic_rec)
 {
     enc_alf_var_t *Enc_ALF = &ep->Enc_ALF;
     int lcu_size           =  ep->info.max_cuwh;
@@ -262,7 +262,7 @@ void alf_get_statistics(enc_pic_t *ep, com_pic_t *pic_org, com_pic_t *pic_rec)
     }
 }
 
-unsigned int uvlcBitrateEstimate(int val)
+static unsigned int uvlcBitrateEstimate(int val)
 {
     unsigned int length = 1;
     val++;
@@ -273,12 +273,13 @@ unsigned int uvlcBitrateEstimate(int val)
     }
     return ((length >> 1) + ((length + 1) >> 1));
 }
-unsigned int svlcBitrateEsitmate(int val)
+
+static unsigned int svlcBitrateEsitmate(int val)
 {
     return uvlcBitrateEstimate((val <= 0) ? (-val << 1) : ((val << 1) - 1));
 }
 
-unsigned int filterCoeffBitrateEstimate(int *coeff)
+static unsigned int filterCoeffBitrateEstimate(int *coeff)
 {
     unsigned int  bitrate = 0;
     int i;
@@ -287,7 +288,8 @@ unsigned int filterCoeffBitrateEstimate(int *coeff)
     }
     return bitrate;
 }
-unsigned int ALFParamBitrateEstimate(com_alf_pic_param_t *alfParam)
+
+static unsigned int ALFParamBitrateEstimate(com_alf_pic_param_t *alfParam)
 {
     unsigned int  bitrate = 0; //alf enabled flag
     int noFilters, g;
@@ -304,7 +306,7 @@ unsigned int ALFParamBitrateEstimate(com_alf_pic_param_t *alfParam)
     return bitrate;
 }
 
-unsigned int estimateALFBitrateInPicHeader(com_alf_pic_param_t *alfPicParam)
+static unsigned int estimateALFBitrateInPicHeader(com_alf_pic_param_t *alfPicParam)
 {
     //CXCTBD please help to check if the implementation is consistent with syntax coding
     int compIdx;
@@ -317,7 +319,7 @@ unsigned int estimateALFBitrateInPicHeader(com_alf_pic_param_t *alfPicParam)
     return bitrate;
 }
 
-long long xFastFiltDistEstimation(enc_alf_var_t *Enc_ALF, double ppdE[ALF_MAX_NUM_COEF][ALF_MAX_NUM_COEF], double *pdy, int *piCoeff, int iFiltLength)
+static long long xFastFiltDistEstimation(enc_alf_var_t *Enc_ALF, double ppdE[ALF_MAX_NUM_COEF][ALF_MAX_NUM_COEF], double *pdy, int *piCoeff, int iFiltLength)
 {
     double pdcoeff[ALF_MAX_NUM_COEF];
     double dDist = 0;
@@ -338,7 +340,8 @@ long long xFastFiltDistEstimation(enc_alf_var_t *Enc_ALF, double ppdE[ALF_MAX_NU
         return  ((long long)( dDist + 0.5));
     }
 }
-long long estimate_alf_lcu_dist(enc_alf_var_t *Enc_ALF, enc_alf_corr_t *alfCorr, int(*coeffSet)[ALF_MAX_NUM_COEF], int filterSetSize, int *mergeTable)
+
+static long long estimate_alf_lcu_dist(enc_alf_var_t *Enc_ALF, enc_alf_corr_t *alfCorr, int(*coeffSet)[ALF_MAX_NUM_COEF], int filterSetSize, int *mergeTable)
 {
     enc_alf_corr_t alfMerged;
     long long iDist = 0;
@@ -351,7 +354,7 @@ long long estimate_alf_lcu_dist(enc_alf_var_t *Enc_ALF, enc_alf_corr_t *alfCorr,
     return iDist;
 }
 
-void filterOneCTB(enc_alf_var_t *Enc_ALF, pel *pRest, pel *pDec, int varIdx, int stride, int compIdx, int bit_depth, com_alf_pic_param_t *alfParam, int ctuYPos, int ctuHeight,
+static void filterOneCTB(enc_alf_var_t *Enc_ALF, pel *pRest, pel *pDec, int varIdx, int stride, int compIdx, int bit_depth, com_alf_pic_param_t *alfParam, int ctuYPos, int ctuHeight,
     int ctuXPos, int ctuWidth, int(*coeffSet)[ALF_MAX_NUM_COEF], BOOL isAboveAvail, BOOL isBelowAvail)
 {
     //half size of 7x7cross+ 3x3square
@@ -385,7 +388,7 @@ void filterOneCTB(enc_alf_var_t *Enc_ALF, pel *pRest, pel *pDec, int varIdx, int
 * Function: ALF On/Off decision for LCU
 *************************************************************************
 */
-double alf_decision_all_lcu(enc_pic_t *ep, lbac_t *lbac, com_alf_pic_param_t *alfPictureParam
+static double alf_decision_all_lcu(enc_pic_t *ep, lbac_t *lbac, com_alf_pic_param_t *alfPictureParam
                             , double lambda
                             , BOOL isRDOEstimate
                             , enc_alf_corr_t (*alfCorr)[N_C]
@@ -555,7 +558,7 @@ static void add_corr_data(enc_alf_corr_t *A, enc_alf_corr_t *B, enc_alf_corr_t *
     }
 }
 
-void accumulate_lcu_corr(enc_pic_t *ep, enc_alf_corr_t *alf_corr, enc_alf_corr_t (*alfCorSrcLCU)[N_C], BOOL useAllLCUs)
+static void accumulate_lcu_corr(enc_pic_t *ep, enc_alf_corr_t *alf_corr, enc_alf_corr_t (*alfCorSrcLCU)[N_C], BOOL useAllLCUs)
 {
     enc_alf_var_t *Enc_ALF = &ep->Enc_ALF;
     int numLCUInPicWidth   =  ep->info.pic_width_in_lcu;
@@ -587,9 +590,7 @@ void accumulate_lcu_corr(enc_pic_t *ep, enc_alf_corr_t *alf_corr, enc_alf_corr_t
     }
 }
 
-
-
-void xcodeFiltCoeff(int *varIndTab, int numFilters, com_alf_pic_param_t *alfParam)
+static void xcodeFiltCoeff(int *varIndTab, int numFilters, com_alf_pic_param_t *alfParam)
 {
     int filterPattern[NO_VAR_BINS], i;
     memset(filterPattern, 0, NO_VAR_BINS * sizeof(int));
@@ -614,7 +615,7 @@ static tab_u8 tbl_weights_shape_1sym[ALF_MAX_NUM_COEF + 1] = {
     1
 };
 
-void xFilterCoefQuickSort(double *coef_data, int *coef_num, int upper, int lower)
+static void xFilterCoefQuickSort(double *coef_data, int *coef_num, int upper, int lower)
 {
     double mid, tmp_data;
     int i, j, tmp_num;
@@ -647,8 +648,7 @@ void xFilterCoefQuickSort(double *coef_data, int *coef_num, int upper, int lower
     }
 }
 
-
-void xQuantFilterCoef(double *h, int *qh)
+static void xQuantFilterCoef(double *h, int *qh)
 {
     int i, N;
     int max_value, min_value;
@@ -729,8 +729,7 @@ void xQuantFilterCoef(double *h, int *qh)
     nc = NULL;
 }
 
-
-double xfindBestCoeffCodMethod(int(*filterCoeffSymQuant)[ALF_MAX_NUM_COEF], int sqrFiltLength, int filters_per_fr,
+static double xfindBestCoeffCodMethod(int(*filterCoeffSymQuant)[ALF_MAX_NUM_COEF], int sqrFiltLength, int filters_per_fr,
                                double errorForce0CoeffTab[NO_VAR_BINS][2], double lambda)
 {
     int coeffBits, i;
@@ -756,7 +755,7 @@ double xfindBestCoeffCodMethod(int(*filterCoeffSymQuant)[ALF_MAX_NUM_COEF], int 
     return (lagrangian);
 }
 
-int gnsCholeskyDec(double (*inpMatr)[ALF_MAX_NUM_COEF], double outMatr[ALF_MAX_NUM_COEF][ALF_MAX_NUM_COEF], int noEq)
+static int gnsCholeskyDec(double (*inpMatr)[ALF_MAX_NUM_COEF], double outMatr[ALF_MAX_NUM_COEF][ALF_MAX_NUM_COEF], int noEq)
 {
     int i, j, k;     /* Looping Variables */
     double scale;       /* scaling factor for each row */
@@ -790,7 +789,7 @@ int gnsCholeskyDec(double (*inpMatr)[ALF_MAX_NUM_COEF], double outMatr[ALF_MAX_N
     return 1; /* Signal that Cholesky factorization is successfully performed */
 }
 
-void gnsTransposeBacksubstitution(double U[ALF_MAX_NUM_COEF][ALF_MAX_NUM_COEF], double rhs[], double x[], int order)
+static void gnsTransposeBacksubstitution(double U[ALF_MAX_NUM_COEF][ALF_MAX_NUM_COEF], double rhs[], double x[], int order)
 {
     int i, j;             /* Looping variables */
     double sum;              /* Holds backsubstitution from already handled rows */
@@ -804,8 +803,8 @@ void gnsTransposeBacksubstitution(double U[ALF_MAX_NUM_COEF][ALF_MAX_NUM_COEF], 
         x[i] = (rhs[i] - sum) / U[i][i];       /* i'th component of solution vect.  */
     }
 }
-void gnsBacksubstitution(double R[ALF_MAX_NUM_COEF][ALF_MAX_NUM_COEF], double z[ALF_MAX_NUM_COEF], int R_size,
-    double A[ALF_MAX_NUM_COEF])
+
+static void gnsBacksubstitution(double R[ALF_MAX_NUM_COEF][ALF_MAX_NUM_COEF], double z[ALF_MAX_NUM_COEF], int R_size, double A[ALF_MAX_NUM_COEF])
 {
     int i, j;
     double sum;
@@ -819,8 +818,7 @@ void gnsBacksubstitution(double R[ALF_MAX_NUM_COEF][ALF_MAX_NUM_COEF], double z[
     }
 }
 
-
-int gnsSolveByChol(double(*LHS)[ALF_MAX_NUM_COEF], double *rhs, double *x, int noEq)
+static int gnsSolveByChol(double(*LHS)[ALF_MAX_NUM_COEF], double *rhs, double *x, int noEq)
 {
     double aux[ALF_MAX_NUM_COEF];     /* Auxiliary vector */
     double U[ALF_MAX_NUM_COEF][ALF_MAX_NUM_COEF];    /* Upper triangular Cholesky factor of LHS */
@@ -861,7 +859,7 @@ int gnsSolveByChol(double(*LHS)[ALF_MAX_NUM_COEF], double *rhs, double *x, int n
     return singular;
 }
 
-double calculateErrorAbs(double(*A)[ALF_MAX_NUM_COEF], double *b, int size)
+static double calculateErrorAbs(double(*A)[ALF_MAX_NUM_COEF], double *b, int size)
 {
     int i;
     double error, sum;
@@ -875,7 +873,7 @@ double calculateErrorAbs(double(*A)[ALF_MAX_NUM_COEF], double *b, int size)
     return error;
 }
 
-double mergeFiltersGreedy(enc_alf_var_t *Enc_ALF, double (*yGlobalSeq)[ALF_MAX_NUM_COEF], double (*EGlobalSeq)[ALF_MAX_NUM_COEF][ALF_MAX_NUM_COEF],
+static double mergeFiltersGreedy(enc_alf_var_t *Enc_ALF, double (*yGlobalSeq)[ALF_MAX_NUM_COEF], double (*EGlobalSeq)[ALF_MAX_NUM_COEF][ALF_MAX_NUM_COEF],
                           int intervalBest[NO_VAR_BINS][2],
                           double error_tab[NO_VAR_BINS], double error_comb_tab[NO_VAR_BINS],
                           int indexList[NO_VAR_BINS], int available[NO_VAR_BINS],
@@ -984,7 +982,7 @@ double mergeFiltersGreedy(enc_alf_var_t *Enc_ALF, double (*yGlobalSeq)[ALF_MAX_N
     return (errorMin);
 }
 
-void add_A(double (*Amerged)[ALF_MAX_NUM_COEF], double (*A)[ALF_MAX_NUM_COEF][ALF_MAX_NUM_COEF], int start, int stop, int size)
+static void add_A(double (*Amerged)[ALF_MAX_NUM_COEF], double (*A)[ALF_MAX_NUM_COEF][ALF_MAX_NUM_COEF], int start, int stop, int size)
 {
     int i, j, ind;          /* Looping variable */
     for (i = 0; i < size; i++) {
@@ -997,7 +995,7 @@ void add_A(double (*Amerged)[ALF_MAX_NUM_COEF], double (*A)[ALF_MAX_NUM_COEF][AL
     }
 }
 
-void add_b(double *bmerged, double (*b)[ALF_MAX_NUM_COEF], int start, int stop, int size)
+static void add_b(double *bmerged, double (*b)[ALF_MAX_NUM_COEF], int start, int stop, int size)
 {
     int i, ind;          /* Looping variable */
     for (i = 0; i < size; i++) {
@@ -1008,7 +1006,7 @@ void add_b(double *bmerged, double (*b)[ALF_MAX_NUM_COEF], int start, int stop, 
     }
 }
 
-void roundFiltCoeff(int *FilterCoeffQuan, double *FilterCoeff, int sqrFiltLength, int factor)
+static void roundFiltCoeff(int *FilterCoeffQuan, double *FilterCoeff, int sqrFiltLength, int factor)
 {
     int i;
     double diff;
@@ -1021,7 +1019,7 @@ void roundFiltCoeff(int *FilterCoeffQuan, double *FilterCoeff, int sqrFiltLength
     }
 }
 
-double calculateErrorCoeffProvided(double (*A)[ALF_MAX_NUM_COEF], double *b, double *c, int size)
+static double calculateErrorCoeffProvided(double (*A)[ALF_MAX_NUM_COEF], double *b, double *c, int size)
 {
     int i, j;
     double error, sum = 0;
@@ -1263,7 +1261,7 @@ static void alf_get_filter_coefs(enc_pic_t *ep, lbac_t *lbac, com_alf_pic_param_
     }
 }
 
-int enc_alf_avs2(enc_pic_t *ep, com_pic_t *pic_rec, com_pic_t *pic_org, double lambda)
+int uavs3e_alf_frame(enc_pic_t *ep, com_pic_t *pic_rec, com_pic_t *pic_org, double lambda)
 {
     lbac_t lbac_alf;
     lbac_t *lbac = &lbac_alf;

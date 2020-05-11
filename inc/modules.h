@@ -28,7 +28,7 @@ void rc_update(enc_rc_t *p, com_pic_t *pic, char *ext_info, int info_buf_size);
 void rc_destroy(enc_rc_t *p);
 
 /*** alf ***/
-int enc_alf_avs2(enc_pic_t *ep, com_pic_t *pic_rec, com_pic_t *pic_org, double lambda);
+int uavs3e_alf_frame(enc_pic_t *ep, com_pic_t *pic_rec, com_pic_t *pic_org, double lambda);
 
 /*** sao ***/
 void enc_sao_rdo(core_t *core, const lbac_t *lbac);

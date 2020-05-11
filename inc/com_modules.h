@@ -70,7 +70,7 @@ com_pic_t *com_refm_find_free_pic(com_pic_manager_t *pm, int b_ref, int *err);
 void com_recon_plane(part_size_t part, s16 *resi, pel *pred, int(*is_coef)[N_C], int plane, int cu_width, int cu_height, int s_rec, pel *rec, int bit_depth);
 
 ////////////// SAO
-long long int  get_distortion(int compIdx, int type, com_sao_stat_t saostatData[N_C][NUM_SAO_NEW_TYPES], com_sao_param_t sao_cur_param[N_C]);
+long long int  com_sao_get_dist(int compIdx, int type, com_sao_stat_t saostatData[N_C][NUM_SAO_NEW_TYPES], com_sao_param_t sao_cur_param[N_C]);
 long long int  distortion_cal(long long int count, int offset, long long int diff);
 void off_sao(com_sao_param_t *saoblkparam);
 BOOL is_same_patch(s8 *map_patch, int mb_nr1, int mb_nr2);
