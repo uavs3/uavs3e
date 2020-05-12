@@ -107,7 +107,7 @@ static app_cfg_t options[] = {
     {
         'p',  "i_period", CFG_TYPE_INTEGER,
         &cfg.i_period,
-        "I-picture period"
+        "I-picture period (0: Only one I frame)"
         ,0 
     },
     {

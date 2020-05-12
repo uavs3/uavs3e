@@ -291,7 +291,7 @@ void loka_slicetype_decision(enc_ctrl_t *h)
 #define UPDATE_LAST_IP(h,img) { com_img_release(h->img_lastIP);  h->img_lastIP = img; com_img_addref(img); }
 
     int bit_depth     = h->cfg.bit_depth_internal;
-    int next_ifrm_idx = h->cfg.i_period - (int)(h->img_rlist[0].img->ptr - h->lastI_ptr);
+    int next_ifrm_idx = h->cfg.i_period ? h->cfg.i_period - (int)(h->img_rlist[0].img->ptr - h->lastI_ptr) : h->img_rsize;
     int cur_ip_idx    = COM_MIN(h->cfg.max_b_frames, h->img_rsize - 1);
     double sc_threshold = 1.0 - h->cfg.scenecut / 100.0;
 
