@@ -63,12 +63,26 @@ int enc_delete_cu_data(enc_cu_t *cu_data);
 
 double enc_get_hgop_qp(double base_qp, int frm_depth, int is_ld);
 
-static void avs3_always_inline add_input_node(enc_ctrl_t *h, com_img_t *img, int bref, int layer, int type)
+static void avs3_always_inline add_input_node(enc_ctrl_t *h, com_img_t *img, int bref, int layer, int type, com_img_t* list0, com_img_t* list1)
 {
     input_node_t *node;
 
     node           = &h->node_list[h->node_size++];
     node->img      = img; 
+	if (h->cfg.use_ref_block_aq)
+	{
+		img->list[0] = list0;
+		img->list[1] = list1;
+		img->cucost_done = 0;
+
+		int num = ((img->height[0] + UNIT_SIZE - 1) / UNIT_SIZE) *((img->width[0] + UNIT_SIZE - 1) / UNIT_SIZE);
+
+		for (int i = 0; i < num; i++)
+		{
+			img->intra_satd[i] = 0.0;
+			img->propagateCost[i] = 0.0;
+		}
+	}
     node->b_ref    = bref;
     node->layer_id = layer; 
     node->type     = type;

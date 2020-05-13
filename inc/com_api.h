@@ -104,6 +104,14 @@ struct uavs3e_com_img_t {
 
     /* life cycle management */
     int        refcnt;
+
+	/*for AQ*/
+	com_img_t  *list[2];
+	int        cucost_done;
+
+	double*    intra_satd;
+	double*    propagateCost;
+
 };
 
 #ifdef __cplusplus

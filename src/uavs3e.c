@@ -785,9 +785,34 @@ void *enc_lcu_row(core_t *core, enc_lcu_row_t *row)
                 } else {
                     lcu_qp = core->pathdr->slice_qp;
                 }
-            } else {
-                com_assert(0);
             }
+
+            //for testing delta QP
+			if (core->param->use_ref_block_aq) {
+				double delata_qp = 0;
+				double qp = core->pathdr->slice_qp;
+				int pre_ref_block_stride = ((core->info->pic_width + UNIT_SIZE - 1) / UNIT_SIZE);
+				int idx0_x = core->cu_pix_x / UNIT_SIZE;
+				int idx0_y = core->cu_pix_y / UNIT_SIZE;
+				int x, y;
+				int count = 0;
+				for (y = 0; y < core->cu_height / UNIT_SIZE; y++) {
+					for (x = 0; x < core->cu_width / UNIT_SIZE; x++) {
+						double intra_cost = core->pic_org->img->intra_satd[(y + idx0_y) * pre_ref_block_stride + x + idx0_x] + 1;
+						double propagateCost = core->pic_org->img->propagateCost[(y + idx0_y) * pre_ref_block_stride + x + idx0_x];
+
+						delata_qp += core->param->use_ref_block_aq_alpha/100.0 * COM_LOG2(core->param->use_ref_block_aq_beta/100.0 + propagateCost / intra_cost);
+						count++;
+					}
+				}
+				if (count) {
+					delata_qp /= count;
+				}
+				
+				lcu_qp = (int)(core->pathdr->slice_qp + delata_qp);
+				lcu_qp = COM_CLIP3(0, (MAX_QUANT_BASE + info->qp_offset_bit_depth), lcu_qp);
+				last_lcu_qp = lcu_qp;
+			}
         }
         *map_qp++ = (u8)lcu_qp;
 
@@ -1188,25 +1213,25 @@ static void enc_push_frm(enc_ctrl_t *h, com_img_t *img, int insert_idr)
     com_img_addref(img);
 
     if (h->cfg.i_period == 1) { // AI
-        add_input_node(h, img, 1, FRM_DEPTH_0, SLICE_I);
+        add_input_node(h, img, 1, FRM_DEPTH_0, SLICE_I,NULL,NULL);
         h->lastI_ptr = img->ptr;
         return;
     }
     if (h->info.sqh.low_delay) { // LD
         if (h->lastI_ptr == -1 || insert_idr || (h->cfg.i_period && img->ptr - h->lastI_ptr == h->cfg.i_period)) {
-            add_input_node(h, img, 1, FRM_DEPTH_0, SLICE_I);
+            add_input_node(h, img, 1, FRM_DEPTH_0, SLICE_I, NULL, NULL);
             h->lastI_ptr = img->ptr;
         } else {
             static tab_s8 tbl_slice_depth_P[4] = { FRM_DEPTH_3,  FRM_DEPTH_2, FRM_DEPTH_3, FRM_DEPTH_1 };
             int frm_depth = tbl_slice_depth_P[(img->ptr - h->lastI_ptr - 1) % 4];
-            add_input_node(h, img, 1, frm_depth, SLICE_B);
+            add_input_node(h, img, 1, frm_depth, SLICE_B, NULL, NULL);
         }
         return;
     }
 
     /*** RA ***/
     if (h->lastI_ptr == -1) { // First frame
-        add_input_node(h, img, 1, FRM_DEPTH_0, SLICE_I);
+        add_input_node(h, img, 1, FRM_DEPTH_0, SLICE_I, NULL, NULL);
         h->lastI_ptr = img->ptr;
         h->img_lastIP = img;
         com_img_addref(img);
@@ -1601,5 +1626,7 @@ void uavs3e_load_default_cfg(enc_cfg_t *cfg)
     //#======= other encoder-size tools ================
     cfg->chroma_dqp   = 1;
     cfg->adaptive_dqp = 0;
-
+	cfg->use_ref_block_aq = 0;
+	cfg->use_ref_block_aq_alpha = 50;
+	cfg->use_ref_block_aq_beta = 50;
 }

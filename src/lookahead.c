@@ -37,7 +37,6 @@
 
 #include "define.h"
 
-
 #define UNITC_SIZE_LOG2 (UNIT_SIZE_LOG2 - 1)
 #define UNITC_SIZE (1 << UNITC_SIZE_LOG2)
 #define UNITC_WIDX (UNITC_SIZE_LOG2 - MIN_CU_LOG2)
@@ -314,6 +313,174 @@ static double loka_get_ref_cost(inter_search_t *pi, com_img_t *img_org, com_img_
     return pcost;
 }
 
+static void loka_get_cu_cost(inter_search_t *pi, com_img_t *img_org, int bit_depth)
+{
+	const int    base_qp = 32;
+	const double base_lambda = 1.43631 * pow(2.0, (base_qp - 16.0) / 4.0);
+
+	int pic_width = img_org->width[0];
+	int pic_height = img_org->height[0];
+
+	double total_cost = 0;
+	double total_icost = 0;
+	double total_icost_u = 0;
+	double total_icost_v = 0;
+
+	int i_org = STRIDE_IMGB2PIC(img_org->stride[0]);
+	int i_org_c = STRIDE_IMGB2PIC(img_org->stride[1]);
+	com_pic_t pic = { 0 };
+	com_subpel_t subpel;
+
+	pic.subpel = &subpel;
+
+	pi->ptr = img_org->ptr;
+	pi->curr_mvr = 2;
+	pi->lambda_mv = (u32)floor(65536.0 * sqrt(base_lambda));
+	pi->i_org = i_org;
+	pi->fast_me = 0;
+
+	int num_ref[2];
+	com_img_t *ref_l0[1] = { img_org->list[0] };
+	com_img_t *ref_l1[1] = { img_org->list[1] };
+	num_ref[0] = (img_org->list[0] == NULL ? 0 : 1);
+	num_ref[1] = (img_org->list[1] == NULL ? 0 : 1);
+
+    int num = ((img_org->height[0] + UNIT_SIZE - 1) / UNIT_SIZE) *((img_org->width[0] + UNIT_SIZE - 1) / UNIT_SIZE);
+
+	int pre_ref_block_stride = ((pic_width + UNIT_SIZE - 1) / UNIT_SIZE);
+
+	for (int y = 0; y < pic_height - UNIT_SIZE + 1; y += UNIT_SIZE) {
+		for (int x = 0; x < pic_width - UNIT_SIZE + 1; x += UNIT_SIZE) {
+			ALIGNED_32(pel pred_buf[MAX_CU_DIM]);
+			//ALIGNED_32(pel pred_buf_fwd[MAX_CU_DIM]);
+			//ALIGNED_32(pel pred_buf_bwd[MAX_CU_DIM]);
+
+			u64 min_cost = COM_UINT64_MAX;
+			u64 best_list = 0;
+			s16 best_mv[2] = { 0,0 };
+			pel *org = (pel*)img_org->planes[0] + y * i_org + x;
+
+			pi->org = org;
+
+			for (int lidx = 0; lidx < 2; lidx++) { // uni-prediction (L0 or L1)
+				pi->num_refp = num_ref[lidx];
+
+				for (int refi = 0; refi < num_ref[lidx]; refi++) {
+					com_img_t *ref_img = (lidx ? ref_l1 : ref_l0)[refi];
+					pic.ptr = ref_img->ptr;
+					pic.img = ref_img;
+					pic.stride_luma = STRIDE_IMGB2PIC(ref_img->stride[0]);
+					pic.y = ref_img->planes[0];
+					pic.subpel->imgs[0][0] = ref_img;
+
+					com_pic_t *ref_pic = pi->ref_pic = &pic;
+					s16 mv[2], mvp[2] = { 0 };
+
+					me_search_tz(pi, x, y, UNIT_SIZE, UNIT_SIZE, pic_width, pic_height, refi, lidx, mvp, mv, 0);
+					com_mc_blk_luma(ref_pic, pred_buf, UNIT_SIZE, (x << 2) + mv[MV_X], (y << 2) + mv[MV_Y], UNIT_SIZE, UNIT_SIZE, UNIT_WIDX, pi->max_coord[MV_X], pi->max_coord[MV_Y], (1 << bit_depth) - 1, 0);
+
+					u32 cost = com_had(UNIT_SIZE, UNIT_SIZE, org, i_org, pred_buf, UNIT_SIZE, bit_depth);
+
+					if (cost < min_cost) {
+						min_cost = cost;
+						best_list = lidx;
+						best_mv[0] = mv[0] >> 2;
+						best_mv[1] = mv[1] >> 2;
+					}
+				}
+			}
+
+			pel nb_buf[INTRA_NEIB_SIZE];
+			get_ipred_neighbor(nb_buf + INTRA_NEIB_MID, x, y, UNIT_SIZE, UNIT_SIZE, pic_width, pic_height, org, i_org, bit_depth);
+
+			int avaliable_nb = (x ? AVAIL_LE : 0) | (y ? AVAIL_UP : 0) | ((x && y) ? AVAIL_UP_LE : 0);
+			static tab_s8 ipm_tab[] = { 0, 1, 2, 4, 8, 12, 16, 20, 24, 28, 32 };
+			u32 min_icost = COM_UINT64_MAX;
+			int best_mode;
+
+			for (int i = 0; i < sizeof(ipm_tab); i++) {
+				com_intra_pred(nb_buf + INTRA_NEIB_MID, pred_buf, ipm_tab[i], UNIT_SIZE, UNIT_SIZE, bit_depth, avaliable_nb, 0);
+				u32 cost = com_had(UNIT_SIZE, UNIT_SIZE, org, i_org, pred_buf, UNIT_SIZE, bit_depth);
+
+				if (cost < min_icost) {
+					min_icost = cost;
+					best_mode = ipm_tab[i];
+				}
+			}
+
+			img_org->intra_satd[y/ UNIT_SIZE *pre_ref_block_stride + x/UNIT_SIZE] = min_icost;
+
+			com_img_t *ref_img = img_org->list[best_list];
+
+			if (ref_img)
+			{
+
+				/*-----------------------
+				 |  idx0    |     idx1  |
+				 ------------------------
+				 |  idx2    |     idx3  |
+				  ------------------------*/
+
+				int ref_pix_tl_x = x + best_mv[0]; //top left position
+				int ref_pix_tl_y = y + best_mv[1];
+				int ref_pix_tr_x = ref_pix_tl_x + UNIT_SIZE;
+				int ref_pix_tr_y = ref_pix_tl_y;
+				int ref_pix_bl_x = ref_pix_tl_x;
+				int ref_pix_bl_y = ref_pix_tl_y + UNIT_SIZE;
+				int ref_pix_br_x = ref_pix_tl_x + UNIT_SIZE;
+				int ref_pix_br_y = ref_pix_tl_y + UNIT_SIZE;
+
+				int ref_idx0_x = ref_pix_tl_x / UNIT_SIZE;
+				int ref_idx0_y = ref_pix_tl_y / UNIT_SIZE;
+
+				double delata0_x = (ref_idx0_x * UNIT_SIZE + UNIT_SIZE) - ref_pix_tl_x;
+				double delata0_y = (ref_idx0_y * UNIT_SIZE + UNIT_SIZE) - ref_pix_tl_y;
+				double area0 = (delata0_x*delata0_y) / (UNIT_SIZE*UNIT_SIZE);
+
+                if (ref_idx0_y * pre_ref_block_stride + ref_idx0_x > num) {
+                    int a = 0;
+                }
+				ref_img->propagateCost[ref_idx0_y * pre_ref_block_stride + ref_idx0_x] += area0 * (min_icost - min_cost);
+
+				int ref_idx1_x = ref_idx0_x + 1;
+				int ref_idx1_y = ref_idx0_y;
+
+				if (ref_pix_tr_x > ref_idx1_x*UNIT_SIZE)
+				{
+					double delata1_x = ref_pix_tr_x - ref_idx1_x * UNIT_SIZE;
+					double delata1_y = (ref_idx1_y * UNIT_SIZE + UNIT_SIZE) - ref_pix_tr_y;
+					double area1 = (delata1_x*delata1_y) / (UNIT_SIZE*UNIT_SIZE);
+					ref_img->propagateCost[ref_idx1_y * pre_ref_block_stride + ref_idx1_x] += area1 * (min_icost - min_cost);
+				}
+
+				int ref_idx2_x = ref_idx0_x;
+				int ref_idx2_y = ref_idx0_y + 1;
+
+				if (ref_pix_bl_y > ref_idx2_y*UNIT_SIZE)
+				{
+					double delata2_x = (ref_idx2_x * UNIT_SIZE + UNIT_SIZE) - ref_pix_bl_x;
+					double delata2_y = ref_pix_bl_y - ref_idx2_y * UNIT_SIZE;
+					double area2 = (delata2_x*delata2_y) / (UNIT_SIZE*UNIT_SIZE);
+					ref_img->propagateCost[ref_idx2_y * pre_ref_block_stride + ref_idx2_x] += area2 * (min_icost - min_cost);
+				}
+
+				int ref_idx3_x = ref_idx0_x + 1;
+				int ref_idx3_y = ref_idx0_y + 1;
+
+				if ((ref_pix_br_x > ref_idx3_x*UNIT_SIZE) && (ref_pix_br_y > ref_idx3_y*UNIT_SIZE))
+				{
+					double delata3_x = ref_pix_br_x - ref_idx3_x * UNIT_SIZE;
+					double delata3_y = ref_pix_br_y - ref_idx3_y * UNIT_SIZE;
+					double area3 = (delata3_x*delata3_y) / (UNIT_SIZE*UNIT_SIZE);
+					ref_img->propagateCost[ref_idx3_y * pre_ref_block_stride + ref_idx3_x] += area3 * (min_icost - min_cost);
+				}
+			}
+        }
+    }
+
+	img_org->cucost_done = 1;
+}
+
 static void update_last_ip(enc_ctrl_t *h, com_img_t *img, int type)
 {
     com_img_release(h->img_lastIP);  
@@ -325,24 +492,24 @@ static void update_last_ip(enc_ctrl_t *h, com_img_t *img, int type)
     }
 }
 
-static void push_sub_gop(enc_ctrl_t *h, int start, int num, int level)
+static void push_sub_gop(enc_ctrl_t *h, int start, int num, int level , com_img_t* list0, com_img_t* list1)
 {
     if (num <= 2) {
         if (start < h->img_rsize) {
-            add_input_node(h, h->img_rlist[start].img, 0, level, SLICE_B);
+            add_input_node(h, h->img_rlist[start].img, 0, level, SLICE_B,list0,list1);
 
             if (num == 2 && start + 1 < h->img_rsize) {
-                add_input_node(h, h->img_rlist[start + 1].img, 0, level, SLICE_B);
+                add_input_node(h, h->img_rlist[start + 1].img, 0, level, SLICE_B,list0,list1);
             }
         }
     } else {
         int idx = start + num / 2;
 
         if (idx < h->img_rsize) {
-            add_input_node(h, h->img_rlist[idx].img, 1, level, SLICE_B);
+            add_input_node(h, h->img_rlist[idx].img, 1, level, SLICE_B, list0, list1);
         }
-        push_sub_gop(h, start, num / 2, level + 1);
-        push_sub_gop(h, idx + 1,  num - num / 2 - 1, level + 1);
+        push_sub_gop(h, start, num / 2, level + 1,list0, h->img_rlist[idx].img);
+        push_sub_gop(h, idx + 1,  num - num / 2 - 1, level + 1, h->img_rlist[idx].img,list1);
     }
 }
 
@@ -357,15 +524,20 @@ void loka_slicetype_decision(enc_ctrl_t *h)
 
     cur_ip_idx = COM_MIN(cur_ip_idx, next_ifrm_idx);
 
+	com_img_t *list0 = h->img_lastIP;
+	com_img_t *list1 = NULL;
+
     for (int i = 0; i < cur_ip_idx; i++) { 
         if (h->img_rlist[i].insert_idr) { // insert user-defined IDR frame
             if (i > 0) {
-                add_input_node(h, h->img_rlist[i - 1].img, 1, FRM_DEPTH_1, SLICE_B);
+                add_input_node(h, h->img_rlist[i - 1].img, 1, FRM_DEPTH_1, SLICE_B,list0,list1);
                 if (i > 1) {
-                    push_sub_gop(h, 0, i - 1, FRM_DEPTH_2);
+					if(h->cfg.use_ref_block_aq)
+						list1 = h->img_rlist[i].img;
+                    push_sub_gop(h, 0, i - 1, FRM_DEPTH_2,list0,list1);
                 }
             }
-            add_input_node(h, h->img_rlist[i].img, 1, FRM_DEPTH_0, SLICE_I);
+            add_input_node(h, h->img_rlist[i].img, 1, FRM_DEPTH_0, SLICE_I,NULL,NULL);
             update_last_ip(h, h->img_rlist[i].img, SLICE_I);
             shift_reorder_list(h, i);
             return;
@@ -445,33 +617,57 @@ void loka_slicetype_decision(enc_ctrl_t *h)
     if (is_ifrm) { // insert I frame
         if (h->cfg.close_gop) {
             if (cur_ip_idx > 0) {
-                add_input_node(h, h->img_rlist[cur_ip_idx - 1].img, 1, FRM_DEPTH_1, SLICE_B);
+                add_input_node(h, h->img_rlist[cur_ip_idx - 1].img, 1, FRM_DEPTH_1, SLICE_B, list0, list1);
                 if (cur_ip_idx > 1) {
-                    push_sub_gop(h, 0, cur_ip_idx - 1, FRM_DEPTH_2);
+					if (h->cfg.use_ref_block_aq)
+						list1 = h->img_rlist[cur_ip_idx].img;
+                    push_sub_gop(h, 0, cur_ip_idx - 1, FRM_DEPTH_2, list0, list1);
                 }
             }
-            add_input_node(h, h->img_rlist[cur_ip_idx].img, 1, FRM_DEPTH_0, SLICE_I);
+            add_input_node(h, h->img_rlist[cur_ip_idx].img, 1, FRM_DEPTH_0, SLICE_I,NULL,NULL);
             update_last_ip(h, h->img_rlist[cur_ip_idx].img, SLICE_I);
         } else {
-            add_input_node(h, h->img_rlist[cur_ip_idx].img, 1, FRM_DEPTH_0, SLICE_I);
+            add_input_node(h, h->img_rlist[cur_ip_idx].img, 1, FRM_DEPTH_0, SLICE_I,NULL,NULL);
             update_last_ip(h, h->img_rlist[cur_ip_idx].img, SLICE_I);
 
             if (cur_ip_idx > 0) {
-                push_sub_gop(h, 0, cur_ip_idx, FRM_DEPTH_2);
+				if (h->cfg.use_ref_block_aq)
+					list1 = h->img_rlist[cur_ip_idx].img;
+                push_sub_gop(h, 0, cur_ip_idx, FRM_DEPTH_2, list0, list1);
             }
         }
     } else {
         if (cur_ip_idx == h->img_rsize - 1 && h->img_rsize <= h->cfg.max_b_frames) { // flush
-            push_sub_gop(h, 0, h->cfg.max_b_frames, FRM_DEPTH_2);
+			if (h->cfg.use_ref_block_aq)
+				list1 = h->img_rlist[h->cfg.max_b_frames].img;
+            push_sub_gop(h, 0, h->cfg.max_b_frames, FRM_DEPTH_2, list0, list1);
         } else {
-            add_input_node(h, h->img_rlist[cur_ip_idx].img, 1, FRM_DEPTH_1, SLICE_B);
+            add_input_node(h, h->img_rlist[cur_ip_idx].img, 1, FRM_DEPTH_1, SLICE_B, list0, list1);
             update_last_ip(h, h->img_rlist[cur_ip_idx].img, SLICE_B);
 
             if (cur_ip_idx > 0) {
-                push_sub_gop(h, 0, cur_ip_idx, FRM_DEPTH_2);
+				if (h->cfg.use_ref_block_aq)
+					list1 = h->img_rlist[cur_ip_idx].img;
+                push_sub_gop(h, 0, cur_ip_idx, FRM_DEPTH_2, list0, list1);
             }
         }
     }
+
+	if (h->cfg.use_ref_block_aq)
+	{
+		if (list0)
+		{
+			if (!list0->cucost_done)
+			{
+				loka_get_cu_cost(&h->pinter, list0, bit_depth);
+			}
+		}
+
+		for (int i = 0; i <= cur_ip_idx; i++)
+		{
+			loka_get_cu_cost(&h->pinter, h->img_rlist[i].img, bit_depth);
+		}
+	}
 
     shift_reorder_list(h, cur_ip_idx);
 }

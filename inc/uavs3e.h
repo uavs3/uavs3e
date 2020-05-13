@@ -170,6 +170,9 @@ typedef struct uavs3e_enc_cfg_t {
     //#======= other encoder-size tools ================
     int            chroma_dqp;
     int            adaptive_dqp;
+	int            use_ref_block_aq;
+	int            use_ref_block_aq_alpha;
+	int            use_ref_block_aq_beta;
 
 } enc_cfg_t;
 

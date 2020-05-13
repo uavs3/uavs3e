@@ -36,6 +36,7 @@
 **************************************************************************************/
 
 #include "com_util.h"
+#include "define.h"
 
 funs_handle_t uavs3e_funs_handle;
 
@@ -85,6 +86,22 @@ com_img_t *com_img_create(int width, int height, int pad[MAX_PLANES], int planes
     }
     img->num_planes = planes;
 
+	img->cucost_done = 0;
+
+	for (int i = 0; i < 2; i++) 
+		img->list[i] = NULL;
+
+	int num = ((img->height[0] + UNIT_SIZE - 1)/ UNIT_SIZE) *((img->width[0] + UNIT_SIZE -1)/ UNIT_SIZE);
+	img->intra_satd = (double*)malloc(num*sizeof(double));
+	img->propagateCost = (double*)malloc(num*sizeof(double));
+
+	for (int i = 0; i < num; i++)
+	{
+		img->intra_satd[i] = 0.0;
+		img->propagateCost[i] = 0.0;
+
+	}
+
     com_img_addref(img);
 
     return img;
@@ -99,6 +116,17 @@ void com_img_free(com_img_t *img)
             com_mfree(img->buf[i]);
         }
     }
+	if (img->intra_satd)
+	{
+		free(img->intra_satd);
+		img->intra_satd = NULL;
+	}
+
+	if (img->propagateCost)
+	{
+		free(img->propagateCost);
+		img->propagateCost = NULL;
+	}
     com_mfree(img);
 }
 

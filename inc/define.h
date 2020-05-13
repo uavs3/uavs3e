@@ -68,6 +68,9 @@
 #define MAX_D_COST                (1.7e+308)
 #define MAX_D_COST_EXT            (MAX_D_COST * 0.999999999)
 
+#define UNIT_SIZE_LOG2 4
+#define UNIT_SIZE (1 << UNIT_SIZE_LOG2)
+
 /*****************************************************************************
  * input picture buffer structure
  *****************************************************************************/
