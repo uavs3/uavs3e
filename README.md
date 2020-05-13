@@ -8,7 +8,7 @@
 
 # license
   Copyright reserved by “Peking University Shenzhen Graduate School”, “Peng Cheng Laboratory”, and “Guangdong Bohua UHD Innovation Corporation” <br><br>
-  This program is a free software. You can redistribute it and/or modify it under the terms of the Open-Intelligence Open Source License V1.1. (http://www.aitisa.org.cn/uploadfile/2018/0910/20180910031548314.pdf) <br>
+  This program is a free software. You can redistribute it and/or modify it under the terms of the BSD 4-clause license. <br>
   For more details, please view the file "COPYING" in the project.
   
 # compile
