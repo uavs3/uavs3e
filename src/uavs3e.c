@@ -1280,9 +1280,16 @@ void *uavs3e_create(enc_cfg_t *cfg, int *err)
 
 void uavs3e_free(void *id)
 {
+    int ret;
     enc_ctrl_t *h = (enc_ctrl_t *)id;
 
-    int i;
+    do { // flush
+        enc_stat_t stat;
+        stat.ext_info = NULL;
+        stat.ext_info_buf_size = 0;
+        stat.insert_idr = 0;
+        ret = uavs3e_enc(id, &stat, NULL);
+    } while (ret == COM_OK);
 
     com_assert(h);
     com_refm_free(&h->rpm);
@@ -1299,7 +1306,7 @@ void uavs3e_free(void *id)
         }
         com_mfree(h->pic_thd_params);
     }
-    for (i = 0; i < h->ilist_size; i++) {
+    for (int i = 0; i < h->ilist_size; i++) {
         if (h->ilist_imgs[i]) {
             com_img_release(h->ilist_imgs[i]);
         }
@@ -1314,48 +1321,17 @@ void uavs3e_free(void *id)
     com_scan_tbl_delete();
 }
 
-int uavs3e_enc(void *id, enc_stat_t *stat, com_img_t *img_enc)
+static int start_one_frame(enc_ctrl_t *h)
 {
-    enc_ctrl_t *h = (enc_ctrl_t *)id;
     int ret;
-    int gop_size = h->info.gop_size;
-
-    if (img_enc) {
-        enc_push_frm(h, img_enc, stat->insert_idr);
-
-        /* store input picture and return if needed */
-        if (h->ptr < h->cfg.lookahead && h->cfg.max_b_frames) {
-            return COM_OK_OUT_NOT_AVAILABLE;
-        }
-    } else { // flush
-        if (h->img_rsize && !h->node_size) {
-            loka_slicetype_decision(h);
-        }
-
-        /* check whether input pictures are remaining or not in node_input[] */
-        if (!h->node_size) { // bumping
-            if (h->pic_thd_active) {
-                pic_thd_param_t *pic_thd_param = &h->pic_thd_params[h->pic_thd_tail];
-                h->pic_thd_tail = (h->pic_thd_tail + 1) % h->cfg.frm_threads;
-                uavs3e_threadpool_wait(h->frm_threads_pool, pic_thd_param);
-                enc_pic_finish(h, pic_thd_param, stat);
-                h->pic_thd_active--;
-
-                if (h->cfg.rc_type != RC_TYPE_NULL) {
-                    rc_update(&h->rc, pic_thd_param->pic_rec, stat->ext_info, stat->ext_info_buf_size);
-                }
-                return COM_OK;
-            } else {
-                return COM_OK_NO_MORE_FRM;
-            }
-        }
-    }
-
-    assert(h->node_size > 0);
 
     /* initialize variables for a picture encoding */
     input_node_t node = h->node_list[0];
     com_pic_t *pic_rec = com_refm_find_free_pic(&h->rpm, node.b_ref, &ret);
+
+    if (ret != COM_OK) {
+        return ret;
+    }
 
     for (int i = 0; i < h->node_size - 1; i++) {
         h->node_list[i] = h->node_list[i + 1];
@@ -1425,8 +1401,54 @@ int uavs3e_enc(void *id, enc_stat_t *stat, com_img_t *img_enc)
     h->pic_thd_head = (h->pic_thd_head + 1) % h->cfg.frm_threads;
     h->pic_thd_active++;
 
+    return ret;
+}
+
+int uavs3e_enc(void *id, enc_stat_t *stat, com_img_t *img_enc)
+{
+    int ret;
+    enc_ctrl_t *h = (enc_ctrl_t *)id;
+
+    if (img_enc) {
+        enc_push_frm(h, img_enc, stat->insert_idr);
+
+        /* store input picture and return if needed */
+        if (h->ptr < h->cfg.lookahead && h->cfg.max_b_frames) {
+            return COM_OK_OUT_NOT_AVAILABLE;
+        }
+    } else { // flush
+        while (h->pic_thd_active < h->cfg.frm_threads - 1 && (h->img_rsize || h->node_size)) {
+            if (h->img_rsize && !h->node_size) {
+                loka_slicetype_decision(h);
+            }
+            ret = start_one_frame(h);
+        }
+
+        /* check whether input pictures are remaining or not in node_input[] */
+        if (!h->node_size) { // bumping
+            if (h->pic_thd_active) {
+                pic_thd_param_t *pic_thd_param = &h->pic_thd_params[h->pic_thd_tail];
+                h->pic_thd_tail = (h->pic_thd_tail + 1) % h->cfg.frm_threads;
+                uavs3e_threadpool_wait(h->frm_threads_pool, pic_thd_param);
+                enc_pic_finish(h, pic_thd_param, stat);
+                h->pic_thd_active--;
+
+                if (h->cfg.rc_type != RC_TYPE_NULL) {
+                    rc_update(&h->rc, pic_thd_param->pic_rec, stat->ext_info, stat->ext_info_buf_size);
+                }
+                return COM_OK;
+            } else {
+                return COM_OK_NO_MORE_FRM;
+            }
+        }
+    }
+
+    assert(h->node_size > 0);
+
+    ret = start_one_frame(h);
+
     if (h->pic_thd_active == h->cfg.frm_threads) {
-        pic_thd_param = &h->pic_thd_params[h->pic_thd_tail];
+        pic_thd_param_t *pic_thd_param = &h->pic_thd_params[h->pic_thd_tail];
         h->pic_thd_tail = (h->pic_thd_tail + 1) % h->cfg.frm_threads;
         uavs3e_threadpool_wait(h->frm_threads_pool, pic_thd_param);
         enc_pic_finish(h, pic_thd_param, stat);
