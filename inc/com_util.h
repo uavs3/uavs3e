@@ -321,6 +321,8 @@ typedef struct uavs3e_funs_handle_t {
 
     u32 (*cost_satd[3][3])(pel *p_org, int i_org, pel *p_pred, int i_pred);
 
+    u64 (*cost_var[CU_SIZE_NUM])(pel* pix, int i_pix);
+
     void(*ssim_4x4x2_core)(const pel *pix1, int stride1, const pel *pix2, int stride2, int sums[2][4]);
     float(*ssim_end4)(int sum0[5][4], int sum1[5][4], int width, float ssim_c1, float ssim_c2);
 

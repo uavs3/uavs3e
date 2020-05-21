@@ -1123,6 +1123,9 @@ int main(int argc, const char **argv)
     psnr_avg[0] /= frame_cnt;
     psnr_avg[1] /= frame_cnt;
     psnr_avg[2] /= frame_cnt;
+    ssim_avg[0] /= frame_cnt;
+    ssim_avg[1] /= frame_cnt;
+    ssim_avg[2] /= frame_cnt;
 
     print_log(1, "  PSNR Y(dB)       : %-5.4f\n", psnr_avg[0]);
     print_log(1, "  PSNR U(dB)       : %-5.4f\n", psnr_avg[1]);

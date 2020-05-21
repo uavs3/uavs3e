@@ -38,7 +38,11 @@
 #ifndef _ENC_LOOKAHEAD_H_
 #define _ENC_LOOKAHEAD_H_
 
-double loka_estimate_coding_cost(inter_search_t *pi, com_img_t *img_org, com_img_t **ref_l0, com_img_t **ref_l1, int num_ref[2], int bit_depth, double *icost, double icost_uv[2]);
+#define UNIT_SIZE_LOG2 4
+#define UNIT_SIZE (1 << UNIT_SIZE_LOG2)
+#define UNIT_WIDX (UNIT_SIZE_LOG2 - MIN_CU_LOG2)
+
+double loka_estimate_coding_cost(inter_search_t *pi, com_img_t *img_org, com_img_t **ref_l0, com_img_t **ref_l1, int num_ref[2], int bit_depth, double *icost, double icost_uv[2], float* cost_map);
 double loka_get_sc_ratio(inter_search_t *pi, com_img_t *img_org, com_img_t *img_last, int bit_depth);
 void   loka_slicetype_decision(enc_ctrl_t *h);
 

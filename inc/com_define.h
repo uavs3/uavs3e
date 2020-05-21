@@ -279,7 +279,7 @@ enum uavs3e_ipfilter_ext_conf {
 #define MAX_NUM_TB                         4
 #define MAX_CU_CNT_IN_LCU                  (MAX_CU_DIM/MIN_CU_DIM)
 #define PEL2SCU(pel)                       ((pel) >> MIN_CU_LOG2)
-#define CU_SIZE_NUM              (MAX_CU_LOG2 - MIN_CU_LOG2 + 1) // 4 --> 128
+#define CU_SIZE_NUM                        (MAX_CU_LOG2 - MIN_CU_LOG2 + 1) // 4 --> 128
 
 /************************* PB/TB BLOCK ************************************************/
 #define PB0                                0  // default PB idx

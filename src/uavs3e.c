@@ -95,7 +95,7 @@ static enc_pic_t *pic_enc_alloc(com_info_t *info)
     enc_pic_t *ep;
     u8 *buf;
     int ret;
-
+    int dqp_bufsize = (info->pic_width / UNIT_SIZE) * (info->pic_height / UNIT_SIZE);
     int linebuf_intra_size = ALIGN_MASK * 5 + sizeof(pel) * ((info->pic_width + MAX_CU_SIZE) * 2 + 3);
 
     int total_mem_size =
@@ -108,6 +108,7 @@ static enc_pic_t *pic_enc_alloc(com_info_t *info)
         ALIGN_MASK * 1 + sizeof(       s8) * info->f_scu +                                                      // map.map_ipm
         ALIGN_MASK * 1 + sizeof(       s8) * info->f_scu +                                                      // map.map_patch
         ALIGN_MASK * 1 + sizeof(      u32) * info->f_scu +                                                      // map.map_pos
+        ALIGN_MASK * 1 + sizeof(    float) * dqp_bufsize +                                                     // map.map_dqp
         ALIGN_MASK * 1 + (linebuf_intra_size + sizeof(pel *) * 3) * info->pic_height_in_lcu +                   // linebuf_intra
         ALIGN_MASK * 3 + sizeof(pel) * ((info->pic_width + MAX_CU_SIZE) * 2 + 3) +                              // linebuf_sao
         ALIGN_MASK * 1 + sizeof(             u8) * info->f_lcu +                                                // alf_var_map
@@ -127,6 +128,7 @@ static enc_pic_t *pic_enc_alloc(com_info_t *info)
     GIVE_BUFFER(ep->map_cu_data    , buf, sizeof(enc_cu_t ) * info->f_lcu);
     GIVE_BUFFER(ep->map.map_split  , buf, sizeof(s8       ) * info->f_lcu * info->cus_in_lcu * MAX_CU_DEPTH * NUM_BLOCK_SHAPE);
     GIVE_BUFFER(ep->map.map_qp     , buf, sizeof(s8       ) * info->f_lcu);
+    GIVE_BUFFER(ep->map.map_dqp    , buf, sizeof(float    ) * dqp_bufsize);
     GIVE_BUFFER(ep->map.map_scu    , buf, sizeof(com_scu_t) * info->f_scu); ep->map.map_scu   += info->i_scu + 1;
     GIVE_BUFFER(ep->map.map_edge   , buf, sizeof(u8       ) * info->f_scu); ep->map.map_edge  += info->i_scu + 1;
     GIVE_BUFFER(ep->map.map_ipm    , buf, sizeof(s8       ) * info->f_scu); ep->map.map_ipm   += info->i_scu + 1;
@@ -694,18 +696,19 @@ int enc_pic_finish(enc_ctrl_t *h, pic_thd_param_t *pic_thd, enc_stat_t *stat)
 
 void *enc_lcu_row(core_t *core, enc_lcu_row_t *row)
 {
-    int lcu_y = row->lcu_y;
-    enc_pic_param_t *pic_ctx = row->pic_info;
-    int last_lcu_qp = pic_ctx->pathdr->slice_qp;
-    com_info_t *info = pic_ctx->info;
-    com_pic_header_t *pichdr = pic_ctx->pichdr;
-    u8 *map_qp = pic_ctx->map->map_qp + lcu_y * info->pic_width_in_lcu;
-    lbac_t *lbac = &row->lbac_row;
-    lbac_t *lbac_row_next = row->lbac_row_next;
-    uavs3e_sem_t *sem_up      = row->sem_up;
-    uavs3e_sem_t *sem_curr    = row->sem_curr;
+    int lcu_y                =  row->lcu_y;
+    enc_pic_param_t *pic_ctx =  row->pic_info;
+    uavs3e_sem_t *sem_up     =  row->sem_up;
+    uavs3e_sem_t *sem_curr   =  row->sem_curr;
+    lbac_t *lbac             = &row->lbac_row;
+    lbac_t *lbac_row_next    =  row->lbac_row_next;
 
-    row->total_qp       = 0;
+    int last_lcu_qp          = pic_ctx->pathdr->slice_qp;
+    com_info_t *info         = pic_ctx->info;
+    com_pic_header_t *pichdr = pic_ctx->pichdr;
+    u8 *map_qp               = pic_ctx->map->map_qp + lcu_y * info->pic_width_in_lcu;
+
+    row->total_qp        = 0;
     core->cnt_hmvp_cands = 0;
     core->lcu_y          = lcu_y;
     core->lcu_pix_y      = lcu_y << info->log2_max_cuwh;
@@ -756,12 +759,26 @@ void *enc_lcu_row(core_t *core, enc_lcu_row_t *row)
             lcu_qp = core->pathdr->slice_qp;
         } else {
             if (core->param->adaptive_dqp) {
-                //for testing delta QP
-                int test_delta_qp = (((core->lcu_x + 1) * 5 + core->lcu_y * 3 + core->ptr * 6) % 16) + ((((core->lcu_x + 2) * 3 + core->lcu_y * 5 + core->ptr) % 8) << 4); //lower 4 bits and higher 3 bits
-                int max_abs_delta_qp = 32 + (info->bit_depth_internal - 8) * 4;
-                lcu_qp = last_lcu_qp + (test_delta_qp % (max_abs_delta_qp * 2 + 1)) - max_abs_delta_qp;
-                lcu_qp = COM_CLIP3(0, (MAX_QUANT_BASE + info->qp_offset_bit_depth), lcu_qp);
-                last_lcu_qp = lcu_qp;
+                float *dqp_map = core->map->map_dqp + (core->lcu_pix_y / UNIT_SIZE) * (info->pic_width / UNIT_SIZE) + (core->lcu_pix_x / UNIT_SIZE);
+                double dqp_all = 0;
+                double blk_cnt = 0;
+                int lcu_w = COM_MIN(info->max_cuwh, info->pic_width  - core->lcu_pix_x);
+                int lcu_h = COM_MIN(info->max_cuwh, info->pic_height - core->lcu_pix_y);
+
+                for (int i = 0; i < lcu_h - (UNIT_SIZE - 1); i += UNIT_SIZE) {
+                    for (int j = 0; j < lcu_w - (UNIT_SIZE - 1); j += UNIT_SIZE) {
+                        dqp_all += dqp_map[j / UNIT_SIZE];
+                        blk_cnt++;
+                    }
+                    dqp_map += info->pic_width / UNIT_SIZE;
+                }
+                if (blk_cnt) {
+                    lcu_qp = (int)(core->pathdr->slice_qp + (dqp_all / blk_cnt) + 0.5);
+                    lcu_qp = COM_CLIP3(0, (MAX_QUANT_BASE + info->qp_offset_bit_depth), lcu_qp);
+                    last_lcu_qp = lcu_qp;
+                } else {
+                    lcu_qp = core->pathdr->slice_qp;
+                }
             } else {
                 com_assert(0);
             }
@@ -872,11 +889,10 @@ void enc_get_pic_qp(enc_pic_t *ep, pic_thd_param_t *p)
             wait_ref_available(p->top_pic[lidx], info->pic_height);
         }
     }
-
     if (p->param->chroma_dqp) {
-        pic_org->picture_satd = loka_estimate_coding_cost(&ep->pinter, img_org, ref_l0, ref_l1, p->num_refp, info->bit_depth_internal, &icost, icost_uv);
+        pic_org->picture_satd = loka_estimate_coding_cost(&ep->pinter, img_org, ref_l0, ref_l1, p->num_refp, info->bit_depth_internal, &icost, icost_uv, ep->map.map_dqp);
     } else {
-        pic_org->picture_satd = loka_estimate_coding_cost(&ep->pinter, img_org, ref_l0, ref_l1, p->num_refp, info->bit_depth_internal, NULL, NULL);
+        pic_org->picture_satd = loka_estimate_coding_cost(&ep->pinter, img_org, ref_l0, ref_l1, p->num_refp, info->bit_depth_internal, NULL, NULL, ep->map.map_dqp);
     }
     if (param->rc_type == RC_TYPE_NULL) {
         base_qp = (int)(enc_get_hgop_qp(param->qp, pic_org->layer_id, info->sqh.low_delay) + 0.5);

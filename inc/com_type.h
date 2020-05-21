@@ -143,6 +143,7 @@ typedef struct uavs3e_com_map_t {
     s8        *map_ipm;
     u32       *map_pos;
     u8        *map_qp;
+    float     *map_dqp;
     s8        *map_patch;
     u8        *map_edge;
 } com_map_t;

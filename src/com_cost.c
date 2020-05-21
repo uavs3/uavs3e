@@ -115,19 +115,19 @@ DEFINE_SAD_X4(64)
 DEFINE_SAD_X4(128)
 
 #define DEFINE_SSD(w) \
-    u64 com_get_ssd_##w(pel *p_org, int i_org, pel *p_pred, int i_pred, int height) { \
-        int i;                                                                        \
-        u64 uiSum = 0;                                                                \
-        for (; height != 0; height--) {                                               \
-            for (i = 0; i < w; i++) {                                                 \
-                int ssd = abs(p_org[i] - p_pred[i]);                                  \
-                uiSum += (ssd * ssd);                                                 \
-            }                                                                         \
-            p_org += i_org;                                                           \
-            p_pred += i_pred;                                                         \
-        }                                                                             \
-        return uiSum;                                                                 \
-    }
+static u64 com_get_ssd_##w(pel *p_org, int i_org, pel *p_pred, int i_pred, int height) { \
+    int i;                                                                               \
+    u64 uiSum = 0;                                                                       \
+    for (; height != 0; height--) {                                                      \
+        for (i = 0; i < w; i++) {                                                        \
+            int ssd = abs(p_org[i] - p_pred[i]);                                         \
+            uiSum += (ssd * ssd);                                                        \
+        }                                                                                \
+        p_org += i_org;                                                                  \
+        p_pred += i_pred;                                                                \
+    }                                                                                    \
+    return uiSum;                                                                        \
+}
 
 DEFINE_SSD(4)
 DEFINE_SSD(8)
@@ -135,6 +135,43 @@ DEFINE_SSD(16)
 DEFINE_SSD(32)
 DEFINE_SSD(64)
 DEFINE_SSD(128)
+
+#define DEFINE_VAR(w)                                                             \
+static u64 com_get_var_##w(pel *p_org, int i_org) {                               \
+    int i, height = w;                                                            \
+    u64 uiSum = 0, uiSSD = 0;                                                     \
+    for (; height != 0; height--) {                                               \
+        for (i = 0; i < w; i++) {                                                 \
+            uiSum = p_org[i];                                                     \
+            uiSSD += (p_org[i] * p_org[i]);                                       \
+        }                                                                         \
+        p_org += i_org;                                                           \
+    }                                                                             \
+    return uiSSD - ((uiSum * uiSum) >> (CONV_LOG2(w) * 2));                       \
+}
+
+DEFINE_VAR(4)
+DEFINE_VAR(8)
+DEFINE_VAR(16)
+DEFINE_VAR(32)
+DEFINE_VAR(64)
+DEFINE_VAR(128)
+
+static u64 com_var_cost(const pel* pix, int i_pix, int width, int height)
+{
+    u64 sum = 0, sqr = 0;
+    int x, y;
+
+    for (y = 0; y < width; y++) {
+        for (x = 0; x < height; x++) {
+            sum += pix[x];
+            sqr += pix[x] * pix[x];
+        }
+        pix += i_pix;
+    }
+    return sqr - (sum * sum >> 8);
+}
+
 
 u32 com_had_4x4(pel *org, int s_org, pel *cur, int s_cur)
 {
@@ -893,6 +930,13 @@ void uavs3e_funs_init_cost_c()
     uavs3e_funs_handle.cost_satd[1][1] = com_had_8x8;
     uavs3e_funs_handle.cost_satd[2][1] = com_had_16x8;
     uavs3e_funs_handle.cost_satd[1][2] = com_had_8x16;
+
+    uavs3e_funs_handle.cost_var[0] = com_get_var_4;
+    uavs3e_funs_handle.cost_var[1] = com_get_var_8;
+    uavs3e_funs_handle.cost_var[2] = com_get_var_16;
+    uavs3e_funs_handle.cost_var[3] = com_get_var_32;
+    uavs3e_funs_handle.cost_var[4] = com_get_var_64;
+    uavs3e_funs_handle.cost_var[5] = com_get_var_128;
 
     uavs3e_funs_handle.ssim_4x4x2_core = ssim_4x4x2_core;
     uavs3e_funs_handle.ssim_end4 = ssim_end4;
