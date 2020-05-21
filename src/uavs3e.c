@@ -1420,6 +1420,10 @@ int uavs3e_enc(void *id, enc_stat_t *stat, com_img_t *img_enc)
             return COM_OK_OUT_NOT_AVAILABLE;
         }
     } else { // flush
+        if (h->img_rsize && !h->node_size) {
+            loka_slicetype_decision(h);
+        }
+
         while (h->pic_thd_active < h->cfg.frm_threads - 1 && (h->img_rsize || h->node_size)) {
             if (h->img_rsize && !h->node_size) {
                 loka_slicetype_decision(h);

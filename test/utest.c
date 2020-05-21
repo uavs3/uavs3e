@@ -1116,7 +1116,7 @@ int main(int argc, const char **argv)
         _write(fdo, end_code, 4);
     }
 
-    print_log(1, "===============================================================================\n");
+    print_log(1, "\n\n===============================================================================\n");
     psnr_avg[0] /= frame_cnt;
     psnr_avg[1] /= frame_cnt;
     psnr_avg[2] /= frame_cnt;
