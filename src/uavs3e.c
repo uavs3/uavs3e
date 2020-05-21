@@ -504,7 +504,7 @@ static void set_pic_header(enc_ctrl_t *h, com_pic_t *pic_rec)
     pichdr->top_field_first    = 0;
     pichdr->repeat_first_field = 0;
     pichdr->top_field_picture_flag = 0;
-    pichdr->fixed_picture_qp_flag = !h->cfg.dqp_enable;
+    pichdr->fixed_picture_qp_flag = !h->cfg.adaptive_dqp;
     pichdr->random_access_decodable_flag = 1; 
     pichdr->loop_filter_parameter_flag = 0;
     pichdr->alpha_c_offset = 0;
@@ -657,7 +657,7 @@ int enc_pic_finish(enc_ctrl_t *h, pic_thd_param_t *pic_thd, enc_stat_t *stat)
     com_img_t *imgb_c  = pic_rec->img;
 
     stat->type       = pic_thd->pichdr.slice_type;
-    stat->qp         = pic_org->picture_qp;
+    stat->qp         = (float)pic_rec->picture_qp_real;
     stat->poc        = pic_thd->ptr;
     stat->rec_img    = imgb_c;
     stat->org_img    = imgb_o;
@@ -755,12 +755,16 @@ void *enc_lcu_row(core_t *core, enc_lcu_row_t *row)
         if (core->pathdr->fixed_slice_qp_flag) {
             lcu_qp = core->pathdr->slice_qp;
         } else {
-            //for testing delta QP
-            int test_delta_qp = (((core->lcu_x + 1) * 5 + core->lcu_y * 3 + core->ptr * 6) % 16) + ((((core->lcu_x + 2) * 3 + core->lcu_y * 5 + core->ptr) % 8) << 4); //lower 4 bits and higher 3 bits
-            int max_abs_delta_qp = 32 + (info->bit_depth_internal - 8) * 4;
-            lcu_qp = last_lcu_qp + (test_delta_qp % (max_abs_delta_qp * 2 + 1)) - max_abs_delta_qp;
-            lcu_qp = COM_CLIP3(0, (MAX_QUANT_BASE + info->qp_offset_bit_depth), lcu_qp);
-            last_lcu_qp = lcu_qp;
+            if (core->param->adaptive_dqp) {
+                //for testing delta QP
+                int test_delta_qp = (((core->lcu_x + 1) * 5 + core->lcu_y * 3 + core->ptr * 6) % 16) + ((((core->lcu_x + 2) * 3 + core->lcu_y * 5 + core->ptr) % 8) << 4); //lower 4 bits and higher 3 bits
+                int max_abs_delta_qp = 32 + (info->bit_depth_internal - 8) * 4;
+                lcu_qp = last_lcu_qp + (test_delta_qp % (max_abs_delta_qp * 2 + 1)) - max_abs_delta_qp;
+                lcu_qp = COM_CLIP3(0, (MAX_QUANT_BASE + info->qp_offset_bit_depth), lcu_qp);
+                last_lcu_qp = lcu_qp;
+            } else {
+                com_assert(0);
+            }
         }
         *map_qp++ = (u8)lcu_qp;
 
@@ -869,7 +873,7 @@ void enc_get_pic_qp(enc_pic_t *ep, pic_thd_param_t *p)
         }
     }
 
-    if (p->param->adaptive_chroma_dqp) {
+    if (p->param->chroma_dqp) {
         pic_org->picture_satd = loka_estimate_coding_cost(&ep->pinter, img_org, ref_l0, ref_l1, p->num_refp, info->bit_depth_internal, &icost, icost_uv);
     } else {
         pic_org->picture_satd = loka_estimate_coding_cost(&ep->pinter, img_org, ref_l0, ref_l1, p->num_refp, info->bit_depth_internal, NULL, NULL);
@@ -887,7 +891,7 @@ void enc_get_pic_qp(enc_pic_t *ep, pic_thd_param_t *p)
     int target_chroma_qp, opt_c_dqp;
 
     // delta QP of Cb
-    if (p->param->adaptive_chroma_dqp) {
+    if (p->param->chroma_dqp) {
         target_chroma_qp = com_tbl_qp_chroma_adjust_enc[COM_CLIP(qp_l + 1, 0, 63)] - (int)(icost / icost_uv[0]) + 1;
     } else {
         target_chroma_qp = com_tbl_qp_chroma_adjust_enc[COM_CLIP(qp_l + 1, 0, 63)];
@@ -903,7 +907,7 @@ void enc_get_pic_qp(enc_pic_t *ep, pic_thd_param_t *p)
     pichdr->chroma_quant_param_delta_cb = COM_CLIP(pichdr->chroma_quant_param_delta_cb, -16, 16);
 
     // delta QP of Cr
-    if (p->param->adaptive_chroma_dqp) {
+    if (p->param->chroma_dqp) {
         target_chroma_qp = com_tbl_qp_chroma_adjust_enc[COM_CLIP(qp_l + 1, 0, 63)] - (int)(icost / icost_uv[1]) + 1;
     } else {
         target_chroma_qp = com_tbl_qp_chroma_adjust_enc[COM_CLIP(qp_l + 1, 0, 63)];
@@ -1516,7 +1520,6 @@ void uavs3e_load_default_cfg(enc_cfg_t *cfg)
     cfg->qp                  =   34;
     cfg->qp_offset_cb        =    0;
     cfg->qp_offset_cr        =    0;
-    cfg->dqp_enable          =    0;
 
     //#=========== Coding Tools ========================
     cfg->amvr_enable         =   1;
@@ -1552,5 +1555,7 @@ void uavs3e_load_default_cfg(enc_cfg_t *cfg)
     cfg->patch_height        =   0;
 
     //#======= other encoder-size tools ================
-    cfg->adaptive_chroma_dqp =   1;
+    cfg->chroma_dqp   = 1;
+    cfg->adaptive_dqp = 0;
+
 }

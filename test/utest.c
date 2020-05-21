@@ -206,8 +206,8 @@ static app_cfg_t options[] = {
         ,0
     },
     {
-        CFG_KEY_NULL,  "adaptive_chroma_dqp", CFG_TYPE_INTEGER,
-        &cfg.adaptive_chroma_dqp,
+        CFG_KEY_NULL,  "chroma_dqp", CFG_TYPE_INTEGER,
+        &cfg.chroma_dqp,
         "adaptive frame-level delta QP of chroma"
         ,0
     },
@@ -229,7 +229,6 @@ static app_cfg_t options[] = {
         "Level of coding speed"
         ,0 
     },
-
     {
         CFG_KEY_NULL,  "wpp_threads", CFG_TYPE_INTEGER,
         &cfg.wpp_threads,
@@ -243,9 +242,9 @@ static app_cfg_t options[] = {
         ,0 
     },
     {
-        CFG_KEY_NULL,  "lcu_delta_qp", CFG_TYPE_INTEGER,
-        &cfg.dqp_enable,
-        "Random qp for lcu, on/off flag"
+        CFG_KEY_NULL,  "adaptive_dqp", CFG_TYPE_INTEGER,
+        &cfg.adaptive_dqp,
+        "SATD based Adaptive delta QP of LCU"
         ,0 
     },
     {
@@ -798,7 +797,7 @@ static void print_stat_header(void)
     if (g_loglevel < FRAME_LOGLEVEL) {
         return;
     }
-    printf("----------------------------------------------------------------------------------------------------------------\n");
+    printf("-----------------------------------------------------------------------------------------------------------------------------------\n");
     printf("  Input YUV file           : %s \n", fn_input);
     if (strlen(fn_output) != 0) {
         printf("  Output bitstream         : %s \n", fn_output);
@@ -806,14 +805,14 @@ static void print_stat_header(void)
     if (strlen(fn_rec) != 0) {
         printf("  Output YUV file          : %s \n", fn_rec);
     }
-    printf("----------------------------------------------------------------------------------------------------------------\n");
-    printf("    POC  | QP |   PSNR-Y   PSNR-U   PSNR-V |  SSIM-Y  SSIM-U  SSIM-V |   Bits  |  EncT(ms) | Ext_info  Ref. List\n");
+    printf("-----------------------------------------------------------------------------------------------------------------------------------\n");
+    printf("    POC | QP |  PSNR-Y  PSNR-U  PSNR-V| SSIM-Y SSIM-U SSIM-V|   Bits |  Time |        Ref. List      | Ext_info\n");
     fflush(stdout);
 }
 
 static void print_config(void *h, enc_cfg_t param)
 {
-    printf("----------------------------------------------------------------------------------------------------------------\n");
+    printf("-----------------------------------------------------------------------------------------------------------------------------------\n");
     printf("< Sequence's Info >\n");
     printf("\tresolution input         : %d x %d\n", param.horizontal_size, param.vertical_size);
     printf("\tresolution coding        : %d x %d\n", param.pic_width, param.pic_height);
@@ -848,7 +847,6 @@ static void print_config(void *h, enc_cfg_t param)
         printf("\tmax_bitrate              : %d\n", param.rc_max_bitrate);
         printf("\tqp range                 : %d-%d\n", param.rc_min_qp, param.rc_max_qp);
     }
-    printf("\tdqp_enable               : %d\n", param.dqp_enable);
     printf("\tqp_offset_cb             : %d\n", param.qp_offset_cb);
     printf("\tqp_offset_cr             : %d\n", param.qp_offset_cr);
 
@@ -898,7 +896,9 @@ static void print_config(void *h, enc_cfg_t param)
     printf("\n");
 
     //encoder-side tools
-    printf("\tENC-Side Tools: adaptive_chroma_qp(%d) ", param.adaptive_chroma_dqp);
+    printf("\tENC-Side Tools: chroma_qp(%d) ", param.chroma_dqp);
+    printf("AQ(%d) ", param.adaptive_dqp);
+
     printf("\n");
 
     //speed-up tools
@@ -930,19 +930,22 @@ void print_psnr(enc_stat_t *stat, double *psnr, double *ssim, int bitrate, time_
         break;
     }
 
-    print_log(1, "%5lld(%c) |%3d |%9.4f%9.4f%9.4f |%8.4f%8.4f%8.4f |%8d |%9d  | ", \
+    print_log(1, "%5lld(%c)|%4.1f|%8.4f%8.4f%8.4f|%7.4f%7.4f%7.4f|%8d|%7d|", \
             stat->poc, type, stat->qp, psnr[0], psnr[1], psnr[2], ssim[0], ssim[1], ssim[2],\
             bitrate, clock_2_msec(clk_end));
 
-    print_log(1, " [%s] ", stat->ext_info);
-
     for (i = 0; i < 2; i++) {
-        print_log(1, "[L%d ", i);
+        print_log(1, "L%d ", i);
         for (j = 0; j < stat->refpic_num[i]; j++) {
-            print_log(1, "%lld ", stat->refpic[i][j]);
+            print_log(1, "%3lld ", stat->refpic[i][j]);
         }
-        print_log(1, "] ");
+        for (; j < 2; j++) {
+            print_log(1, "    ");
+        }
+        print_log(1, "|");
     }
+
+    print_log(1, "[%s] ", stat->ext_info);
 
     print_log(1, "\n");
     fflush(stdout);

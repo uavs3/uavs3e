@@ -69,7 +69,7 @@ typedef struct uavs3e_enc_stat_t {
     long long      pts;                // [out] pts  of current frame
     long long      dts;                // [out] dts  of current frame
     int            type;               // [out] type of current frame
-    int            qp;                 // [out] qp   of current frame
+    float          qp;                 // [out] qp   of current frame
     long long      poc;                // [out] poc  of current frame
     int            refpic_num[2];      // [out] 
     long long      refpic[2][16];      // [out] 
@@ -133,7 +133,6 @@ typedef struct uavs3e_enc_cfg_t {
     int            qp;
     int            qp_offset_cb;
     int            qp_offset_cr;
-    int            dqp_enable;
 
     //#=========== Coding Tools ========================
     int            amvr_enable;
@@ -169,7 +168,9 @@ typedef struct uavs3e_enc_cfg_t {
     int            patch_height;
 
     //#======= other encoder-size tools ================
-    int            adaptive_chroma_dqp;
+    int            chroma_dqp;
+    int            adaptive_dqp;
+
 } enc_cfg_t;
 
 typedef    void*  (__cdecl *uavs3e_create_t)(enc_cfg_t *param, int *err);
