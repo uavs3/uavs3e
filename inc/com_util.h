@@ -321,6 +321,9 @@ typedef struct uavs3e_funs_handle_t {
 
     u32 (*cost_satd[3][3])(pel *p_org, int i_org, pel *p_pred, int i_pred);
 
+    void(*ssim_4x4x2_core)(const pel *pix1, int stride1, const pel *pix2, int stride2, int sums[2][4]);
+    float(*ssim_end4)(int sum0[5][4], int sum1[5][4], int width, float ssim_c1, float ssim_c2);
+
     void(*pel_diff[CU_SIZE_NUM])(pel *org, int i_org, pel *pred, int i_pred, s16 *resi, int i_resi, int height);
     void(*pel_avrg[CU_SIZE_NUM])(pel *dst, int i_dst, pel *src1, pel *src2, int height);
 
@@ -408,6 +411,8 @@ static void avs3_always_inline wait_ref_available(com_pic_t *pic, int lines)
 }
 
 u32 com_had(int w, int h, pel *org, int s_org, pel *cur, int s_cur, int bit_depth);
+
+float com_ssim_img_plane(pel *pix1, int stride1, pel *pix2, int stride2, int width, int height, int *cnt, int bit_depth);
 
 com_img_t *com_img_create(int w, int h, int pad[MAX_PLANES], int planes);
 void       com_img_free(com_img_t *img);

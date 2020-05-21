@@ -222,3 +222,65 @@ u32 calc_satd_intra(int pu_w, int pu_h, pel *src1, pel *src2, int s_src1, int s_
     }
     return cost;
 }
+
+void uavs3e_find_ssim(com_img_t *org_img, com_img_t *rec_img, double ssim[3], int bit_depth)
+{
+    int impix;
+    double maxSignal = (double)((1 << 8) - 1) * (double)((1 << 8) - 1);
+    pel *rec, *recu, *recv;
+    int i_rec, i_rec_uv;
+    pel *org, *orgu, *orgv;
+    int i_org, i_org_uv;
+    int width  = org_img->width [0];
+    int height = org_img->height[0];
+    float ssim_all;
+    int pixel_cnt;
+    int uv_shift = 1;
+
+    impix = width * height;
+
+    i_rec    = rec_img->stride[0];
+    i_rec_uv = rec_img->stride[1];
+    i_org    = org_img->stride[0];
+    i_org_uv = org_img->stride[1];
+
+    rec  = rec_img->planes[0];
+    recu = rec_img->planes[1];
+    recv = rec_img->planes[2];
+
+    org  = org_img->planes[0];
+    orgu = org_img->planes[1];
+    orgv = org_img->planes[2];
+
+    ssim_all = com_ssim_img_plane(org + 2, i_org, rec + 2, i_rec, width - 2, height, &pixel_cnt, bit_depth);
+    ssim[0] = ssim_all / pixel_cnt;
+
+    ssim_all = com_ssim_img_plane(orgu + 2, i_org_uv, recu + 2, i_rec_uv, (width >> uv_shift) - 2, height >> uv_shift, &pixel_cnt, bit_depth);
+    ssim[1] = ssim_all / pixel_cnt;
+
+    ssim_all = com_ssim_img_plane(orgv + 2, i_org_uv, recv + 2, i_rec_uv, (width >> uv_shift) - 2, height >> uv_shift, &pixel_cnt, bit_depth);
+    ssim[2] = ssim_all / pixel_cnt;
+}
+
+void uavs3e_find_psnr(com_img_t *org, com_img_t *rec, double psnr[3], int bit_depth)
+{
+    double sum[3], mse[3];
+    pel *o, *r;
+    int i, j, k;
+    int peak_val = (bit_depth == 8) ? 255 : 1023;
+    for (i = 0; i < org->num_planes; i++) {
+        o = (pel *)org->planes[i];
+        r = (pel *)rec->planes[i];
+        sum[i] = 0;
+        for (j = 0; j < org->height[i]; j++) {
+            for (k = 0; k < org->width[i]; k++) {
+                sum[i] += (o[k] - r[k]) * (o[k] - r[k]);
+            }
+            o = (pel *)((unsigned char *)o + org->stride[i]);
+            r = (pel *)((unsigned char *)r + rec->stride[i]);
+        }
+        mse[i] = sum[i] / (org->width[i] * org->height[i]);
+        // psnr[i] = (mse[i] == 0.0) ? 100. : fabs(10 * log10(((255 * 255 * 16) / mse[i])));
+        psnr[i] = (mse[i] == 0.0) ? 100. : fabs(10 * log10(((peak_val * peak_val) / mse[i])));
+    }
+}

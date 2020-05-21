@@ -798,7 +798,7 @@ static void print_stat_header(void)
     if (g_loglevel < FRAME_LOGLEVEL) {
         return;
     }
-    printf("--------------------------------------------------------------------------------------\n");
+    printf("----------------------------------------------------------------------------------------------------------------\n");
     printf("  Input YUV file           : %s \n", fn_input);
     if (strlen(fn_output) != 0) {
         printf("  Output bitstream         : %s \n", fn_output);
@@ -806,15 +806,14 @@ static void print_stat_header(void)
     if (strlen(fn_rec) != 0) {
         printf("  Output YUV file          : %s \n", fn_rec);
     }
-    printf("--------------------------------------------------------------------------------------\n");
-    printf("    POC  QP   PSNR-Y   PSNR-U   PSNR-V   Bits    EncT(ms)  Ext_info  Ref. List\n");
-    printf("--------------------------------------------------------------------------------------\n");
+    printf("----------------------------------------------------------------------------------------------------------------\n");
+    printf("    POC  | QP |   PSNR-Y   PSNR-U   PSNR-V |  SSIM-Y  SSIM-U  SSIM-V |   Bits  |  EncT(ms) | Ext_info  Ref. List\n");
     fflush(stdout);
 }
 
 static void print_config(void *h, enc_cfg_t param)
 {
-    printf("--------------------------------------------------------------------------------------\n");
+    printf("----------------------------------------------------------------------------------------------------------------\n");
     printf("< Sequence's Info >\n");
     printf("\tresolution input         : %d x %d\n", param.horizontal_size, param.vertical_size);
     printf("\tresolution coding        : %d x %d\n", param.pic_width, param.pic_height);
@@ -910,30 +909,7 @@ static void print_config(void *h, enc_cfg_t param)
     fflush(stdout);
 }
 
-static void find_psnr(com_img_t *org, com_img_t *rec, double psnr[3], int bit_depth)
-{
-    double sum[3], mse[3];
-    pel *o, *r;
-    int i, j, k;
-    int peak_val = (bit_depth == 8) ? 255 : 1023;
-    for (i = 0; i < org->num_planes; i++) {
-        o       = (pel *)org->planes[i];
-        r       = (pel *)rec->planes[i];
-        sum[i] = 0;
-        for (j = 0; j < org->height[i]; j++) {
-            for (k = 0; k < org->width[i]; k++) {
-                sum[i] += (o[k] - r[k]) * (o[k] - r[k]);
-            }
-            o = (pel *)((unsigned char *)o + org->stride[i]);
-            r = (pel *)((unsigned char *)r + rec->stride[i]);
-        }
-        mse[i] = sum[i] / (org->width[i] * org->height[i]);
-        // psnr[i] = (mse[i] == 0.0) ? 100. : fabs(10 * log10(((255 * 255 * 16) / mse[i])));
-        psnr[i] = (mse[i] == 0.0) ? 100. : fabs(10 * log10(((peak_val * peak_val) / mse[i])));
-    }
-}
-
-void print_psnr(enc_stat_t *stat, double *psnr, int bitrate, time_clk_t clk_end)
+void print_psnr(enc_stat_t *stat, double *psnr, double *ssim, int bitrate, time_clk_t clk_end)
 {
     char  type;
 
@@ -954,8 +930,8 @@ void print_psnr(enc_stat_t *stat, double *psnr, int bitrate, time_clk_t clk_end)
         break;
     }
 
-    print_log(1, "%5lld(%c)%3d%9.4f%9.4f%9.4f%8d%9d ", \
-            stat->poc, type, stat->qp, psnr[0], psnr[1], psnr[2], \
+    print_log(1, "%5lld(%c) |%3d |%9.4f%9.4f%9.4f |%8.4f%8.4f%8.4f |%8d |%9d  | ", \
+            stat->poc, type, stat->qp, psnr[0], psnr[1], psnr[2], ssim[0], ssim[1], ssim[2],\
             bitrate, clock_2_msec(clk_end));
 
     print_log(1, " [%s] ", stat->ext_info);
@@ -987,8 +963,9 @@ int main(int argc, const char **argv)
     long long          frame_cnt;
     int                num_encoded_frames = 0;
     double             bitrate;
-    double             psnr[3] = {0,};
-    double             psnr_avg[3] = {0,};
+    double             psnr[3], ssim[3];
+    double             psnr_avg[3] = { 0 };
+    double             ssim_avg[3] = { 0 };
     com_img_t          *tmp_img = NULL;
     int fd_rec = 0;
 
@@ -1103,9 +1080,9 @@ int main(int argc, const char **argv)
                 return -1;
             }
 
-            /* calculate PSNR */
-            psnr[0] = psnr[1] = psnr[2] = 0;
-            find_psnr(stat.org_img, img_rec, psnr, cfg.bit_depth_internal);
+            /* calculate PSNR & SSIM */
+            uavs3e_find_psnr(stat.org_img, img_rec, psnr, cfg.bit_depth_internal);
+            uavs3e_find_ssim(stat.org_img, img_rec, ssim, cfg.bit_depth_internal);
 
             /* store reconstructed image to list only for writing out */
             if (fd_rec > 0) {
@@ -1116,12 +1093,15 @@ int main(int argc, const char **argv)
                 }
             }
 
-            print_psnr(&stat, psnr, (stat.bytes - stat.user_bytes) << 3, time_dur);
+            print_psnr(&stat, psnr, ssim, (stat.bytes - stat.user_bytes) << 3, time_dur);
+
             bitrate += (stat.bytes - stat.user_bytes);
 
             for (i = 0; i < 3; i++) {
                 psnr_avg[i] += psnr[i];
+                ssim_avg[i] += ssim[i];
             }
+
         } else if (ret == COM_OK_NO_MORE_FRM) {
             break;
         } else {
@@ -1144,6 +1124,9 @@ int main(int argc, const char **argv)
     print_log(1, "  PSNR Y(dB)       : %-5.4f\n", psnr_avg[0]);
     print_log(1, "  PSNR U(dB)       : %-5.4f\n", psnr_avg[1]);
     print_log(1, "  PSNR V(dB)       : %-5.4f\n", psnr_avg[2]);
+    print_log(1, "  SSIM Y(dB)       : %-5.4f\n", ssim_avg[0]);
+    print_log(1, "  SSIM U(dB)       : %-5.4f\n", ssim_avg[1]);
+    print_log(1, "  SSIM V(dB)       : %-5.4f\n", ssim_avg[2]);
 
     print_log(1, "  Total bits(bits) : %-.0f\n", bitrate * 8);
     bitrate *= (cfg.fps_num / cfg.fps_den * 8);
@@ -1165,7 +1148,9 @@ int main(int argc, const char **argv)
 
 #if 1
     FILE *fp = fopen("psnr.txt", "a+");
-    fprintf(fp, "%s %.4f %.4f %.4f %.4f    %.5f\n", fn_output, bitrate, psnr_avg[0], psnr_avg[1], psnr_avg[2], 
+    fprintf(fp, "%s    %.4f %.4f %.4f %.4f    %.4f %.4f %.4f    %.5f\n", fn_output, bitrate, 
+                                                    psnr_avg[0], psnr_avg[1], psnr_avg[2],
+                                                    ssim_avg[0], ssim_avg[1], ssim_avg[2],
                                                    ((float)frame_cnt * 1000) / ((float)clock_2_msec(total_time)));
     fclose(fp);
 #endif

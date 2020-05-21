@@ -774,6 +774,89 @@ u32 com_had(int w, int h, pel *org, int s_org, pel *cur, int s_cur, int bit_dept
     }
 }
 
+static void ssim_4x4x2_core(const pel *pix1, int stride1, const pel *pix2, int stride2, int sums[2][4])
+{
+    int x, y, z;
+    for (z = 0; z < 2; z++) {
+        int s1 = 0, s2 = 0, ss = 0, s12 = 0;
+        for (y = 0; y < 4; y++) {
+            for (x = 0; x < 4; x++) {
+                int a = pix1[x + y * stride1];
+                int b = pix2[x + y * stride2];
+                s1 += a;
+                s2 += b;
+                ss += a * a;
+                ss += b * b;
+                s12 += a * b;
+            }
+        }
+        sums[z][0] = s1;
+        sums[z][1] = s2;
+        sums[z][2] = ss;
+        sums[z][3] = s12;
+        pix1 += 4;
+        pix2 += 4;
+    }
+}
+
+static float ssim_end1(int s1, int s2, int ss, int s12, float ssim_c1, float ssim_c2)
+{
+    float fs1 = (float)s1;
+    float fs2 = (float)s2;
+    float fss = (float)ss;
+    float fs12 = (float)s12;
+    float vars = (float)(fss * 64 - fs1 * fs1 - fs2 * fs2);
+    float covar = (float)(fs12 * 64 - fs1 * fs2);
+    return (float)(2 * fs1 * fs2 + ssim_c1) * (float)(2 * covar + ssim_c2) / ((float)(fs1 * fs1 + fs2 * fs2 + ssim_c1) * (float)(vars + ssim_c2));
+}
+
+static float ssim_end4(int sum0[5][4], int sum1[5][4], int width, float ssim_c1, float ssim_c2)
+{
+    float ssim = 0.0;
+    int i;
+    for (i = 0; i < width; i++)
+        ssim += ssim_end1(sum0[i][0] + sum0[i + 1][0] + sum1[i][0] + sum1[i + 1][0],
+            sum0[i][1] + sum0[i + 1][1] + sum1[i][1] + sum1[i + 1][1],
+            sum0[i][2] + sum0[i + 1][2] + sum1[i][2] + sum1[i + 1][2],
+            sum0[i][3] + sum0[i + 1][3] + sum1[i][3] + sum1[i + 1][3], ssim_c1, ssim_c2);
+    return ssim;
+}
+
+float com_ssim_img_plane(pel *pix1, int stride1, pel *pix2, int stride2, int width, int height, int *cnt, int bit_depth)
+{
+#define MAX_PIC_WIDTH (8192*2)
+
+    static int buf[2 * (MAX_PIC_WIDTH / 4 + 3)][4];
+    int x, y, z = 0;
+    float ssim = 0.0;
+    int(*sum0)[4] = buf;
+    int(*sum1)[4] = sum0 + (width >> 2) + 3;
+
+    width >>= 2;
+    height >>= 2;
+
+    /* Maximum value for 10-bit is: ss*64 = (2^10-1)^2*16*4*64 = 4286582784, which will overflow in some cases.
+    * s1*s1, s2*s2, and s1*s2 also obtain this value for edge cases: ((2^10-1)*16*4)^2 = 4286582784.
+    * Maximum value for 9-bit is: ss*64 = (2^9-1)^2*16*4*64 = 1069551616, which will not overflow. */
+    int pixel_max = bit_depth == 8 ? 255 : 1023;
+    float ssim_c1 = (float)(.01 * .01 * pixel_max * pixel_max * 64);
+    float ssim_c2 = (float)(.03 * .03 * pixel_max * pixel_max * 64 * 63);
+
+#define XCHG(type,a,b) do{ type t = a; a = b; b = t; } while(0)
+
+    for (y = 1; y < height; y++) {
+        for (; z <= y; z++) {
+            XCHG(void*, sum0, sum1);
+            for (x = 0; x < width; x += 2)
+                uavs3e_funs_handle.ssim_4x4x2_core(&pix1[4 * (x + z * stride1)], stride1, &pix2[4 * (x + z * stride2)], stride2, &sum0[x]);
+        }
+        for (x = 0; x < width - 1; x += 4)
+            ssim += uavs3e_funs_handle.ssim_end4(sum0 + x, sum1 + x, min(4, width - x - 1), ssim_c1, ssim_c2);
+    }
+    *cnt = (height - 1) * (width - 1);
+    return ssim;
+}
+
 void uavs3e_funs_init_cost_c()
 {
     uavs3e_funs_handle.cost_sad[0] = com_get_sad_4;
@@ -810,4 +893,7 @@ void uavs3e_funs_init_cost_c()
     uavs3e_funs_handle.cost_satd[1][1] = com_had_8x8;
     uavs3e_funs_handle.cost_satd[2][1] = com_had_16x8;
     uavs3e_funs_handle.cost_satd[1][2] = com_had_8x16;
+
+    uavs3e_funs_handle.ssim_4x4x2_core = ssim_4x4x2_core;
+    uavs3e_funs_handle.ssim_end4 = ssim_end4;
 }

@@ -187,6 +187,12 @@ UAVS3E_API int     __cdecl  uavs3e_get_img   (void *id, com_img_t **img);
 typedef    void   (__cdecl *uavs3e_load_default_cfg_t)(enc_cfg_t *cfg);
 UAVS3E_API void    __cdecl  uavs3e_load_default_cfg   (enc_cfg_t *cfg);
 
+typedef    void   (__cdecl *uavs3e_find_psnr_t)(com_img_t *org, com_img_t *rec, double psnr[3], int bit_depth);
+UAVS3E_API void    __cdecl  uavs3e_find_psnr   (com_img_t *org, com_img_t *rec, double psnr[3], int bit_depth);
+
+typedef    void   (__cdecl *uavs3e_find_ssim_t)(com_img_t *org, com_img_t *rec, double psnr[3], int bit_depth);
+UAVS3E_API void    __cdecl  uavs3e_find_ssim   (com_img_t *org, com_img_t *rec, double ssim[3], int bit_depth);
+
 #ifdef __cplusplus
 }
 #endif
