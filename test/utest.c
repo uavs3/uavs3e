@@ -244,7 +244,7 @@ static app_cfg_t options[] = {
     {
         CFG_KEY_NULL,  "adaptive_dqp", CFG_TYPE_INTEGER,
         &cfg.adaptive_dqp,
-        "SATD based Adaptive delta QP of LCU"
+        "Variance  based Adaptive delta QP of LCU"
         ,0 
     },
     {
@@ -1175,7 +1175,7 @@ int main(int argc, const char **argv)
 
     image_free(tmp_img);
 
-    getchar();
+    //getchar();
 
     return 0;
 }

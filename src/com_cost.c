@@ -142,7 +142,7 @@ static u64 com_get_var_##w(pel *p_org, int i_org) {                             
     u64 uiSum = 0, uiSSD = 0;                                                     \
     for (; height != 0; height--) {                                               \
         for (i = 0; i < w; i++) {                                                 \
-            uiSum = p_org[i];                                                     \
+            uiSum += p_org[i];                                                    \
             uiSSD += (p_org[i] * p_org[i]);                                       \
         }                                                                         \
         p_org += i_org;                                                           \

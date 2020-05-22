@@ -85,7 +85,7 @@ static void get_ipred_neighbor(pel *dst, int x, int y, int w, int h, int pic_wid
 }
 
 double loka_estimate_coding_cost(inter_search_t *pi, com_img_t *img_org, com_img_t **ref_l0, com_img_t **ref_l1, int num_ref[2], 
-                                 int bit_depth, double *icost, double icost_uv[2], float* cost_map)
+                                 int bit_depth, double *icost, double icost_uv[2], float* map_dqp)
 {
     const int    base_qp = 32;
     const double base_lambda = 1.43631 * pow(2.0, (base_qp - 16.0) / 4.0);
@@ -125,7 +125,7 @@ double loka_estimate_coding_cost(inter_search_t *pi, com_img_t *img_org, com_img
 #endif
 
     for (int y = 0; y < pic_height - UNIT_SIZE + 1; y += UNIT_SIZE) {
-        float *var = cost_map + (y / UNIT_SIZE) * (pic_width / UNIT_SIZE);
+        float *var = map_dqp + (y / UNIT_SIZE) * (pic_width / UNIT_SIZE);
 
         for (int x = 0; x < pic_width - UNIT_SIZE + 1; x += UNIT_SIZE) {
             ALIGNED_32(pel pred_buf[MAX_CU_DIM]);
@@ -248,19 +248,19 @@ double loka_estimate_coding_cost(inter_search_t *pi, com_img_t *img_org, com_img
             total_cost  += min_cost;
             total_icost += min_icost;
 
-            if (cost_map) {
+            if (map_dqp) {
                 u64 energy = 0;
                 int xc = x >> 1;
                 int yc = y >> 1;
                 pel *orgu = (pel*)img_org->planes[1] + yc * i_org_c + xc;
                 pel *orgv = (pel*)img_org->planes[2] + yc * i_org_c + xc;
 
-                energy += uavs3e_funs_handle.cost_var[UNITC_WIDX](org, i_org);
-                energy += uavs3e_funs_handle.cost_var[UNITC_WIDX - 1](orgu, i_org_c);
-                energy += uavs3e_funs_handle.cost_var[UNITC_WIDX - 1](orgv, i_org_c);
+                energy += uavs3e_funs_handle.cost_var[UNIT_WIDX](org, i_org);
+                energy += uavs3e_funs_handle.cost_var[UNITC_WIDX](orgu, i_org_c);
+                energy += uavs3e_funs_handle.cost_var[UNITC_WIDX](orgv, i_org_c);
                 energy >>= (bit_depth - 8) * 2;
 
-                var[x / UNIT_SIZE] = (float)(1.3322 * log2((double)max(energy, 1)));
+                var[x / UNIT_SIZE] = (float)(0.8 * log2((double)max(energy, 1)));
                 total_var += var[x / UNIT_SIZE];
             }
         }        
@@ -283,14 +283,10 @@ double loka_estimate_coding_cost(inter_search_t *pi, com_img_t *img_org, com_img
         icost_uv[1] = total_icost_v / blk_num / UNITC_SIZE / UNITC_SIZE;
     }
 
-    if (cost_map) {
+    if (map_dqp) {
         float avg_var = (float)(total_var / blk_num);
-
-        for (int y = 0; y < pic_height - UNIT_SIZE + 1; y += UNIT_SIZE) {
-            float *var = cost_map + (y / UNIT_SIZE) * (pic_width / UNIT_SIZE);
-            for (int x = 0; x < pic_width - UNIT_SIZE + 1; x += UNIT_SIZE) {
-                var[x / UNIT_SIZE] -= avg_var;
-            }
+        for (int i = 0; i < blk_num; i++) {
+            map_dqp[i] -= avg_var;
         }
     }
     return total_cost / blk_num / UNIT_SIZE / UNIT_SIZE;
