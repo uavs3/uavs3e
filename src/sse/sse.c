@@ -383,6 +383,10 @@ void uavs3e_funs_init_sse()
     uavs3e_funs_handle.intra_pred_ang[28] = uavs3e_ipred_ang_y_28_sse;
     uavs3e_funs_handle.intra_pred_ang[30] = uavs3e_ipred_ang_y_30_sse;
     uavs3e_funs_handle.intra_pred_ang[32] = uavs3e_ipred_ang_y_32_sse;
+
+    uavs3e_funs_handle.cost_var[1] = uavs3e_var_8_sse;
+    uavs3e_funs_handle.cost_var[2] = uavs3e_var_16_sse;
+
 }
 
 #elif (BIT_DEPTH == 10)

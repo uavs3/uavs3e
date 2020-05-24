@@ -1236,6 +1236,66 @@ u32 uavs3e_had_4x8_sse(pel *org, int s_org, pel *cur, int s_cur)
     return satd;
 }
 
+u64 uavs3e_var_8_sse(pel* pix, int i_pix)
+{
+    u64 sum = 0, sqr = 0;
+    __m128i SUM = _mm_setzero_si128();
+    __m128i SQR = _mm_setzero_si128();
+    __m128i zero = _mm_setzero_si128();
+    int y;
+
+    for (y = 0; y < 8; y++) {
+        __m128i T = _mm_loadl_epi64((const __m128i*)pix);
+        T = _mm_unpacklo_epi8(T, zero);
+        SUM = _mm_add_epi16(SUM, T);
+        T = _mm_madd_epi16(T, T);
+        SQR = _mm_add_epi32(SQR, T);
+        pix += i_pix;
+    }
+
+    SUM = _mm_hadd_epi16(SUM, SUM);
+    SUM = _mm_hadd_epi16(SUM, SUM);
+    SUM = _mm_hadd_epi16(SUM, SUM);
+    sum = _mm_extract_epi16(SUM, 0);
+
+    SQR = _mm_hadd_epi32(SQR, SQR);
+    SQR = _mm_hadd_epi32(SQR, SQR);
+    sqr = _mm_extract_epi32(SQR, 0);
+
+    return sqr - (sum * sum >> 6);
+}
+
+u64 uavs3e_var_16_sse(pel* pix, int i_pix)
+{
+    u64 sum = 0, sqr = 0;
+    __m128i SUM = _mm_setzero_si128();
+    __m128i SQR = _mm_setzero_si128();
+    __m128i zero = _mm_setzero_si128();
+    int y;
+
+    for (y = 0; y < 16; y++) {
+        __m128i T1, T2;
+        __m128i T = _mm_loadu_si128((const __m128i*)pix);
+        SUM = _mm_add_epi16(SUM, _mm_sad_epu8(T, zero));
+        T1 = _mm_unpacklo_epi8(T, zero);
+        T2 = _mm_unpackhi_epi8(T, zero);
+        T = _mm_add_epi32(_mm_madd_epi16(T1, T1), _mm_madd_epi16(T2, T2));
+        SQR = _mm_add_epi32(SQR, T);
+        pix += i_pix;
+    }
+
+    SUM = _mm_hadd_epi16(SUM, SUM);
+    SUM = _mm_hadd_epi16(SUM, SUM);
+    SUM = _mm_hadd_epi16(SUM, SUM);
+    sum = _mm_extract_epi16(SUM, 0);
+
+    SQR = _mm_hadd_epi32(SQR, SQR);
+    SQR = _mm_hadd_epi32(SQR, SQR);
+    sqr = _mm_extract_epi32(SQR, 0);
+
+    return sqr - (sum * sum >> 8);
+}
+
 #elif (BIT_DEPTH == 10)
 
 u32 uavs3e_had_4x4_sse(pel *org, int s_org, pel *cur, int s_cur)

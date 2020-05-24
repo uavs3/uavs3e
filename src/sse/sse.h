@@ -221,6 +221,9 @@ u32 uavs3e_had_8x8_sse(pel *org, int s_org, pel *cur, int s_cur);
 u32 uavs3e_had_16x8_sse(pel *org, int s_org, pel *cur, int s_cur);
 u32 uavs3e_had_8x16_sse(pel *org, int s_org, pel *cur, int s_cur);
 
+u64 uavs3e_var_8_sse(pel* pix, int i_pix);
+u64 uavs3e_var_16_sse(pel* pix, int i_pix);
+
 void uavs3e_pel_diff_4_sse(pel *p_org, int i_org, pel *p_pred, int i_pred, s16 *p_resi, int i_resi, int height);
 void uavs3e_pel_diff_8_sse(pel *p_org, int i_org, pel *p_pred, int i_pred, s16 *p_resi, int i_resi, int height);
 void uavs3e_pel_diff_16_sse(pel *p_org, int i_org, pel *p_pred, int i_pred, s16 *p_resi, int i_resi, int height);

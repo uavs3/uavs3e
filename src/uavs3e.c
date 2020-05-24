@@ -889,10 +889,13 @@ void enc_get_pic_qp(enc_pic_t *ep, pic_thd_param_t *p)
             wait_ref_available(p->top_pic[lidx], info->pic_height);
         }
     }
-    if (p->param->chroma_dqp) {
-        pic_org->picture_satd = loka_estimate_coding_cost(&ep->pinter, img_org, ref_l0, ref_l1, p->num_refp, info->bit_depth_internal, &icost, icost_uv, ep->map.map_dqp);
+
+    float *dqp_map = param->adaptive_dqp ? ep->map.map_dqp : NULL;
+
+    if (param->chroma_dqp) {
+        pic_org->picture_satd = loka_estimate_coding_cost(&ep->pinter, img_org, ref_l0, ref_l1, p->num_refp, info->bit_depth_internal, &icost, icost_uv, dqp_map);
     } else {
-        pic_org->picture_satd = loka_estimate_coding_cost(&ep->pinter, img_org, ref_l0, ref_l1, p->num_refp, info->bit_depth_internal, NULL, NULL, ep->map.map_dqp);
+        pic_org->picture_satd = loka_estimate_coding_cost(&ep->pinter, img_org, ref_l0, ref_l1, p->num_refp, info->bit_depth_internal, NULL, NULL, dqp_map);
     }
     if (param->rc_type == RC_TYPE_NULL) {
         base_qp = (int)(enc_get_hgop_qp(param->qp, pic_org->layer_id, info->sqh.low_delay) + 0.5);
