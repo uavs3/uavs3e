@@ -1125,7 +1125,7 @@ static double mode_coding_tree(core_t *core, lbac_t *sbac_cur, int x0, int y0, i
             split_allow[i] = 0;
         }
     }
-
+    double nscost;
     if (!boundary) {
         double cost_temp = 0.0;
 
@@ -1164,7 +1164,12 @@ static double mode_coding_tree(core_t *core, lbac_t *sbac_cur, int x0, int y0, i
             p_bef_data->split_cost[NO_SPLIT] = cost_temp;
             best_curr_cost = cost_temp;
         }
+        nscost = cost_temp;
     }
+    ////
+    
+
+    ////
 #if ENC_ECU_ADAPTIVE
     if (cost_best < MAX_D_COST && cud >= (core->ptr % 2 ? ENC_ECU_DEPTH - 1 : ENC_ECU_DEPTH)
 #else
@@ -1243,6 +1248,9 @@ static double mode_coding_tree(core_t *core, lbac_t *sbac_cur, int x0, int y0, i
             split_mode_t split_mode = split_mode_order[split_mode_num];
             int is_mode_EQT = com_split_is_EQT(split_mode);
             int EQT_not_skiped = is_mode_EQT ? (best_split_mode != NO_SPLIT || cost_best > MAX_D_COST_EXT) : 1;
+            ///
+            int skipsplit = 0;
+            ///
 
             if (split_allow[split_mode] && EQT_not_skiped) {
                 double best_cons_cost = MAX_D_COST;
@@ -1295,7 +1303,15 @@ static double mode_coding_tree(core_t *core, lbac_t *sbac_cur, int x0, int y0, i
 
                         bit_cnt = lbac_get_bits(&sbac_split) - bit_cnt;
                         cost_temp += RATE_TO_COST_LAMBDA(core->lambda[0], bit_cnt);
+                        /////
+                        //RDcostNS * a + lambda * (SplitBits + b) > RDcostNS
+                        if (nscost * 0.9 + RATE_TO_COST_LAMBDA(core->lambda[0], bit_cnt + 1) > nscost) {
+                            skipsplit = 1;
+                            break;
+                        }
+                        /////
                     }
+                    
 
                     lbac_t sbac_tree_c;
 
@@ -1353,6 +1369,8 @@ static double mode_coding_tree(core_t *core, lbac_t *sbac_cur, int x0, int y0, i
                         }
                     }
                 }
+                if (skipsplit)
+                    continue;
                 if (!p_bef_data->split_visit) {
                     p_bef_data->split_cost[split_mode] = best_cons_cost;
                 }
