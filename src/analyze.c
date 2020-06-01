@@ -1125,7 +1125,7 @@ static double mode_coding_tree(core_t *core, lbac_t *sbac_cur, int x0, int y0, i
             split_allow[i] = 0;
         }
     }
-    double nscost;
+    double nscost = MAX_D_COST;
     if (!boundary) {
         double cost_temp = 0.0;
 
@@ -1305,10 +1305,18 @@ static double mode_coding_tree(core_t *core, lbac_t *sbac_cur, int x0, int y0, i
                         cost_temp += RATE_TO_COST_LAMBDA(core->lambda[0], bit_cnt);
                         /////
                         //RDcostNS * a + lambda * (SplitBits + b) > RDcostNS
-                        if (nscost * 0.9 + RATE_TO_COST_LAMBDA(core->lambda[0], bit_cnt + 1) > nscost) {
-                            skipsplit = 1;
-                            break;
+                        if (nscost * 0.9 + cost_temp + RATE_TO_COST_LAMBDA(core->lambda[0], 1) > nscost) {
+                            //skipsplit = 1;
+                            // printf("Valid Once!\n");
+                            continue;
                         }
+                        /*if (best_curr_cost != MAX_COST)
+                        {
+                            if (best_curr_cost * 0.9 + cost_temp + RATE_TO_COST_LAMBDA(ctx->lambda[0], 1) > best_curr_cost)
+                            {
+                                continue;
+                            }
+                        }*/
                         /////
                     }
                     
@@ -1369,8 +1377,8 @@ static double mode_coding_tree(core_t *core, lbac_t *sbac_cur, int x0, int y0, i
                         }
                     }
                 }
-                if (skipsplit)
-                    continue;
+                /*if (skipsplit)
+                    continue;*/
                 if (!p_bef_data->split_visit) {
                     p_bef_data->split_cost[split_mode] = best_cons_cost;
                 }
