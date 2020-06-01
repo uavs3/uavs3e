@@ -2000,7 +2000,8 @@ void analyze_inter_cu(core_t *core, lbac_t *sbac_best)
                 analyze_bi(core, sbac_best, mv_L0L1, refi_L0L1, cost_L0L1);
 
                 if (info->sqh.smvd_enable && core->ptr - core->refp[0][REFP_0].ptr == core->refp[0][REFP_1].ptr - core->ptr && !cur_info->hmvp_flag) {
-                    analyze_smvd(core, sbac_best);
+                    if (!(p_bef_data->visit && p_bef_data->smvd_history == 0))
+                        analyze_smvd(core, sbac_best);
                 }
             }
 
@@ -2056,6 +2057,7 @@ void analyze_inter_cu(core_t *core, lbac_t *sbac_best)
     if (!p_bef_data->visit) {
         p_bef_data->affine_flag_history = bst_info->affine_flag;
         p_bef_data->mvr_idx_history     = bst_info->mvr_idx;
+        p_bef_data->smvd_history        = bst_info->smvd_flag;
 
         if (bst_info->hmvp_flag) {
             p_bef_data->mvr_hmvp_idx_history = bst_info->mvr_idx;
