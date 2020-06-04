@@ -687,7 +687,7 @@ int enc_pic_finish(enc_ctrl_t *h, pic_thd_param_t *pic_thd, enc_stat_t *stat)
             stat->refpic[i][j] = refpic->ptr;
             com_img_release(refpic->img);
 
-            if (refpic->subpel && 1 == com_img_getref(refpic->img)) {
+            if (!refpic->b_ref && refpic->subpel && 1 == com_img_getref(refpic->img)) {
                 refpic->subpel->b_used = 0;
             }
         }
