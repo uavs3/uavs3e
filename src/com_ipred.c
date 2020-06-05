@@ -1,17 +1,36 @@
 /**************************************************************************************
- * Copyright (C) 2018-2019 uavs3e project
+ * Copyright (c) 2018-2020 ["Peking University Shenzhen Graduate School",
+ *   "Peng Cheng Laboratory", and "Guangdong Bohua UHD Innovation Corporation"]
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the Open-Intelligence Open Source License V1.1.
+ * All rights reserved.
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * Open-Intelligence Open Source License V1.1 for more details.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ * 3. All advertising materials mentioning features or use of this software
+ *    must display the following acknowledgement:
+ *    This product includes the software uAVS3d developed by
+ *    Peking University Shenzhen Graduate School, Peng Cheng Laboratory
+ *    and Guangdong Bohua UHD Innovation Corporation.
+ * 4. Neither the name of the organizations (Peking University Shenzhen Graduate School,
+ *    Peng Cheng Laboratory and Guangdong Bohua UHD Innovation Corporation) nor the
+ *    names of its contributors may be used to endorse or promote products
+ *    derived from this software without specific prior written permission.
  *
- * You should have received a copy of the Open-Intelligence Open Source License V1.1
- * along with this program; if not, you can download it on:
- * http://www.aitisa.org.cn/uploadfile/2018/0910/20180910031548314.pdf
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS ''AS IS'' AND ANY
+ * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+ * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDERS BE LIABLE FOR ANY
+ * DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * For more information, contact us at rgwang@pkusz.edu.cn.
  **************************************************************************************/
@@ -710,7 +729,7 @@ static void ipf_core_s16(pel *src, pel *dst, int i_dst, s16 *pred, int ipm, int 
         pred += w;
     }
 }
-static void ipred_ang_xy_19(pel *pSrc, pel *dst, int i_dst, int uiDirMode, int iWidth, int iHeight);
+
 void com_intra_pred(pel *src, pel *dst, int ipm, int w, int h, int bit_depth, u16 avail_cu, u8 ipf_flag)
 {
     assert(w <= 64 && h <= 64);
@@ -728,18 +747,6 @@ void com_intra_pred(pel *src, pel *dst, int ipm, int w, int h, int bit_depth, u1
             break;
         default:
             uavs3e_funs_handle.intra_pred_ang[ipm](src, dst, w, ipm, w, h);
-            //if (ipm == 19) {
-            //    pel tmp[128 * 128];
-            //    int i;
-            //    ipred_ang_xy_19(src, tmp, w, ipm, w, h);
-            //    for (i = 0; i < w*h; i++) {
-            //        if (tmp[i] != dst[i]) {
-            //            int a = 0;
-            //        }
-            //    }
-            //    ipred_ang_xy_19(src, tmp, w, ipm, w, h);
-            //    uavs3e_funs_handle.intra_pred_ang[ipm](src, dst, w, ipm, w, h);
-            //}
             break;
         }
         if (ipf_flag) {
@@ -834,22 +841,32 @@ void com_intra_get_mpm(int x_scu, int y_scu, com_scu_t *map_scu, s8 *map_ipm, in
     }
 }
 
-static void ipred_ang_x(pel *pSrc, pel *dst, int i_dst, int uiDirMode, int iWidth, int iHeight)
+static void ipred_ang_x(pel *src, pel *dst, int i_dst, int mode, int width, int height)
 {
     int i, j;
     int offset;
+    int width2 = width << 1;
 
-    for (j = 0; j < iHeight; j++) {
+    for (j = 0; j < height; j++) {
         int c1, c2, c3, c4;
-        pel *p = pSrc + getContextPixel(uiDirMode, 0, j + 1, &offset);
+        int idx = getContextPixel(mode, 0, j + 1, &offset);
+        pel *p = src + idx;
+        int pred_width = COM_MIN(width, width2 - idx + 1);
 
         c1 = 32 - offset;
         c2 = 64 - offset;
         c3 = 32 + offset;
         c4 = offset;
 
-        for (i = 0; i < iWidth; i++, p++) {
+        for (i = 0; i < pred_width; i++, p++) {
             dst[i] = (p[0] * c1 + p[1] * c2 + p[2] * c3 + p[3] * c4 + 64) >> 7;
+        }
+        if (pred_width <= 0) {
+            dst[0] = (src[width2] * c1 + src[width2 + 1] * c2 + src[width2 + 2] * c3 + src[width2 + 3] * c4 + 64) >> 7;
+            pred_width = 1;
+        }
+        for (; i < width; i++) {
+            dst[i] = dst[pred_width - 1];
         }
         dst += i_dst;
     }
@@ -989,6 +1006,7 @@ static void xPredIntraAngAdi_Y(pel *pSrc, pel *dst, int i_dst, int uiDirMode, in
     int offset;
     int offsets[64];
     int xsteps[64];
+    int iHeight2 = iHeight << 1;
 
     for (i = 0; i < iWidth; i++) {
         xsteps[i] = getContextPixel(uiDirMode, 1, i + 1, &offsets[i]);
@@ -997,6 +1015,7 @@ static void xPredIntraAngAdi_Y(pel *pSrc, pel *dst, int i_dst, int uiDirMode, in
     for (j = 0; j < iHeight; j++) {
         for (i = 0; i < iWidth; i++) {
             int idx = -j - xsteps[i];
+            idx = COM_MAX(-iHeight2, idx);
 
             offset = offsets[i];
             dst[i] = (pSrc[idx] * (32 - offset) + pSrc[idx - 1] * (64 - offset) + pSrc[idx - 2] * (32 + offset) + pSrc[idx - 3] * offset + 64) >> 7;

@@ -1,8 +1,46 @@
+/**************************************************************************************
+ * Copyright (c) 2018-2020 ["Peking University Shenzhen Graduate School",
+ *   "Peng Cheng Laboratory", and "Guangdong Bohua UHD Innovation Corporation"]
+ *
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ * 3. All advertising materials mentioning features or use of this software
+ *    must display the following acknowledgement:
+ *    This product includes the software uAVS3d developed by
+ *    Peking University Shenzhen Graduate School, Peng Cheng Laboratory
+ *    and Guangdong Bohua UHD Innovation Corporation.
+ * 4. Neither the name of the organizations (Peking University Shenzhen Graduate School,
+ *    Peng Cheng Laboratory and Guangdong Bohua UHD Innovation Corporation) nor the
+ *    names of its contributors may be used to endorse or promote products
+ *    derived from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS ''AS IS'' AND ANY
+ * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+ * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDERS BE LIABLE FOR ANY
+ * DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ * For more information, contact us at rgwang@pkusz.edu.cn.
+ **************************************************************************************/
+
 #include "define.h"
 
-#define UNIT_SIZE_LOG2 4
-#define UNIT_SIZE (1 << UNIT_SIZE_LOG2)
-#define UNIT_WIDX (UNIT_SIZE_LOG2 - MIN_CU_LOG2)
+
+#define UNITC_SIZE_LOG2 (UNIT_SIZE_LOG2 - 1)
+#define UNITC_SIZE (1 << UNITC_SIZE_LOG2)
+#define UNITC_WIDX (UNITC_SIZE_LOG2 - MIN_CU_LOG2)
 
 static void get_ipred_neighbor(pel *dst, int x, int y, int w, int h, int pic_width, int pic_height, pel *src, int s_src, int bit_depth)
 {
@@ -46,7 +84,8 @@ static void get_ipred_neighbor(pel *dst, int x, int y, int w, int h, int pic_wid
     }
 }
 
-double loka_estimate_coding_cost(inter_search_t *pi, com_img_t *img_org, com_img_t **ref_l0, com_img_t **ref_l1, int num_ref[2], int bit_depth, double *icost)
+double loka_estimate_coding_cost(inter_search_t *pi, com_img_t *img_org, com_img_t **ref_l0, com_img_t **ref_l1, int num_ref[2], 
+                                 int bit_depth, double *icost, double icost_uv[2], float* map_dqp)
 {
     const int    base_qp = 32;
     const double base_lambda = 1.43631 * pow(2.0, (base_qp - 16.0) / 4.0);
@@ -57,7 +96,12 @@ double loka_estimate_coding_cost(inter_search_t *pi, com_img_t *img_org, com_img
 
     double total_cost = 0;
     double total_icost = 0;
-    int i_org = STRIDE_IMGB2PIC(img_org->stride[0]);
+    double total_icost_u = 0;
+    double total_icost_v = 0;
+    double total_var = 0;
+
+    int i_org   = STRIDE_IMGB2PIC(img_org->stride[0]);
+    int i_org_c = STRIDE_IMGB2PIC(img_org->stride[1]);
     com_pic_t pic = { 0 };
     com_subpel_t subpel;
 
@@ -81,6 +125,8 @@ double loka_estimate_coding_cost(inter_search_t *pi, com_img_t *img_org, com_img
 #endif
 
     for (int y = 0; y < pic_height - UNIT_SIZE + 1; y += UNIT_SIZE) {
+        float *var = map_dqp + (y / UNIT_SIZE) * (pic_width / UNIT_SIZE);
+
         for (int x = 0; x < pic_width - UNIT_SIZE + 1; x += UNIT_SIZE) {
             ALIGNED_32(pel pred_buf[MAX_CU_DIM]);
             ALIGNED_32(pel pred_buf_fwd[MAX_CU_DIM]);
@@ -108,7 +154,7 @@ double loka_estimate_coding_cost(inter_search_t *pi, com_img_t *img_org, com_img
                     me_search_tz(pi, x, y, UNIT_SIZE, UNIT_SIZE, pic_width, pic_height, refi, lidx, mvp, mv, 0);
                     com_mc_blk_luma(ref_pic, pred_buf, UNIT_SIZE, (x << 2) + mv[MV_X], (y << 2) + mv[MV_Y], UNIT_SIZE, UNIT_SIZE, UNIT_WIDX, pi->max_coord[MV_X], pi->max_coord[MV_Y], (1 << bit_depth) - 1, 0);
 
-                    u32 cost = com_had(UNIT_SIZE, UNIT_SIZE, org, pred_buf, i_org, UNIT_SIZE, bit_depth);
+                    u32 cost = com_had(UNIT_SIZE, UNIT_SIZE, org, i_org, pred_buf, UNIT_SIZE, bit_depth);
                     if (cost < min_cost) {
 #if WRITE_REC_PIC 
                         uavs3e_funs_handle.ipcpy[UNIT_WIDX](pred_buf, UNIT_SIZE, buf + y * pic_width + x, pic_width, UNIT_SIZE, UNIT_SIZE);
@@ -125,7 +171,7 @@ double loka_estimate_coding_cost(inter_search_t *pi, com_img_t *img_org, com_img
 
             if (is_bi) {
                 uavs3e_funs_handle.pel_avrg[UNIT_WIDX](pred_buf, UNIT_SIZE, pred_buf_fwd, pred_buf_bwd, UNIT_SIZE);
-                u32 cost = com_had(UNIT_SIZE, UNIT_SIZE, org, pred_buf, i_org, UNIT_SIZE, bit_depth);
+                u32 cost = com_had(UNIT_SIZE, UNIT_SIZE, org, i_org, pred_buf, UNIT_SIZE, bit_depth);
                 if (cost < min_cost) {
 #if WRITE_REC_PIC 
                     uavs3e_funs_handle.ipcpy[UNIT_WIDX](pred_buf, UNIT_SIZE, buf + y * pic_width + x, pic_width, UNIT_SIZE, UNIT_SIZE);
@@ -151,7 +197,7 @@ double loka_estimate_coding_cost(inter_search_t *pi, com_img_t *img_org, com_img
 
                 uavs3e_funs_handle.pel_avrg[UNIT_WIDX](pred_buf, UNIT_SIZE, pred_buf_fwd, pred_buf_bwd, UNIT_SIZE);
                 
-                cost = com_had(UNIT_SIZE, UNIT_SIZE, org, pred_buf, i_org, UNIT_SIZE, bit_depth);
+                cost = com_had(UNIT_SIZE, UNIT_SIZE, org, i_org, pred_buf, UNIT_SIZE, bit_depth);
                 if (cost < min_cost) {
 #if WRITE_REC_PIC 
                     uavs3e_funs_handle.ipcpy[UNIT_WIDX](pred_buf, UNIT_SIZE, buf + y * pic_width + x, pic_width, UNIT_SIZE, UNIT_SIZE);
@@ -167,10 +213,11 @@ double loka_estimate_coding_cost(inter_search_t *pi, com_img_t *img_org, com_img
             int avaliable_nb = (x ? AVAIL_LE : 0) | (y ? AVAIL_UP : 0) | ((x && y) ? AVAIL_UP_LE : 0);
             static tab_s8 ipm_tab[] = { 0, 1, 2, 4, 8, 12, 16, 20, 24, 28, 32 };
             u32 min_icost = COM_UINT64_MAX;
+            int best_mode;
 
             for (int i = 0; i < sizeof(ipm_tab); i++) {
                 com_intra_pred(nb_buf + INTRA_NEIB_MID, pred_buf, ipm_tab[i], UNIT_SIZE, UNIT_SIZE, bit_depth, avaliable_nb, 0);
-                u32 cost = com_had(UNIT_SIZE, UNIT_SIZE, org, pred_buf, i_org, UNIT_SIZE, bit_depth);
+                u32 cost = com_had(UNIT_SIZE, UNIT_SIZE, org, i_org, pred_buf, UNIT_SIZE, bit_depth);
 
                 if (cost < min_cost) {
 #if WRITE_REC_PIC 
@@ -180,10 +227,42 @@ double loka_estimate_coding_cost(inter_search_t *pi, com_img_t *img_org, com_img
                 }
                 if (cost < min_icost) {
                     min_icost = cost;
+                    best_mode = ipm_tab[i];
                 }
             }
-            total_cost += min_cost;
+            if (icost_uv) {
+                int xc = x >> 1;
+                int yc = y >> 1;
+                pel *orgu = (pel*)img_org->planes[1] + yc * i_org_c + xc;
+                pel *orgv = (pel*)img_org->planes[2] + yc * i_org_c + xc;
+
+                get_ipred_neighbor(nb_buf + INTRA_NEIB_MID, xc, yc, UNITC_SIZE, UNITC_SIZE, pic_width / 2, pic_height / 2, orgu, i_org_c, bit_depth);
+                com_intra_pred(nb_buf + INTRA_NEIB_MID, pred_buf, best_mode, UNITC_SIZE, UNITC_SIZE, bit_depth, avaliable_nb, 0);
+                total_icost_u += com_had(UNITC_SIZE, UNITC_SIZE, orgu, i_org_c, pred_buf, UNITC_SIZE, bit_depth);
+
+                get_ipred_neighbor(nb_buf + INTRA_NEIB_MID, xc, yc, UNITC_SIZE, UNITC_SIZE, pic_width / 2, pic_height / 2, orgv, i_org_c, bit_depth);
+                com_intra_pred(nb_buf + INTRA_NEIB_MID, pred_buf, best_mode, UNITC_SIZE, UNITC_SIZE, bit_depth, avaliable_nb, 0);
+                total_icost_v += com_had(UNITC_SIZE, UNITC_SIZE, orgv, i_org_c, pred_buf, UNITC_SIZE, bit_depth);
+            }
+
+            total_cost  += min_cost;
             total_icost += min_icost;
+
+            if (map_dqp) {
+                u64 energy = 0;
+                int xc = x >> 1;
+                int yc = y >> 1;
+                pel *orgu = (pel*)img_org->planes[1] + yc * i_org_c + xc;
+                pel *orgv = (pel*)img_org->planes[2] + yc * i_org_c + xc;
+
+                energy += uavs3e_funs_handle.cost_var[UNIT_WIDX](org, i_org);
+                energy += uavs3e_funs_handle.cost_var[UNITC_WIDX](orgu, i_org_c);
+                energy += uavs3e_funs_handle.cost_var[UNITC_WIDX](orgv, i_org_c);
+                energy >>= (bit_depth - 8) * 2;
+
+                var[x / UNIT_SIZE] = (float)(0.8 * log2((double)max(energy, 1)));
+                total_var += var[x / UNIT_SIZE];
+            }
         }        
     }
 
@@ -194,11 +273,23 @@ double loka_estimate_coding_cost(inter_search_t *pi, com_img_t *img_org, com_img
 
 #undef WRITE_REC_PIC
 
+    int blk_num = (pic_width / UNIT_SIZE) * (pic_height / UNIT_SIZE);
+
     if (icost) {
-        *icost = total_icost / (pic_width / UNIT_SIZE) / (pic_height / UNIT_SIZE) / UNIT_SIZE / UNIT_SIZE;
+        *icost = total_icost / blk_num / UNIT_SIZE / UNIT_SIZE;
+    }
+    if (icost_uv) {
+        icost_uv[0] = total_icost_u / blk_num / UNITC_SIZE / UNITC_SIZE;
+        icost_uv[1] = total_icost_v / blk_num / UNITC_SIZE / UNITC_SIZE;
     }
 
-    return total_cost / (pic_width / UNIT_SIZE) / (pic_height / UNIT_SIZE) / UNIT_SIZE / UNIT_SIZE;
+    if (map_dqp) {
+        float avg_var = (float)(total_var / blk_num);
+        for (int i = 0; i < blk_num; i++) {
+            map_dqp[i] -= avg_var;
+        }
+    }
+    return total_cost / blk_num / UNIT_SIZE / UNIT_SIZE;
 }
 
 double loka_get_sc_ratio(inter_search_t *pi, com_img_t *img_org, com_img_t *img_last, int bit_depth)
@@ -207,7 +298,7 @@ double loka_get_sc_ratio(inter_search_t *pi, com_img_t *img_org, com_img_t *img_
     com_img_t *ref_l0[1] = { img_last };
 
     double icost;
-    double pcost = loka_estimate_coding_cost(pi, img_org, ref_l0, NULL, num_refp, bit_depth, &icost);
+    double pcost = loka_estimate_coding_cost(pi, img_org, ref_l0, NULL, num_refp, bit_depth, &icost, NULL, NULL);
     return pcost / icost;
 }
 
@@ -219,7 +310,7 @@ static double loka_get_ref_cost(inter_search_t *pi, com_img_t *img_org, com_img_
     num_refp[0] = (ref0 == NULL ? 0 : 1);
     num_refp[1] = (ref1 == NULL ? 0 : 1);
 
-    double pcost = loka_estimate_coding_cost(pi, img_org, ref_l0, ref_l1, num_refp, bit_depth, NULL);
+    double pcost = loka_estimate_coding_cost(pi, img_org, ref_l0, ref_l1, num_refp, bit_depth, NULL, NULL, NULL);
     return pcost;
 }
 
@@ -238,46 +329,48 @@ static void push_sub_gop(enc_ctrl_t *h, int start, int num, int level)
 {
     if (num <= 2) {
         if (start < h->img_rsize) {
-            input_node_t *node = &h->node_list[h->node_size++];
-            node->img = h->img_rlist[start].img;
-            node->b_ref = 0;
-            node->layer_id = level;
-            node->type = SLICE_B;
+            add_input_node(h, h->img_rlist[start].img, 0, level, SLICE_B);
 
             if (num == 2 && start + 1 < h->img_rsize) {
-                node = &h->node_list[h->node_size++];
-                node->img = h->img_rlist[start + 1].img;
-                node->b_ref = 0;
-                node->layer_id = level;
-                node->type = SLICE_B;
+                add_input_node(h, h->img_rlist[start + 1].img, 0, level, SLICE_B);
             }
         }
     } else {
         int idx = start + num / 2;
 
         if (idx < h->img_rsize) {
-            input_node_t *node = &h->node_list[h->node_size++];
-            node->img = h->img_rlist[idx].img;
-            node->b_ref = 1;
-            node->layer_id = level;
-            node->type = SLICE_B;
+            add_input_node(h, h->img_rlist[idx].img, 1, level, SLICE_B);
         }
         push_sub_gop(h, start, num / 2, level + 1);
         push_sub_gop(h, idx + 1,  num - num / 2 - 1, level + 1);
     }
 }
 
-
 void loka_slicetype_decision(enc_ctrl_t *h)
 {
 #define UPDATE_LAST_IP(h,img) { com_img_release(h->img_lastIP);  h->img_lastIP = img; com_img_addref(img); }
 
     int bit_depth     = h->cfg.bit_depth_internal;
-    int next_ifrm_idx = h->cfg.i_period - (int)(h->img_rlist[0].img->ptr - h->lastI_ptr);
+    int next_ifrm_idx = h->cfg.i_period ? h->cfg.i_period - (int)(h->img_rlist[0].img->ptr - h->lastI_ptr) : h->img_rsize;
     int cur_ip_idx    = COM_MIN(h->cfg.max_b_frames, h->img_rsize - 1);
     double sc_threshold = 1.0 - h->cfg.scenecut / 100.0;
 
     cur_ip_idx = COM_MIN(cur_ip_idx, next_ifrm_idx);
+
+    for (int i = 0; i < cur_ip_idx; i++) { 
+        if (h->img_rlist[i].insert_idr) { // insert user-defined IDR frame
+            if (i > 0) {
+                add_input_node(h, h->img_rlist[i - 1].img, 1, FRM_DEPTH_1, SLICE_B);
+                if (i > 1) {
+                    push_sub_gop(h, 0, i - 1, FRM_DEPTH_2);
+                }
+            }
+            add_input_node(h, h->img_rlist[i].img, 1, FRM_DEPTH_0, SLICE_I);
+            update_last_ip(h, h->img_rlist[i].img, SLICE_I);
+            shift_reorder_list(h, i);
+            return;
+        }
+    }
 
     if (h->cfg.scenecut) {
         if (h->img_rlist[0].sc_ratio > sc_threshold) {

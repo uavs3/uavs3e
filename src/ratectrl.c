@@ -1,17 +1,36 @@
 /**************************************************************************************
- * Copyright (C) 2018-2019 uavs3e project
+ * Copyright (c) 2018-2020 ["Peking University Shenzhen Graduate School",
+ *   "Peng Cheng Laboratory", and "Guangdong Bohua UHD Innovation Corporation"]
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the Open-Intelligence Open Source License V1.1.
+ * All rights reserved.
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * Open-Intelligence Open Source License V1.1 for more details.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ * 3. All advertising materials mentioning features or use of this software
+ *    must display the following acknowledgement:
+ *    This product includes the software uAVS3d developed by
+ *    Peking University Shenzhen Graduate School, Peng Cheng Laboratory
+ *    and Guangdong Bohua UHD Innovation Corporation.
+ * 4. Neither the name of the organizations (Peking University Shenzhen Graduate School,
+ *    Peng Cheng Laboratory and Guangdong Bohua UHD Innovation Corporation) nor the
+ *    names of its contributors may be used to endorse or promote products
+ *    derived from this software without specific prior written permission.
  *
- * You should have received a copy of the Open-Intelligence Open Source License V1.1
- * along with this program; if not, you can download it on:
- * http://www.aitisa.org.cn/uploadfile/2018/0910/20180910031548314.pdf
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS ''AS IS'' AND ANY
+ * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+ * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDERS BE LIABLE FOR ANY
+ * DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * For more information, contact us at rgwang@pkusz.edu.cn.
  **************************************************************************************/
@@ -45,6 +64,11 @@ void rc_init(enc_rc_t* p, enc_cfg_t *param)
     p->rfConstant     = pow(CRF_DEFAULT_C, 1 - QCompress) / uavs3e_qp2qScale(param->rc_crf);
     p->target_bitrate = param->rc_bitrate * 1000.0;
     p->max_bitrate    = param->rc_max_bitrate * 1000.0;
+
+    if (p->max_bitrate && p->max_bitrate < p->target_bitrate) {
+        p->max_bitrate = p->target_bitrate;
+    }
+
     p->frame_rate     = param->fps_num * 1.0 / param->fps_den;
     p->frame_pixels   = param->pic_width * param->pic_height;
     p->min_qp         = param->rc_min_qp;
@@ -128,13 +152,17 @@ int rc_get_qp(enc_rc_t *p,  com_pic_t *pic, int qp_l0, int qp_l1)
     long long ptr = pic->img->ptr;
 
     if (layer_id > FRM_DEPTH_1) {
+        com_assert(qp_l0 >= 0);
+
         if (p->low_delay) {
-            com_assert(qp_l0 > 0);
             qp = enc_get_hgop_qp(qp_l0, layer_id, 1);
         } else {
-            com_assert(qp_l0 > 0);
-            com_assert(qp_l1 > 0);
-            qp = enc_get_hgop_qp((qp_l0 + qp_l1 * 3) / 4, layer_id, 0);
+            int weighted_qp = qp_l0;
+
+            if (qp_l1 > 0) {
+                weighted_qp = (qp_l0 + qp_l1 * 3) / 4;
+            }
+            qp = enc_get_hgop_qp(weighted_qp, layer_id, 0);
         }
         return (int)(COM_CLIP3(min_qp, max_qp, (qp + 0.5)));
     }
@@ -172,6 +200,9 @@ int rc_get_qp(enc_rc_t *p,  com_pic_t *pic, int qp_l0, int qp_l1)
 
     if (p->type == RC_TYPE_CRF) {
         qp = uavs3e_qScale2qp(blurredComplexity / p->rfConstant);
+        if (layer_id == FRM_DEPTH_0) {
+            qp -= 1;
+        }
     } else if(p->type == RC_TYPE_ABR) {
         if (p->total_factor == 0) {
             if (layer_id == FRM_DEPTH_0) { // first I frame, r-lambda model

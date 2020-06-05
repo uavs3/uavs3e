@@ -1,17 +1,36 @@
 /**************************************************************************************
- * Copyright (C) 2018-2019 uavs3e project
+ * Copyright (c) 2018-2020 ["Peking University Shenzhen Graduate School",
+ *   "Peng Cheng Laboratory", and "Guangdong Bohua UHD Innovation Corporation"]
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the Open-Intelligence Open Source License V1.1.
+ * All rights reserved.
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * Open-Intelligence Open Source License V1.1 for more details.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ * 3. All advertising materials mentioning features or use of this software
+ *    must display the following acknowledgement:
+ *    This product includes the software uAVS3d developed by
+ *    Peking University Shenzhen Graduate School, Peng Cheng Laboratory
+ *    and Guangdong Bohua UHD Innovation Corporation.
+ * 4. Neither the name of the organizations (Peking University Shenzhen Graduate School,
+ *    Peng Cheng Laboratory and Guangdong Bohua UHD Innovation Corporation) nor the
+ *    names of its contributors may be used to endorse or promote products
+ *    derived from this software without specific prior written permission.
  *
- * You should have received a copy of the Open-Intelligence Open Source License V1.1
- * along with this program; if not, you can download it on:
- * http://www.aitisa.org.cn/uploadfile/2018/0910/20180910031548314.pdf
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS ''AS IS'' AND ANY
+ * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+ * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDERS BE LIABLE FOR ANY
+ * DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * For more information, contact us at rgwang@pkusz.edu.cn.
  **************************************************************************************/
@@ -184,10 +203,7 @@ static avs3_inline void com_mv_rounding_s16(s32 hor, s32 ver, s16 *rounded_hor, 
 
 void com_get_affine_mvp_scaling(s64 ptr, int scup, int lidx, s8 cur_refi, \
                                 s16(*map_mv)[REFP_NUM][MV_D], s8(*map_refi)[REFP_NUM], com_ref_pic_t(*refp)[REFP_NUM], \
-                                int cu_width, int cu_height, int i_scu, CPMV mvp[VER_NUM][MV_D],
-                                com_scu_t *map_scu, u32 *map_pos, int vertex_num
-                                , u8 curr_mvr
-                               );
+                                int cu_width, int cu_height, int i_scu, CPMV mvp[VER_NUM][MV_D], com_scu_t *map_scu, u32 *map_pos, u8 curr_mvr);
 
 int com_get_affine_memory_access(CPMV mv[VER_NUM][MV_D], int cu_width, int cu_height);
 
@@ -210,9 +226,6 @@ void com_md5_img(com_img_t *img, u8 digest[16]);
 
 void com_check_split_mode(com_seqh_t *sqh, int *split_allow, int cu_width_log2, int cu_height_log2, int boundary, int boundary_b, int boundary_r, int log2_max_cuwh,
                           const int parent_split, int qt_depth, int bet_depth, int slice_type);
-
-
-void com_sbac_ctx_init(com_lbac_all_ctx_t *sbac_ctx);
 
 int  com_dt_allow(int cu_w, int cu_h, int pred_mode, int max_dt_size);
 
@@ -242,7 +255,6 @@ void cu_plane_nz_cln(int dst[MAX_NUM_TB][N_C], int plane);
 int is_cu_nz_equ(int dst[MAX_NUM_TB][N_C], int src[MAX_NUM_TB][N_C]);
 void cu_nz_cln(int dst[MAX_NUM_TB][N_C]);
 void check_set_tb_part(com_mode_t *mode);
-void check_tb_part(com_mode_t *mode);
 void copy_rec_y_to_pic(pel *src, int x, int y, int w, int h, int stride, com_pic_t *pic);
 
 u8 is_use_cons(int w, int h, split_mode_t split, u8 slice_type);
@@ -279,9 +291,11 @@ typedef struct uavs3e_funs_handle_t {
     void(*deblock_chroma[2])(pel *srcu, pel *srcv, int stride, int alphau, int betau, int alphav, int betav, int flag);
 
     void(*sao)(pel *src, int i_src, pel *dst, int i_dst, com_sao_param_t *sao_params, int height, int width, int avail_left, int avail_right, int avail_up, int avail_down, int bit_depth);
+    void(*sao_stat)(com_pic_t *pic_org, com_pic_t *pic_rec, com_sao_stat_t *saostatsData, int bit_depth, int compIdx, int pix_x, int pix_y, int lcu_pix_width, int lcu_pix_height, int lcu_available_left, int lcu_available_right, int lcu_available_up, int lcu_available_down);
 
     void(*alf)(pel *dst, int i_dst, pel *src, int i_src, int lcu_width, int lcu_height, int *coef, int sample_bit_depth);
     void(*alf_fix)(pel *dst, int i_dst, pel *src, int i_src, int lcu_width, int lcu_height, int *coef, int sample_bit_depth);
+    void(*alf_calc)(pel *p_org, int i_org, pel *p_alf, int i_alf, int xPos, int yPos, int width, int height, double eCorr[9][9], double yCorr[9], int isAboveAvail, int isBelowAvail);
 
     void(*ipcpy                      [CU_SIZE_NUM])(const pel *src, int i_src, pel *dst, int i_dst, int width, int height);
     void(*ipflt    [NUM_IPFILTER    ][CU_SIZE_NUM])(const pel *src, int i_src, pel *dst, int i_dst, int width, int height, const s8 *coeff, int max_val);
@@ -307,12 +321,17 @@ typedef struct uavs3e_funs_handle_t {
 
     u32 (*cost_satd[3][3])(pel *p_org, int i_org, pel *p_pred, int i_pred);
 
+    u64 (*cost_var[CU_SIZE_NUM])(pel* pix, int i_pix);
+
+    void(*ssim_4x4x2_core)(const pel *pix1, int stride1, const pel *pix2, int stride2, int sums[2][4]);
+    float(*ssim_end4)(int sum0[5][4], int sum1[5][4], int width, float ssim_c1, float ssim_c2);
+
     void(*pel_diff[CU_SIZE_NUM])(pel *org, int i_org, pel *pred, int i_pred, s16 *resi, int i_resi, int height);
     void(*pel_avrg[CU_SIZE_NUM])(pel *dst, int i_dst, pel *src1, pel *src2, int height);
 
-    void(*affine_sobel_flt_hor)(pel *pred, int i_pred, int *deriv, int i_deriv, int width, int height);
-    void(*affine_sobel_flt_ver)(pel *pred, int i_pred, int *deriv, int i_deriv, int width, int height);
-    void(*affine_coef_computer)(s16 *resi, int i_resi, int(*deriv)[MAX_CU_DIM], int i_deriv, s64(*coef)[7], int width, int height, int vertex_num);
+    void(*affine_sobel_flt_hor)(pel *pred, int i_pred, s16 *deriv, int i_deriv, int width, int height);
+    void(*affine_sobel_flt_ver)(pel *pred, int i_pred, s16 *deriv, int i_deriv, int width, int height);
+    void(*affine_coef_computer)(s16 *resi, int i_resi, s16(*deriv)[MAX_CU_DIM], int i_deriv, s64(*coef)[5], int width, int height);
 
     int(*quant_rdoq)(s16 *coef, int num, int q_value, int q_bits, s32 err_scale, int precision_bits, u32* abs_coef, s16* abs_level, s64 *uncoded_err);
     int(*quant_check)(s16 *coef, int num, int threshold);
@@ -351,10 +370,6 @@ void uavs3e_funs_init_c();
 int  uavs3e_simd_avx_level(int *phwavx);
 void uavs3e_funs_init_sse();
 void uavs3e_funs_init_avx2();
-#endif
-
-#if ENABLE_FUNCTION_ARM64
-//void uavs3e_funs_init_arm64();
 #endif
 
 void *uavs3e_align_malloc(int i_size);
@@ -397,7 +412,9 @@ static void avs3_always_inline wait_ref_available(com_pic_t *pic, int lines)
     }
 }
 
-u32 com_had(int w, int h, void *addr_org, void *addr_curr, int s_org, int s_cur, int bit_depth);
+u32 com_had(int w, int h, pel *org, int s_org, pel *cur, int s_cur, int bit_depth);
+
+float com_ssim_img_plane(pel *pix1, int stride1, pel *pix2, int stride2, int width, int height, int *cnt, int bit_depth);
 
 com_img_t *com_img_create(int w, int h, int pad[MAX_PLANES], int planes);
 void       com_img_free(com_img_t *img);

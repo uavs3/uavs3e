@@ -1,17 +1,36 @@
 /**************************************************************************************
- * Copyright (C) 2018-2019 uavs3e project
+ * Copyright (c) 2018-2020 ["Peking University Shenzhen Graduate School",
+ *   "Peng Cheng Laboratory", and "Guangdong Bohua UHD Innovation Corporation"]
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the Open-Intelligence Open Source License V1.1.
+ * All rights reserved.
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * Open-Intelligence Open Source License V1.1 for more details.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ * 3. All advertising materials mentioning features or use of this software
+ *    must display the following acknowledgement:
+ *    This product includes the software uAVS3d developed by
+ *    Peking University Shenzhen Graduate School, Peng Cheng Laboratory
+ *    and Guangdong Bohua UHD Innovation Corporation.
+ * 4. Neither the name of the organizations (Peking University Shenzhen Graduate School,
+ *    Peng Cheng Laboratory and Guangdong Bohua UHD Innovation Corporation) nor the
+ *    names of its contributors may be used to endorse or promote products
+ *    derived from this software without specific prior written permission.
  *
- * You should have received a copy of the Open-Intelligence Open Source License V1.1
- * along with this program; if not, you can download it on:
- * http://www.aitisa.org.cn/uploadfile/2018/0910/20180910031548314.pdf
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS ''AS IS'' AND ANY
+ * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+ * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDERS BE LIABLE FOR ANY
+ * DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * For more information, contact us at rgwang@pkusz.edu.cn.
  **************************************************************************************/
@@ -107,7 +126,7 @@ static app_cfg_t options[] = {
     {
         'p',  "i_period", CFG_TYPE_INTEGER,
         &cfg.i_period,
-        "I-picture period"
+        "I-picture period (0: Only one I frame)"
         ,0 
     },
     {
@@ -187,6 +206,12 @@ static app_cfg_t options[] = {
         ,0
     },
     {
+        CFG_KEY_NULL,  "chroma_dqp", CFG_TYPE_INTEGER,
+        &cfg.chroma_dqp,
+        "adaptive frame-level delta QP of chroma"
+        ,0
+    },
+    {
         CFG_KEY_NULL,  "qp_offset_cb", CFG_TYPE_INTEGER,
         &cfg.qp_offset_cb,
         "qp offset for cb, disable:0 (default)"
@@ -204,7 +229,6 @@ static app_cfg_t options[] = {
         "Level of coding speed"
         ,0 
     },
-
     {
         CFG_KEY_NULL,  "wpp_threads", CFG_TYPE_INTEGER,
         &cfg.wpp_threads,
@@ -218,9 +242,9 @@ static app_cfg_t options[] = {
         ,0 
     },
     {
-        CFG_KEY_NULL,  "lcu_delta_qp", CFG_TYPE_INTEGER,
-        &cfg.dqp_enable,
-        "Random qp for lcu, on/off flag"
+        CFG_KEY_NULL,  "adaptive_dqp", CFG_TYPE_INTEGER,
+        &cfg.adaptive_dqp,
+        "Variance  based Adaptive delta QP of LCU"
         ,0 
     },
     {
@@ -454,7 +478,7 @@ static app_cfg_t options[] = {
     {
         CFG_KEY_NULL, "rc_max_bitrate", CFG_TYPE_INTEGER,
         &cfg.rc_max_bitrate,
-        "rc_max_bitrate (kbps)"
+        "rc_max_bitrate (kbps), 0 is disable"
         ,0
     },
     {
@@ -773,7 +797,7 @@ static void print_stat_header(void)
     if (g_loglevel < FRAME_LOGLEVEL) {
         return;
     }
-    printf("--------------------------------------------------------------------------------------\n");
+    printf("-----------------------------------------------------------------------------------------------------------------------------------\n");
     printf("  Input YUV file           : %s \n", fn_input);
     if (strlen(fn_output) != 0) {
         printf("  Output bitstream         : %s \n", fn_output);
@@ -781,15 +805,14 @@ static void print_stat_header(void)
     if (strlen(fn_rec) != 0) {
         printf("  Output YUV file          : %s \n", fn_rec);
     }
-    printf("--------------------------------------------------------------------------------------\n");
-    printf("    POC  QP   PSNR-Y   PSNR-U   PSNR-V   Bits    EncT(ms)  Ext_info  Ref. List\n");
-    printf("--------------------------------------------------------------------------------------\n");
+    printf("-----------------------------------------------------------------------------------------------------------------------------------\n");
+    printf("    POC | QP |  PSNR-Y  PSNR-U  PSNR-V| SSIM-Y SSIM-U SSIM-V|   Bits |  Time |        Ref. List      | Ext_info\n");
     fflush(stdout);
 }
 
 static void print_config(void *h, enc_cfg_t param)
 {
-    printf("--------------------------------------------------------------------------------------\n");
+    printf("-----------------------------------------------------------------------------------------------------------------------------------\n");
     printf("< Sequence's Info >\n");
     printf("\tresolution input         : %d x %d\n", param.horizontal_size, param.vertical_size);
     printf("\tresolution coding        : %d x %d\n", param.pic_width, param.pic_height);
@@ -824,7 +847,6 @@ static void print_config(void *h, enc_cfg_t param)
         printf("\tmax_bitrate              : %d\n", param.rc_max_bitrate);
         printf("\tqp range                 : %d-%d\n", param.rc_min_qp, param.rc_max_qp);
     }
-    printf("\tdqp_enable               : %d\n", param.dqp_enable);
     printf("\tqp_offset_cb             : %d\n", param.qp_offset_cb);
     printf("\tqp_offset_cr             : %d\n", param.qp_offset_cr);
 
@@ -873,33 +895,21 @@ static void print_config(void *h, enc_cfg_t param)
     printf("\tQuant: WeightedQuant: %d ", param.wq_enable);
     printf("\n");
 
+    //encoder-side tools
+    printf("\tENC-Side Tools: chroma_qp(%d) ", param.chroma_dqp);
+    printf("AQ(%d) ", param.adaptive_dqp);
+
+    printf("\n");
+
+    //speed-up tools
+    printf("\tSpeed_level: %d", param.speed_level);
+
+    printf("\n");
+
     fflush(stdout);
 }
 
-static void find_psnr(com_img_t *org, com_img_t *rec, double psnr[3], int bit_depth)
-{
-    double sum[3], mse[3];
-    pel *o, *r;
-    int i, j, k;
-    int peak_val = (bit_depth == 8) ? 255 : 1023;
-    for (i = 0; i < org->num_planes; i++) {
-        o       = (pel *)org->planes[i];
-        r       = (pel *)rec->planes[i];
-        sum[i] = 0;
-        for (j = 0; j < org->height[i]; j++) {
-            for (k = 0; k < org->width[i]; k++) {
-                sum[i] += (o[k] - r[k]) * (o[k] - r[k]);
-            }
-            o = (pel *)((unsigned char *)o + org->stride[i]);
-            r = (pel *)((unsigned char *)r + rec->stride[i]);
-        }
-        mse[i] = sum[i] / (org->width[i] * org->height[i]);
-        // psnr[i] = (mse[i] == 0.0) ? 100. : fabs(10 * log10(((255 * 255 * 16) / mse[i])));
-        psnr[i] = (mse[i] == 0.0) ? 100. : fabs(10 * log10(((peak_val * peak_val) / mse[i])));
-    }
-}
-
-void print_psnr(enc_stat_t *stat, double *psnr, int bitrate, time_clk_t clk_end)
+void print_psnr(enc_stat_t *stat, double *psnr, double *ssim, int bitrate, time_clk_t clk_end)
 {
     char  type;
 
@@ -920,69 +930,25 @@ void print_psnr(enc_stat_t *stat, double *psnr, int bitrate, time_clk_t clk_end)
         break;
     }
 
-    print_log(1, "%5lld(%c)%3d%9.4f%9.4f%9.4f%8d%9d ", \
-            stat->poc, type, stat->qp, psnr[0], psnr[1], psnr[2], \
+    print_log(1, "%5lld(%c)|%4.1f|%8.4f%8.4f%8.4f|%7.4f%7.4f%7.4f|%8d|%7d|", \
+            stat->poc, type, stat->qp, psnr[0], psnr[1], psnr[2], ssim[0], ssim[1], ssim[2],\
             bitrate, clock_2_msec(clk_end));
 
-    print_log(1, " [%s] ", stat->ext_info);
-
     for (i = 0; i < 2; i++) {
-        print_log(1, "[L%d ", i);
+        print_log(1, "L%d ", i);
         for (j = 0; j < stat->refpic_num[i]; j++) {
-            print_log(1, "%lld ", stat->refpic[i][j]);
+            print_log(1, "%3lld ", stat->refpic[i][j]);
         }
-        print_log(1, "] ");
+        for (; j < 2; j++) {
+            print_log(1, "    ");
+        }
+        print_log(1, "|");
     }
+
+    print_log(1, "[%s] ", stat->ext_info);
 
     print_log(1, "\n");
     fflush(stdout);
-}
-
-void enc_cfg_init(enc_cfg_t *cfg)
-{
-    memset(cfg, 0, sizeof(enc_cfg_t));
-
-    cfg->qp                  =  34;
-    cfg->i_period            =  32;
-    cfg->bit_depth_internal  =   8;
-    cfg->use_pic_sign        =   1;
-    cfg->max_b_frames        =  15;
-    cfg->close_gop           =   0;
-    cfg->amvr_enable         =   1;
-    cfg->affine_enable       =   1;
-    cfg->smvd_enable         =   1;
-    cfg->use_deblock         =   1;
-    cfg->num_of_hmvp         =   8;
-    cfg->ipf_flag            =   1;
-    cfg->tscpm_enable        =   1;
-    cfg->umve_enable         =   1;
-    cfg->emvr_enable         =   1;
-    cfg->dt_enable           =   1;
-    cfg->wq_enable           =   0;
-    cfg->sao_enable          =   1;
-    cfg->alf_enable          =   1;
-    cfg->sectrans_enable     =   1;
-    cfg->pbt_enable          =   1;
-    cfg->dqp_enable          =   0;
-    cfg->chroma_format       =   1;
-    cfg->filter_cross_patch  =   1;
-    cfg->colocated_patch     =   0;
-    cfg->patch_width         =   0;
-    cfg->patch_height        =   0;
-    cfg->ctu_size            = 128;
-    cfg->min_cu_size         =   4;
-    cfg->max_part_ratio      =   8;
-    cfg->max_split_times     =   6;
-    cfg->min_qt_size         =   8;
-    cfg->max_bt_size         = 128;
-    cfg->max_eqt_size        =  64;
-    cfg->max_dt_size         =  64;
-    cfg->qp_offset_cb        =   0;
-    cfg->qp_offset_cr        =   0;
-    cfg->speed_level         =   0;
-    cfg->wpp_threads         =   1;
-    cfg->frm_threads         =   1;
-    cfg->rc_type             =   0;
 }
 
 int main(int argc, const char **argv)
@@ -1000,12 +966,13 @@ int main(int argc, const char **argv)
     long long          frame_cnt;
     int                num_encoded_frames = 0;
     double             bitrate;
-    double             psnr[3] = {0,};
-    double             psnr_avg[3] = {0,};
+    double             psnr[3], ssim[3];
+    double             psnr_avg[3] = { 0 };
+    double             ssim_avg[3] = { 0 };
     com_img_t          *tmp_img = NULL;
     int fd_rec = 0;
 
-    enc_cfg_init(&cfg);
+    uavs3e_load_default_cfg(&cfg);
 
     srand((unsigned int)(time(NULL)));
 
@@ -1091,6 +1058,7 @@ int main(int argc, const char **argv)
         }
         /* encoding */
         time_start = app_get_time();
+        stat.insert_idr = 0;
 
         ret = uavs3e_enc(h, &stat, img_enc);
 
@@ -1115,9 +1083,9 @@ int main(int argc, const char **argv)
                 return -1;
             }
 
-            /* calculate PSNR */
-            psnr[0] = psnr[1] = psnr[2] = 0;
-            find_psnr(stat.org_img, img_rec, psnr, cfg.bit_depth_internal);
+            /* calculate PSNR & SSIM */
+            uavs3e_find_psnr(stat.org_img, img_rec, psnr, cfg.bit_depth_internal);
+            uavs3e_find_ssim(stat.org_img, img_rec, ssim, cfg.bit_depth_internal);
 
             /* store reconstructed image to list only for writing out */
             if (fd_rec > 0) {
@@ -1128,12 +1096,15 @@ int main(int argc, const char **argv)
                 }
             }
 
-            print_psnr(&stat, psnr, (stat.bytes - stat.user_bytes) << 3, time_dur);
+            print_psnr(&stat, psnr, ssim, (stat.bytes - stat.user_bytes) << 3, time_dur);
+
             bitrate += (stat.bytes - stat.user_bytes);
 
             for (i = 0; i < 3; i++) {
                 psnr_avg[i] += psnr[i];
+                ssim_avg[i] += ssim[i];
             }
+
         } else if (ret == COM_OK_NO_MORE_FRM) {
             break;
         } else {
@@ -1148,14 +1119,20 @@ int main(int argc, const char **argv)
         _write(fdo, end_code, 4);
     }
 
-    print_log(1, "===============================================================================\n");
+    print_log(1, "\n\n===============================================================================\n");
     psnr_avg[0] /= frame_cnt;
     psnr_avg[1] /= frame_cnt;
     psnr_avg[2] /= frame_cnt;
+    ssim_avg[0] /= frame_cnt;
+    ssim_avg[1] /= frame_cnt;
+    ssim_avg[2] /= frame_cnt;
 
     print_log(1, "  PSNR Y(dB)       : %-5.4f\n", psnr_avg[0]);
     print_log(1, "  PSNR U(dB)       : %-5.4f\n", psnr_avg[1]);
     print_log(1, "  PSNR V(dB)       : %-5.4f\n", psnr_avg[2]);
+    print_log(1, "  SSIM Y(dB)       : %-5.4f\n", ssim_avg[0]);
+    print_log(1, "  SSIM U(dB)       : %-5.4f\n", ssim_avg[1]);
+    print_log(1, "  SSIM V(dB)       : %-5.4f\n", ssim_avg[2]);
 
     print_log(1, "  Total bits(bits) : %-.0f\n", bitrate * 8);
     bitrate *= (cfg.fps_num / cfg.fps_den * 8);
@@ -1177,7 +1154,9 @@ int main(int argc, const char **argv)
 
 #if 1
     FILE *fp = fopen("psnr.txt", "a+");
-    fprintf(fp, "%s %.4f %.4f %.4f %.4f    %.5f\n", fn_output, bitrate, psnr_avg[0], psnr_avg[1], psnr_avg[2], 
+    fprintf(fp, "%s    %.4f %.4f %.4f %.4f    %.4f %.4f %.4f    %.5f\n", fn_output, bitrate, 
+                                                    psnr_avg[0], psnr_avg[1], psnr_avg[2],
+                                                    ssim_avg[0], ssim_avg[1], ssim_avg[2],
                                                    ((float)frame_cnt * 1000) / ((float)clock_2_msec(total_time)));
     fclose(fp);
 #endif
@@ -1196,6 +1175,7 @@ int main(int argc, const char **argv)
 
     image_free(tmp_img);
 
+    // getchar();
     // getchar();
 
     return 0;

@@ -1,17 +1,36 @@
 /**************************************************************************************
- * Copyright (C) 2018-2019 uavs3e project
+ * Copyright (c) 2018-2020 ["Peking University Shenzhen Graduate School",
+ *   "Peng Cheng Laboratory", and "Guangdong Bohua UHD Innovation Corporation"]
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the Open-Intelligence Open Source License V1.1.
+ * All rights reserved.
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * Open-Intelligence Open Source License V1.1 for more details.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ * 3. All advertising materials mentioning features or use of this software
+ *    must display the following acknowledgement:
+ *    This product includes the software uAVS3d developed by
+ *    Peking University Shenzhen Graduate School, Peng Cheng Laboratory
+ *    and Guangdong Bohua UHD Innovation Corporation.
+ * 4. Neither the name of the organizations (Peking University Shenzhen Graduate School,
+ *    Peng Cheng Laboratory and Guangdong Bohua UHD Innovation Corporation) nor the
+ *    names of its contributors may be used to endorse or promote products
+ *    derived from this software without specific prior written permission.
  *
- * You should have received a copy of the Open-Intelligence Open Source License V1.1
- * along with this program; if not, you can download it on:
- * http://www.aitisa.org.cn/uploadfile/2018/0910/20180910031548314.pdf
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS ''AS IS'' AND ANY
+ * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+ * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDERS BE LIABLE FOR ANY
+ * DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * For more information, contact us at rgwang@pkusz.edu.cn.
  **************************************************************************************/
@@ -76,10 +95,10 @@ static void rdoq_get_sym_bits(s32 *pbits, lbac_ctx_model_t *cm)
     u16 prob_lps = ((*cm) & PROB_MASK) >> 1;
 
     if ((*cm) & 1) {
-        pbits[0] = tbl_rdoq_prob_2_bits[prob_lps              >> ENTROPY_BITS_TABLE_BiTS_SHIFP];
+        pbits[0] = tbl_rdoq_prob_2_bits[            prob_lps  >> ENTROPY_BITS_TABLE_BiTS_SHIFP];
         pbits[1] = tbl_rdoq_prob_2_bits[(MAX_PROB - prob_lps) >> ENTROPY_BITS_TABLE_BiTS_SHIFP];
     } else {
-        pbits[1] = tbl_rdoq_prob_2_bits[prob_lps              >> ENTROPY_BITS_TABLE_BiTS_SHIFP];
+        pbits[1] = tbl_rdoq_prob_2_bits[            prob_lps  >> ENTROPY_BITS_TABLE_BiTS_SHIFP];
         pbits[0] = tbl_rdoq_prob_2_bits[(MAX_PROB - prob_lps) >> ENTROPY_BITS_TABLE_BiTS_SHIFP];
     }
 }
@@ -116,28 +135,21 @@ static void rdoq_get_sym_bitsW(s32 *pbits, lbac_ctx_model_t *cm1, lbac_ctx_model
 
 void rdoq_init_cu_est_bits(core_t *core, lbac_t *lbac)
 {
-    int h;
- 
     rdoq_get_sym_bits(core->rdoq_bin_est_ctp, lbac->h.ctp_zero_flag);
 
-    for (h = 0; h < LBAC_CTX_CBF; h++) {
+    for (int h = 0; h < LBAC_CTX_CBF; h++) {
         rdoq_get_sym_bits(core->rdoq_bin_est_cbf[h], lbac->h.cbf + h);
     }
-    for (h = 0; h < LBAC_CTX_RUN_RDOQ; h++) {
+    for (int h = 0; h < LBAC_CTX_RUN_RDOQ; h++) {
         rdoq_get_sym_bits(core->rdoq_bin_est_run[h], lbac->h.run_rdoq + h);
     }
-    for (h = 0; h < LBAC_CTX_LEVEL; h++) {
+    for (int h = 0; h < LBAC_CTX_LEVEL; h++) {
         rdoq_get_sym_bits(core->rdoq_bin_est_lvl[h], lbac->h.level + h);
     }
-    for (h = 0; h < 2; h++) { // luma / chroma
-        int i, j;
-        int chroma_offset1 = h * LBAC_CTX_LAST1;
-        int chroma_offset2 = h * LBAC_CTX_LAST2;
-
-        for (i = 0; i < LBAC_CTX_LAST1; i++) {
-            for (j = 0; j < LBAC_CTX_LAST2; j++) {
-                rdoq_get_sym_bitsW(core->rdoq_bin_est_lst[h][i][j], lbac->h.last1 + i + chroma_offset1, lbac->h.last2 + j + chroma_offset2);
-            }
+    for (int i = 0; i < LBAC_CTX_LAST1; i++) {
+        for (int j = 0; j < LBAC_CTX_LAST2; j++) {
+            rdoq_get_sym_bitsW(core->rdoq_bin_est_lst[0][i][j], lbac->h.last1 + i,                  lbac->h.last2 + j);
+            rdoq_get_sym_bitsW(core->rdoq_bin_est_lst[1][i][j], lbac->h.last1 + i + LBAC_CTX_LAST1, lbac->h.last2 + j + LBAC_CTX_LAST2);
         }
     }
 }
@@ -192,14 +204,10 @@ static int rdoq_quant_block(core_t *core, int slice_type, int qp, double d_lambd
     const int ns_offset = ((cu_width_log2 + cu_height_log2) & 1) ? (1 << (ns_shift - 1)) : 0;
     const int q_value = (scale * ns_scale + ns_offset) >> ns_shift;
     const int max_num_coef = 1 << (cu_width_log2 + cu_height_log2);
-
-#define FAST_RDOQ_INTRA_RND_OFST  201
-#define FAST_RDOQ_INTER_RND_OFST  153 
-
-    int offset = ((slice_type == SLICE_I) ? FAST_RDOQ_INTRA_RND_OFST : FAST_RDOQ_INTER_RND_OFST) << (q_bits - 9);
-    int nz_threshold = ((((1 << q_bits) - offset) << 10) / q_value - 1) >> 10;
-
     const int max_used_coef = 1 << (cu_width_log2 + COM_MIN(5, cu_height_log2));
+
+    int offset = ((slice_type == SLICE_I) ? 201 : 153) << (q_bits - 9);
+    int nz_threshold = ((((1 << q_bits) - offset) << 10) / q_value - 1) >> 10;
 
     if (uavs3e_funs_handle.quant_check(coef, max_used_coef, nz_threshold)) {
         return 0;
@@ -320,6 +328,9 @@ int quant_non_zero(core_t *core, int qp, double lambda, int is_intra, s16 *coef,
             p += width;
         }
     }
+    if (height > 32) {
+        memset(coef + width * height / 2, 0, width * height / 2 * sizeof(s16));
+    }
 
     if (!core->pichdr->pic_wq_enable) {
         num_nz_coef = rdoq_quant_block(core, slice_type, qp, lambda, is_intra, coef, cu_width_log2, cu_height_log2, ch_type, bit_depth);
@@ -337,10 +348,6 @@ int quant_non_zero(core_t *core, int qp, double lambda, int is_intra, s16 *coef,
         int idx_shift;
         int idx_step;
         u8 *wq;
-
-        if (height > 32) {
-            memset(coef + 32 * width, 0, sizeof(s16) * width * height - 32 * width);
-        }
 
         tr_shift = COM_GET_TRANS_SHIFT(bit_depth, log2_size - ns_shift);
         shift = QUANT_SHIFT + tr_shift;

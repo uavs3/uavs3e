@@ -1,20 +1,39 @@
 /**************************************************************************************
- * Copyright (C) 2018-2019 uavs3e project
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the Open-Intelligence Open Source License V1.1.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * Open-Intelligence Open Source License V1.1 for more details.
- *
- * You should have received a copy of the Open-Intelligence Open Source License V1.1
- * along with this program; if not, you can download it on:
- * http://www.aitisa.org.cn/uploadfile/2018/0910/20180910031548314.pdf
- *
- * For more information, contact us at rgwang@pkusz.edu.cn.
- **************************************************************************************/
+* Copyright (c) 2018-2020 ["Peking University Shenzhen Graduate School",
+*   "Peng Cheng Laboratory", and "Guangdong Bohua UHD Innovation Corporation"]
+*
+* All rights reserved.
+*
+* Redistribution and use in source and binary forms, with or without
+* modification, are permitted provided that the following conditions are met:
+* 1. Redistributions of source code must retain the above copyright
+*    notice, this list of conditions and the following disclaimer.
+* 2. Redistributions in binary form must reproduce the above copyright
+*    notice, this list of conditions and the following disclaimer in the
+*    documentation and/or other materials provided with the distribution.
+* 3. All advertising materials mentioning features or use of this software
+*    must display the following acknowledgement:
+*    This product includes the software uAVS3d developed by
+*    Peking University Shenzhen Graduate School, Peng Cheng Laboratory
+*    and Guangdong Bohua UHD Innovation Corporation.
+* 4. Neither the name of the organizations (Peking University Shenzhen Graduate School,
+*    Peng Cheng Laboratory and Guangdong Bohua UHD Innovation Corporation) nor the
+*    names of its contributors may be used to endorse or promote products
+*    derived from this software without specific prior written permission.
+*
+* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS ''AS IS'' AND ANY
+* EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+* WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+* DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDERS BE LIABLE FOR ANY
+* DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+* (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+* LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+* ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+* (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+* SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+*
+* For more information, contact us at rgwang@pkusz.edu.cn.
+**************************************************************************************/
 
 #include "com_util.h"
 
@@ -1425,10 +1444,6 @@ void com_check_split_mode(com_seqh_t *sqh, int *split_allow, int cu_width_log2, 
 
 void com_set_affine_mvf(int scup, int log2_cuw, int log2_cuh, int i_scu, com_mode_t *cur_info, com_map_t *pic_map, com_pic_header_t *sh)
 {
-    int   cu_w_in_scu, cu_h_in_scu;
-    int   sub_w_in_scu, sub_h_in_scu;
-    int   w_sch, h_sch, x, y;
-    int   lidx;
     int   cp_num = cur_info->affine_flag + 1;
     int   aff_scup[VER_NUM];
     int   sub_w = 4;
@@ -1443,53 +1458,51 @@ void com_set_affine_mvf(int scup, int log2_cuw, int log2_cuh, int i_scu, com_mod
         sub_h = 8;
     }
 
-    int   half_w = sub_w >> 1;
-    int   half_h = sub_h >> 1;
-    int   addr_in_scu;
+    int half_w = sub_w >> 1;
+    int half_h = sub_h >> 1;
+    int cu_w_in_scu = (1 << log2_cuw) >> MIN_CU_LOG2;
+    int cu_h_in_scu = (1 << log2_cuh) >> MIN_CU_LOG2;
+    int sub_w_in_scu = sub_w >> MIN_CU_LOG2;
+    int sub_h_in_scu = sub_h >> MIN_CU_LOG2;
 
-    cu_w_in_scu = (1 << log2_cuw) >> MIN_CU_LOG2;
-    cu_h_in_scu = (1 << log2_cuh) >> MIN_CU_LOG2;
-    sub_w_in_scu = sub_w >> MIN_CU_LOG2;
-    sub_h_in_scu = sub_h >> MIN_CU_LOG2;
+    s8(*map_refi)[REFP_NUM] = pic_map->map_refi + scup;
 
-    addr_in_scu = scup;
-    for (h_sch = 0; h_sch < cu_h_in_scu; h_sch++) {
-        for (w_sch = 0; w_sch < cu_w_in_scu; w_sch++) {
-            pic_map->map_refi[addr_in_scu + w_sch][REFP_0] = cur_info->refi[REFP_0];
-            pic_map->map_refi[addr_in_scu + w_sch][REFP_1] = cur_info->refi[REFP_1];
-            pic_map->map_mv[addr_in_scu + w_sch][REFP_0][MV_X] = 0;
-            pic_map->map_mv[addr_in_scu + w_sch][REFP_0][MV_Y] = 0;
-            pic_map->map_mv[addr_in_scu + w_sch][REFP_1][MV_X] = 0;
-            pic_map->map_mv[addr_in_scu + w_sch][REFP_1][MV_Y] = 0;
+    for (int h_sch = 0; h_sch < cu_h_in_scu; h_sch++) {
+        for (int w_sch = 0; w_sch < cu_w_in_scu; w_sch++) {
+            CP16(map_refi + w_sch, cur_info->refi);
         }
-        addr_in_scu += i_scu;
+        map_refi += i_scu;
     }
 
     aff_scup[0] = 0;
     aff_scup[1] = (cu_w_in_scu - 1);
     aff_scup[2] = (cu_h_in_scu - 1) * i_scu;
     aff_scup[3] = (cu_w_in_scu - 1) + (cu_h_in_scu - 1) * i_scu;
-    for (lidx = 0; lidx < REFP_NUM; lidx++) {
+
+    for (int lidx = 0; lidx < REFP_NUM; lidx++) {
         if (cur_info->refi[lidx] >= 0) {
             CPMV(*ac_mv)[MV_D] = cur_info->affine_mv[lidx];
-            s32 dmv_hor_x, dmv_ver_x, dmv_hor_y, dmv_ver_y;
+            s32 dmv_ver_x, dmv_ver_y;
             s32 mv_scale_hor = (s32)ac_mv[0][MV_X] << 7;
             s32 mv_scale_ver = (s32)ac_mv[0][MV_Y] << 7;
             s32 mv_scale_tmp_hor, mv_scale_tmp_ver;
 
             // convert to 2^(storeBit + iBit) precision
-            dmv_hor_x = (((s32)ac_mv[1][MV_X] - (s32)ac_mv[0][MV_X]) << 7) >> log2_cuw;     // deltaMvHor
-            dmv_hor_y = (((s32)ac_mv[1][MV_Y] - (s32)ac_mv[0][MV_Y]) << 7) >> log2_cuw;
+            s32 dmv_hor_x = (((s32)ac_mv[1][MV_X] - (s32)ac_mv[0][MV_X]) << 7) >> log2_cuw;
+            s32 dmv_hor_y = (((s32)ac_mv[1][MV_Y] - (s32)ac_mv[0][MV_Y]) << 7) >> log2_cuw;
+
             if (cp_num == 3) {
-                dmv_ver_x = (((s32)ac_mv[2][MV_X] - (s32)ac_mv[0][MV_X]) << 7) >> log2_cuh; // deltaMvVer
+                dmv_ver_x = (((s32)ac_mv[2][MV_X] - (s32)ac_mv[0][MV_X]) << 7) >> log2_cuh;
                 dmv_ver_y = (((s32)ac_mv[2][MV_Y] - (s32)ac_mv[0][MV_Y]) << 7) >> log2_cuh;
             } else {
-                dmv_ver_x = -dmv_hor_y;                                                     // deltaMvVer
-                dmv_ver_y = dmv_hor_x;
+                dmv_ver_x = -dmv_hor_y;                                                    
+                dmv_ver_y =  dmv_hor_x;
             }
 
-            for (h_sch = 0; h_sch < cu_h_in_scu; h_sch += sub_h_in_scu) {
-                for (w_sch = 0; w_sch < cu_w_in_scu; w_sch += sub_w_in_scu) {
+            s16(*map_mv)[REFP_NUM][MV_D] = pic_map->map_mv + scup; 
+
+            for (int h_sch = 0; h_sch < cu_h_in_scu; h_sch += sub_h_in_scu) {
+                for (int w_sch = 0; w_sch < cu_w_in_scu; w_sch += sub_w_in_scu) {
                     int pos_x = (w_sch << MIN_CU_LOG2) + half_w;
                     int pos_y = (h_sch << MIN_CU_LOG2) + half_h;
                     if (w_sch == 0 && h_sch == 0) {
@@ -1517,14 +1530,19 @@ void com_set_affine_mvf(int scup, int log2_cuw, int log2_cuh, int i_scu, com_mod
                     mv_scale_tmp_ver = COM_CLIP3(COM_INT16_MIN, COM_INT16_MAX, mv_scale_tmp_ver);
 
                     // save MV for each 4x4 block
-                    for (y = h_sch; y < h_sch + sub_h_in_scu; y++) {
-                        for (x = w_sch; x < w_sch + sub_w_in_scu; x++) {
-                            addr_in_scu = scup + x + y * i_scu;
-                            pic_map->map_mv[addr_in_scu][lidx][MV_X] = (s16)mv_scale_tmp_hor;
-                            pic_map->map_mv[addr_in_scu][lidx][MV_Y] = (s16)mv_scale_tmp_ver;
-                        }
-                    }
+                    map_mv[w_sch][lidx][MV_X] = (s16)mv_scale_tmp_hor;
+                    map_mv[w_sch][lidx][MV_Y] = (s16)mv_scale_tmp_ver;
+
+                    if (sub_w_in_scu > 1) {
+                        map_mv[w_sch +         1][lidx][MV_X] = (s16)mv_scale_tmp_hor;
+                        map_mv[w_sch +         1][lidx][MV_Y] = (s16)mv_scale_tmp_ver;
+                        map_mv[w_sch + i_scu    ][lidx][MV_X] = (s16)mv_scale_tmp_hor;
+                        map_mv[w_sch + i_scu    ][lidx][MV_Y] = (s16)mv_scale_tmp_ver;
+                        map_mv[w_sch + i_scu + 1][lidx][MV_X] = (s16)mv_scale_tmp_hor;
+                        map_mv[w_sch + i_scu + 1][lidx][MV_Y] = (s16)mv_scale_tmp_ver;
+                    } 
                 }
+                map_mv += sub_h_in_scu * i_scu;
             }
         }
     }
@@ -1963,16 +1981,14 @@ int com_get_affine_merge_candidate(s64 ptr, int scup, s8(*map_refi)[REFP_NUM], s
 /* inter affine mode */
 void com_get_affine_mvp_scaling(s64 ptr, int scup, int lidx, s8 cur_refi, \
                                 s16(*map_mv)[REFP_NUM][MV_D], s8(*map_refi)[REFP_NUM], com_ref_pic_t(*refp)[REFP_NUM], \
-                                int cu_width, int cu_height, int i_scu, CPMV mvp[VER_NUM][MV_D], com_scu_t *map_scu, u32 *map_pos, int vertex_num
-                                , u8 curr_mvr
-                               )
+                                int cu_width, int cu_height, int i_scu, CPMV mvp[VER_NUM][MV_D], com_scu_t *map_scu, u32 *map_pos, u8 curr_mvr)
 {
     s64 ptr_cur_ref;
     int x_scu = scup % i_scu;
     int y_scu = scup / i_scu;
     int cu_width_in_scu = cu_width >> MIN_CU_LOG2;
     int cnt = 0, cnt_lt = 0, cnt_rt = 0;
-    int i, j, k;
+    int i, k;
 
     s16 mvp_lt[MV_D], mvp_rt[MV_D];
     int neb_addr_lt[AFFINE_MAX_NUM_LT];
@@ -1981,10 +1997,7 @@ void com_get_affine_mvp_scaling(s64 ptr, int scup, int lidx, s8 cur_refi, \
     int valid_flag_rt[AFFINE_MAX_NUM_RT];
 
     ptr_cur_ref = refp[cur_refi][lidx].ptr;
-    for (j = 0; j < VER_NUM; j++) {
-        mvp[j][MV_X] = 0;
-        mvp[j][MV_Y] = 0;
-    }
+    memset(mvp, 0, VER_NUM * sizeof(CPMV) * MV_D);
 
     //-------------------  LT  -------------------//
     neb_addr_lt[0] = scup - 1;                     // A
@@ -2004,8 +2017,7 @@ void com_get_affine_mvp_scaling(s64 ptr, int scup, int lidx, s8 cur_refi, \
     }
 
     if (cnt_lt == 0) {
-        mvp_lt[MV_X] = 0;
-        mvp_lt[MV_Y] = 0;
+        M32(mvp_lt) = 0;
         cnt_lt++;
     }
 
@@ -2025,8 +2037,7 @@ void com_get_affine_mvp_scaling(s64 ptr, int scup, int lidx, s8 cur_refi, \
     }
 
     if (cnt_rt == 0) {
-        mvp_rt[MV_X] = 0;
-        mvp_rt[MV_Y] = 0;
+        M32(mvp_rt) = 0;
         cnt_rt++;
     }
 
@@ -2034,7 +2045,6 @@ void com_get_affine_mvp_scaling(s64 ptr, int scup, int lidx, s8 cur_refi, \
     mvp[0][MV_Y] = mvp_lt[MV_Y];
     mvp[1][MV_X] = mvp_rt[MV_X];
     mvp[1][MV_Y] = mvp_rt[MV_Y];
-
 
     for (i = 0; i < 2; i++) {
         // convert to 1/16 precision
@@ -2050,23 +2060,6 @@ void com_get_affine_mvp_scaling(s64 ptr, int scup, int lidx, s8 cur_refi, \
         mvp[i][MV_Y] = (CPMV)COM_CLIP3(COM_CPMV_MIN, COM_CPMV_MAX, mvp_y);
     }
 }
-
-
-void com_sbac_ctx_init(com_lbac_all_ctx_t *sbac_ctx)
-{
-    int i, num;
-    lbac_ctx_model_t *p;
-    com_mset(sbac_ctx, 0x00, sizeof(*sbac_ctx));
-
-    /* Initialization of the context models */
-    num = sizeof(com_lbac_all_ctx_t) / sizeof(lbac_ctx_model_t);
-    p = (lbac_ctx_model_t *)sbac_ctx;
-
-    for (i = 0; i < num; i++) {
-        p[i] = PROB_INIT;
-    }
-}
-
 
 int com_split_part_count(int split_mode)
 {
@@ -2263,8 +2256,8 @@ void com_split_get_split_rdo_order(int cu_width, int cu_height, split_mode_t spl
     splits[0] = NO_SPLIT;
     //qt must be tried first; otherwise, due to the split save & load fast algorithm, qt will be never tried in RDO (previous split decision is made base on bt/eqt)
     splits[1] = SPLIT_QUAD;
-    splits[2] = cu_width < cu_height ? SPLIT_BI_HOR : SPLIT_BI_VER;
-    splits[3] = cu_width < cu_height ? SPLIT_BI_VER : SPLIT_BI_HOR;
+    splits[2] = cu_width < cu_height ? SPLIT_BI_HOR  : SPLIT_BI_VER;
+    splits[3] = cu_width < cu_height ? SPLIT_BI_VER  : SPLIT_BI_HOR;
     splits[4] = cu_width < cu_height ? SPLIT_EQT_HOR : SPLIT_EQT_VER;
     splits[5] = cu_width < cu_height ? SPLIT_EQT_VER : SPLIT_EQT_HOR;
 }
@@ -2881,13 +2874,6 @@ void check_set_tb_part(com_mode_t *mode)
     }
 }
 
-void check_tb_part(com_mode_t *mode)
-{
-    if (!is_cu_plane_nz(mode->num_nz, Y_C) && mode->tb_part != SIZE_2Nx2N) {
-        com_assert(0);
-    }
-}
-
 void copy_rec_y_to_pic(pel *src, int x, int y, int w, int h, int stride, com_pic_t *pic)
 {
     pel *dst;
@@ -2976,7 +2962,7 @@ void init_pic_wq_matrix(u8 *pic_wq_matrix4x4, u8 *pic_wq_matrix8x8)
     }
 }
 
-static void affine_sobel_flt_hor(pel *pred, int i_pred, int *deriv, int i_deriv, int width, int height)
+static void affine_sobel_flt_hor(pel *pred, int i_pred, s16 *deriv, int i_deriv, int width, int height)
 {
     int j, k;
     for (j = 1; j < height - 1; j++) {
@@ -3003,7 +2989,7 @@ static void affine_sobel_flt_hor(pel *pred, int i_pred, int *deriv, int i_deriv,
     }
 }
 
-static void affine_sobel_flt_ver(pel *pred, int i_pred, int *deriv, int i_deriv, int width, int height)
+static void affine_sobel_flt_ver(pel *pred, int i_pred, s16 *deriv, int i_deriv, int width, int height)
 {
     int k, j;
     for (k = 1; k < width - 1; k++) {
@@ -3030,38 +3016,30 @@ static void affine_sobel_flt_ver(pel *pred, int i_pred, int *deriv, int i_deriv,
     }
 }
 
-static void affine_coef_computer(s16 *resi, int i_resi, int(*deriv)[MAX_CU_DIM], int i_deriv, s64(*coef)[7], int width, int height, int vertex_num)
+static void affine_coef_computer(s16 *resi, int i_resi, s16(*deriv)[MAX_CU_DIM], int i_deriv, s64(*coef)[5], int width, int height)
 {
-    int affine_param_num = (vertex_num << 1);
     int j, k, col, row;
     for (j = 0; j != height; j++) {
         for (k = 0; k != width; k++) {
             s64 intermediates[2];
             int iC[6];
             int iIdx = j * i_deriv + k;
-            if (vertex_num == 2) {
-                iC[0] = deriv[0][iIdx];
-                iC[1] = k * deriv[0][iIdx];
-                iC[1] += j * deriv[1][iIdx];
-                iC[2] = deriv[1][iIdx];
-                iC[3] = j * deriv[0][iIdx];
-                iC[3] -= k * deriv[1][iIdx];
-            } else {
-                iC[0] = deriv[0][iIdx];
-                iC[1] = k * deriv[0][iIdx];
-                iC[2] = deriv[1][iIdx];
-                iC[3] = k * deriv[1][iIdx];
-                iC[4] = j * deriv[0][iIdx];
-                iC[5] = j * deriv[1][iIdx];
-            }
-            for (col = 0; col < affine_param_num; col++) {
+  
+            iC[0] = deriv[0][iIdx];
+            iC[1] = k * deriv[0][iIdx];
+            iC[1] += j * deriv[1][iIdx];
+            iC[2] = deriv[1][iIdx];
+            iC[3] = j * deriv[0][iIdx];
+            iC[3] -= k * deriv[1][iIdx];
+
+            for (col = 0; col < 4; col++) {
                 intermediates[0] = iC[col];
-                for (row = 0; row < affine_param_num; row++) {
+                for (row = 0; row < 4; row++) {
                     intermediates[1] = intermediates[0] * iC[row];
                     coef[col + 1][row] += intermediates[1];
                 }
                 intermediates[1] = intermediates[0] * resi[iIdx];
-                coef[col + 1][affine_param_num] += intermediates[1] * 8;
+                coef[col + 1][4] += intermediates[1] * 8;
             }
         }
     }

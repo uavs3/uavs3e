@@ -1,17 +1,36 @@
 /**************************************************************************************
- * Copyright (C) 2018-2019 uavs3e project
+ * Copyright (c) 2018-2020 ["Peking University Shenzhen Graduate School",
+ *   "Peng Cheng Laboratory", and "Guangdong Bohua UHD Innovation Corporation"]
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the Open-Intelligence Open Source License V1.1.
+ * All rights reserved.
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * Open-Intelligence Open Source License V1.1 for more details.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ * 3. All advertising materials mentioning features or use of this software
+ *    must display the following acknowledgement:
+ *    This product includes the software uAVS3d developed by
+ *    Peking University Shenzhen Graduate School, Peng Cheng Laboratory
+ *    and Guangdong Bohua UHD Innovation Corporation.
+ * 4. Neither the name of the organizations (Peking University Shenzhen Graduate School,
+ *    Peng Cheng Laboratory and Guangdong Bohua UHD Innovation Corporation) nor the
+ *    names of its contributors may be used to endorse or promote products
+ *    derived from this software without specific prior written permission.
  *
- * You should have received a copy of the Open-Intelligence Open Source License V1.1
- * along with this program; if not, you can download it on:
- * http://www.aitisa.org.cn/uploadfile/2018/0910/20180910031548314.pdf
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS ''AS IS'' AND ANY
+ * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+ * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDERS BE LIABLE FOR ANY
+ * DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * For more information, contact us at rgwang@pkusz.edu.cn.
  **************************************************************************************/
@@ -26,7 +45,6 @@
 #define SPEED_LEVEL(x, p) ((p) >= (x))
 
 #define MAX_BS_BUF                        (32*1024*1024)
-#define RDO_WITH_DBLOCK                            1 // include DBK changes to luma samples into distortion
 #define DT_INTRA_BOUNDARY_FILTER_OFF        1 ///< turn off boundary filter if intra DT is ON
 #define MAX_INTER_SKIP_RDO                 MAX_SKIP_NUM
 #define THRESHOLD_MVPS_CHECK               1.1
@@ -66,6 +84,7 @@ typedef struct uavs3e_input_node_t {
 typedef struct uavs3e_analyze_node_t {
     com_img_t *img;      /* original picture store     */
     double sc_ratio;
+    int    insert_idr;
 } analyze_node_t;
 
 /*****************************************************************************
@@ -102,6 +121,11 @@ typedef struct uavs3e_enc_inter_data_t {
     s16  mv_scale         [REFP_NUM][MAX_NUM_ACTIVE_REF_FRAME][MV_D];
     s16  mv_ipel          [REFP_NUM][MAX_NUM_ACTIVE_REF_FRAME][MV_D];
 
+    u32  hpel_satd        [REFP_NUM][MAX_NUM_ACTIVE_REF_FRAME][9];
+    s16  hpel_start_mv    [REFP_NUM][MAX_NUM_ACTIVE_REF_FRAME][MV_D];
+    u32  qpel_satd        [REFP_NUM][MAX_NUM_ACTIVE_REF_FRAME][9];
+    s16  qpel_start_mv    [REFP_NUM][MAX_NUM_ACTIVE_REF_FRAME][MV_D];
+
     CPMV affine_mvp_scale [REFP_NUM][MAX_NUM_ACTIVE_REF_FRAME][VER_NUM][MV_D];
     CPMV affine_mv_scale  [REFP_NUM][MAX_NUM_ACTIVE_REF_FRAME][VER_NUM][MV_D];
     int  best_mv_uni      [REFP_NUM][MAX_NUM_ACTIVE_REF_FRAME][MV_D];
@@ -119,8 +143,8 @@ typedef struct uavs3e_lbac_t {
     u32            stacked_ff;
     u32            pending_byte;
     u32            is_pending_byte;
-    com_lbac_all_ctx_t   h;
     u32            bitcounter;
+    com_lbac_all_ctx_t   h;
 } lbac_t;
 
 
@@ -181,7 +205,6 @@ typedef struct uavs3e_enc_history_t {
 typedef struct uavs3e_enc_alf_corr_t {
     double ECorr[NO_VAR_BINS][ALF_MAX_NUM_COEF][ALF_MAX_NUM_COEF];  //!< auto-correlation matrix
     double yCorr[NO_VAR_BINS][ALF_MAX_NUM_COEF]; //!< cross-correlation
-    double pixAcc[NO_VAR_BINS];
     int componentID;
 } enc_alf_corr_t;
 
@@ -192,14 +215,11 @@ typedef struct uavs3e_enc_alf_var_t {
     double    m_y_merged[NO_VAR_BINS][ALF_MAX_NUM_COEF];
     double    m_E_merged[NO_VAR_BINS][ALF_MAX_NUM_COEF][ALF_MAX_NUM_COEF];
     double    m_y_temp[ALF_MAX_NUM_COEF];
-    double    m_pixAcc_merged[NO_VAR_BINS];
     double    m_E_temp[ALF_MAX_NUM_COEF][ALF_MAX_NUM_COEF];
-    com_alf_pic_param_t  m_alfPictureParam[N_C];
     int       m_coeffNoFilter[ALF_MAX_NUM_COEF];
     int       m_varIndTab[NO_VAR_BINS];
 
-    unsigned int m_uiBitIncrement;
-
+    com_alf_pic_param_t  m_alfPictureParam[N_C];
 } enc_alf_var_t;
 
 typedef struct uavs3e_enc_pic_param_t {
@@ -221,8 +241,8 @@ typedef struct uavs3e_enc_pic_param_t {
 
 typedef struct uavs3e_enc_lcu_row_t {
     int            lcu_y;
-    lbac_t     sbac_row;
-    lbac_t    *sbac_row_next;
+    lbac_t     lbac_row;
+    lbac_t    *lbac_row_next;
     uavs3e_sem_t   sem;
     uavs3e_sem_t  *sem_up;
     uavs3e_sem_t  *sem_curr;
@@ -276,7 +296,7 @@ typedef struct uavs3e_core_t {
     double         dist_chroma_weight[2];
     enc_cu_t       cu_data_best[MAX_CU_DEPTH][MAX_CU_DEPTH];
     enc_cu_t       cu_data_temp[MAX_CU_DEPTH][MAX_CU_DEPTH];
-    enc_history_t   bef_data[MAX_CU_DEPTH][MAX_CU_DEPTH][MAX_CU_CNT_IN_LCU];
+    enc_history_t  history_data[MAX_CU_DEPTH][MAX_CU_DEPTH][MAX_CU_CNT_IN_LCU];
 
     u8             tree_status;
     u8             cons_pred_mode;
@@ -302,10 +322,10 @@ typedef struct uavs3e_core_t {
     s16            coef[N_C][MAX_CU_DIM];
     s16            ctmp[N_C][MAX_CU_DIM];
 
-    lbac_t     sbac_rdo;
-    lbac_t     sbac_bakup; // h before mode decision
-    lbac_t     sbac_prev_intra_pu;
-    lbac_t     sbac_tree_c;
+    lbac_t         lbac_rdo;
+    lbac_t         lbac_bakup; // lbac ctx before mode decision
+    lbac_t         lbac_intra_prev_pu;
+    lbac_t         lbac_tree_c;
 
     s32            rdoq_bin_est_ctp[2];
     s32            rdoq_bin_est_cbf[LBAC_CTX_CBF][2];
@@ -316,7 +336,7 @@ typedef struct uavs3e_core_t {
     com_mode_t     mod_info_best;
     com_mode_t     mod_info_curr;
 
-    inter_search_t     pinter;  /* inter prediction analysis */
+    inter_search_t pinter;  /* inter prediction analysis */
 
     pel            intra_pred_all[IPD_CNT][MAX_CU_DIM]; // only for luma
 
@@ -333,6 +353,7 @@ typedef struct uavs3e_core_t {
 #if TR_EARLY_TERMINATE
     s64            dist_pred_luma;
 #endif
+    u8             skip_emvr_mode[5];
 } core_t;
 
 typedef struct uavs3e_enc_pic_t {

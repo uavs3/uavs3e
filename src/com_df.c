@@ -1,17 +1,36 @@
 /**************************************************************************************
- * Copyright (C) 2018-2019 uavs3e project
+ * Copyright (c) 2018-2020 ["Peking University Shenzhen Graduate School",
+ *   "Peng Cheng Laboratory", and "Guangdong Bohua UHD Innovation Corporation"]
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the Open-Intelligence Open Source License V1.1.
+ * All rights reserved.
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * Open-Intelligence Open Source License V1.1 for more details.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ * 3. All advertising materials mentioning features or use of this software
+ *    must display the following acknowledgement:
+ *    This product includes the software uAVS3d developed by
+ *    Peking University Shenzhen Graduate School, Peng Cheng Laboratory
+ *    and Guangdong Bohua UHD Innovation Corporation.
+ * 4. Neither the name of the organizations (Peking University Shenzhen Graduate School,
+ *    Peng Cheng Laboratory and Guangdong Bohua UHD Innovation Corporation) nor the
+ *    names of its contributors may be used to endorse or promote products
+ *    derived from this software without specific prior written permission.
  *
- * You should have received a copy of the Open-Intelligence Open Source License V1.1
- * along with this program; if not, you can download it on:
- * http://www.aitisa.org.cn/uploadfile/2018/0910/20180910031548314.pdf
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS ''AS IS'' AND ANY
+ * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+ * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDERS BE LIABLE FOR ANY
+ * DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * For more information, contact us at rgwang@pkusz.edu.cn.
  **************************************************************************************/
@@ -215,7 +234,7 @@ static void avs3_always_inline com_df_cal_y_param(com_pic_header_t *pichdr, int 
 {
     int QP = (QPP + QPQ + 1 - QPOFFS - QPOFFS) >> 1;
     *alpha = ALPHA_TABLE[COM_CLIP3(0, MAX_QUANT_BASE, QP + pichdr->alpha_c_offset)] << shift;
-    *beta = BETA_TABLE[COM_CLIP3(0, MAX_QUANT_BASE, QP + pichdr->beta_offset)] << shift;
+    *beta  = BETA_TABLE [COM_CLIP3(0, MAX_QUANT_BASE, QP + pichdr->beta_offset   )] << shift;
 }
 
 static void avs3_always_inline com_df_cal_c_param(com_pic_header_t *pichdr, int QPP, int QPQ, int QPOFFS, int shift, int *alpha, int *beta, int delta)
@@ -242,6 +261,8 @@ static void avs3_always_inline com_df_cal_c_param(com_pic_header_t *pichdr, int 
 void com_df_lcu(com_info_t *info, com_pic_header_t *pichdr, com_map_t *map, com_pic_t *pic, int lcu_x, int lcu_y)
 {
     int i_scu = info->i_scu;
+    int i_lcu = info->pic_width_in_lcu;
+    int log2_lcu = info->log2_max_cuwh;
     com_seqh_t *seqh = &info->sqh;
     int lcu_size = info->max_cuwh;
     int pix_y;
@@ -251,8 +272,6 @@ void com_df_lcu(com_info_t *info, com_pic_header_t *pichdr, com_map_t *map, com_
     int alpha_hor_y, beta_hor_y, alpha_ver_y, beta_ver_y;
     int alpha_hor_u, beta_hor_u, alpha_ver_u, beta_ver_u;
     int alpha_hor_v, beta_hor_v, alpha_ver_v, beta_ver_v;
-    int fix_qp = pichdr->fixed_picture_qp_flag;
-
     int start_x = lcu_x * lcu_size;
     int start_y = lcu_y * lcu_size;
     int end_x = COM_MIN(start_x + lcu_size, info->pic_width);
@@ -261,43 +280,59 @@ void com_df_lcu(com_info_t *info, com_pic_header_t *pichdr, com_map_t *map, com_
     pel *src_u = pic->u + start_y / 2 * s_c;
     pel *src_v = pic->v + start_y / 2 * s_c;
     int QPOFFS = info->qp_offset_bit_depth;
-    int QP = map->map_qp[(start_y >> info->log2_max_cuwh) * info->pic_width_in_lcu + (start_x >> info->log2_max_cuwh)];
-
-    // todo: support delta QP
-    com_df_cal_y_param(pichdr, QP, QP, QPOFFS, shift, &alpha_hor_y, &beta_hor_y);
-    com_df_cal_c_param(pichdr, QP, QP, QPOFFS, shift, &alpha_hor_u, &beta_hor_u, pichdr->chroma_quant_param_delta_cb);
-    com_df_cal_c_param(pichdr, QP, QP, QPOFFS, shift, &alpha_hor_v, &beta_hor_v, pichdr->chroma_quant_param_delta_cr);
-    com_df_cal_y_param(pichdr, QP, QP, QPOFFS, shift, &alpha_ver_y, &beta_ver_y);
-    com_df_cal_c_param(pichdr, QP, QP, QPOFFS, shift, &alpha_ver_u, &beta_ver_u, pichdr->chroma_quant_param_delta_cb);
-    com_df_cal_c_param(pichdr, QP, QP, QPOFFS, shift, &alpha_ver_v, &beta_ver_v, pichdr->chroma_quant_param_delta_cr);
+    u8 *pQP = &map->map_qp[(start_y >> info->log2_max_cuwh) * info->pic_width_in_lcu + (start_x >> info->log2_max_cuwh)];
+    int QP         = pQP[0];
+    int QP_left    = pQP[-1];
+    int QP_top     = pQP[-info->pic_width_in_lcu];
+    int QP_topleft = pQP[-info->pic_width_in_lcu - 1];
+    int edge;
 
     // luma deblock
     for (pix_y = start_y; pix_y < end_y; pix_y += LOOPFILTER_GRID, src_l += s_l * LOOPFILTER_GRID) {
         int pix_x = start_x;
         u8 *edge_flag = map->map_edge + (pix_y >> MIN_CU_LOG2) * i_scu + (pix_x >> MIN_CU_LOG2);
-        if (!pix_x) {
-            int edge = (edge_flag[0] >> 2) & 0x03;
-            if (edge) {
-                uavs3e_funs_handle.deblock_luma[1](src_l, s_l, alpha_hor_y, beta_hor_y, edge);
+
+        if (pix_x) {
+            if (pix_y == start_y) {
+                com_df_cal_y_param(pichdr, QP_left, QP_topleft, QPOFFS, shift, &alpha_hor_y, &beta_hor_y);
+            } else {
+                com_df_cal_y_param(pichdr, QP_left, QP_left, QPOFFS, shift, &alpha_hor_y, &beta_hor_y);
             }
-            pix_x += LOOPFILTER_GRID;
-            edge_flag += 2;
-        }
-        for (; pix_x < end_x; pix_x += LOOPFILTER_GRID, edge_flag += 2) {
-            int edge = ((edge_flag[0]) | ((edge_flag[i_scu]) << 8)) & 0x0303;
+            com_df_cal_y_param(pichdr, QP, QP_left,    QPOFFS, shift, &alpha_ver_y, &beta_ver_y);
+
+            edge = ((edge_flag[0]) | ((edge_flag[i_scu]) << 8)) & 0x0303;
             if (edge) {
                 uavs3e_funs_handle.deblock_luma[0](src_l + pix_x, s_l, alpha_ver_y, beta_ver_y, edge);
             }
-            edge = (M16(edge_flag - 1) >> 2) & 0x0303;
+            edge = (edge_flag[-1] >> 2) & 0x03;
             if (edge) {
                 uavs3e_funs_handle.deblock_luma[1](src_l + pix_x - MIN_CU_SIZE, s_l, alpha_hor_y, beta_hor_y, edge);
             }
         }
-        if (end_x == info->pic_width && pix_x - MIN_CU_SIZE < end_x) {
-            int edge = (edge_flag[-1] >> 2) & 0x03;
+        pix_x += LOOPFILTER_GRID;
+        edge_flag += 2;
+
+        if (pix_y == start_y) {
+            com_df_cal_y_param(pichdr, QP, QP_top, QPOFFS, shift, &alpha_hor_y, &beta_hor_y);
+        } else {
+            com_df_cal_y_param(pichdr, QP, QP, QPOFFS, shift, &alpha_hor_y, &beta_hor_y);
+        }
+
+        com_df_cal_y_param(pichdr, QP, QP, QPOFFS, shift, &alpha_ver_y, &beta_ver_y);
+
+        for (; pix_x < end_x; pix_x += LOOPFILTER_GRID, edge_flag += 2) {
+            edge = ((edge_flag[0]) | ((edge_flag[i_scu]) << 8)) & 0x0303;
             if (edge) {
-                uavs3e_funs_handle.deblock_luma[1](src_l + pix_x - MIN_CU_SIZE, s_l, alpha_hor_y, beta_hor_y, edge);
+                uavs3e_funs_handle.deblock_luma[0](src_l + pix_x, s_l, alpha_ver_y, beta_ver_y, edge);
             }
+            edge = (M16(edge_flag - 2) >> 2) & 0x0303;
+            if (edge) {
+                uavs3e_funs_handle.deblock_luma[1](src_l + pix_x - LOOPFILTER_GRID, s_l, alpha_hor_y, beta_hor_y, edge);
+            }
+        }
+        edge = (M16(edge_flag - 2) >> 2) & (end_x == info->pic_width ? 0x0303 : 0x03);
+        if (edge) {
+            uavs3e_funs_handle.deblock_luma[1](src_l + pix_x - LOOPFILTER_GRID, s_l, alpha_hor_y, beta_hor_y, edge);
         }
     }
 
@@ -311,36 +346,69 @@ void com_df_lcu(com_info_t *info, com_pic_header_t *pichdr, com_map_t *map, com_
         int pix_x = start_x;
         u8 *edge_flag = map->map_edge + (pix_y >> (MIN_CU_LOG2 - 1)) * i_scu + (pix_x >> (MIN_CU_LOG2 - 1));
 
-        if (!pix_x) {
-            int edge = (M16(edge_flag) >> 2) & 0x0202;
-            if (edge) {
-                uavs3e_funs_handle.deblock_chroma[1](src_u, src_v, s_c, alpha_hor_u, beta_hor_u, alpha_hor_v, beta_hor_v, edge);
+        if (pix_x) {
+            if (pix_y == start_y) {
+                com_df_cal_c_param(pichdr, QP_left, QP_topleft, QPOFFS, shift, &alpha_hor_u, &beta_hor_u, pichdr->chroma_quant_param_delta_cb);
+                com_df_cal_c_param(pichdr, QP_left, QP_topleft, QPOFFS, shift, &alpha_hor_v, &beta_hor_v, pichdr->chroma_quant_param_delta_cr);
+            } else {
+                com_df_cal_c_param(pichdr, QP_left, QP_left, QPOFFS, shift, &alpha_hor_u, &beta_hor_u, pichdr->chroma_quant_param_delta_cb);
+                com_df_cal_c_param(pichdr, QP_left, QP_left, QPOFFS, shift, &alpha_hor_v, &beta_hor_v, pichdr->chroma_quant_param_delta_cr);
             }
-            pix_x += LOOPFILTER_GRID;
-            edge_flag += 4;
-        }
-        for (; pix_x < end_x; pix_x += LOOPFILTER_GRID) {
-            int edge = ((edge_flag[0]) | ((edge_flag[i_scu]) << 8)) & 0x0202;
+            com_df_cal_c_param(pichdr, QP, QP_left, QPOFFS, shift, &alpha_ver_u, &beta_ver_u, pichdr->chroma_quant_param_delta_cb);
+            com_df_cal_c_param(pichdr, QP, QP_left, QPOFFS, shift, &alpha_ver_v, &beta_ver_v, pichdr->chroma_quant_param_delta_cr);
+
+            edge = ((edge_flag[0]) | ((edge_flag[i_scu]) << 8)) & 0x0202;
             if (edge) {
                 uavs3e_funs_handle.deblock_chroma[0](src_u + pix_x, src_v + pix_x, s_c, alpha_ver_u, beta_ver_u, alpha_ver_v, beta_ver_v, edge);
             }
             edge = ((edge_flag[i_scu * 2]) | ((edge_flag[i_scu * 3]) << 8)) & 0x0202;
             if (edge) {
-                uavs3e_funs_handle.deblock_chroma[0](src_u + s_c * MIN_CU_SIZE + pix_x, src_v + s_c * MIN_CU_SIZE + pix_x, s_c, alpha_ver_u, beta_ver_u, alpha_ver_v, beta_ver_v, edge);
+                uavs3e_funs_handle.deblock_chroma[0](src_u + pix_x + s_c * MIN_CU_SIZE, src_v + pix_x + s_c * MIN_CU_SIZE, s_c, alpha_ver_u, beta_ver_u, alpha_ver_v, beta_ver_v, edge);
             }
-
             edge = (M16(edge_flag - 2) >> 2) & 0x0202;
             if (edge) {
                 uavs3e_funs_handle.deblock_chroma[1](src_u + pix_x - MIN_CU_SIZE, src_v + pix_x - MIN_CU_SIZE, s_c, alpha_hor_u, beta_hor_u, alpha_hor_v, beta_hor_v, edge);
             }
-            edge = (M16(edge_flag) >> 2) & 0x0202;
+        }
+        pix_x += LOOPFILTER_GRID;
+        edge_flag += 4;
+
+        if (pix_y == start_y) {
+            com_df_cal_c_param(pichdr, QP, QP_top, QPOFFS, shift, &alpha_hor_u, &beta_hor_u, pichdr->chroma_quant_param_delta_cb);
+            com_df_cal_c_param(pichdr, QP, QP_top, QPOFFS, shift, &alpha_hor_v, &beta_hor_v, pichdr->chroma_quant_param_delta_cr);
+        } else {
+            com_df_cal_c_param(pichdr, QP, QP, QPOFFS, shift, &alpha_hor_u, &beta_hor_u, pichdr->chroma_quant_param_delta_cb);
+            com_df_cal_c_param(pichdr, QP, QP, QPOFFS, shift, &alpha_hor_v, &beta_hor_v, pichdr->chroma_quant_param_delta_cr);
+        }
+
+        com_df_cal_c_param(pichdr, QP, QP, QPOFFS, shift, &alpha_ver_u, &beta_ver_u, pichdr->chroma_quant_param_delta_cb);
+        com_df_cal_c_param(pichdr, QP, QP, QPOFFS, shift, &alpha_ver_v, &beta_ver_v, pichdr->chroma_quant_param_delta_cr);
+
+        for (; pix_x < end_x; pix_x += LOOPFILTER_GRID) {
+            edge = ((edge_flag[0]) | ((edge_flag[i_scu]) << 8)) & 0x0202;
             if (edge) {
-                uavs3e_funs_handle.deblock_chroma[1](src_u + pix_x, src_v + pix_x, s_c, alpha_hor_u, beta_hor_u, alpha_hor_v, beta_hor_v, edge);
+                uavs3e_funs_handle.deblock_chroma[0](src_u + pix_x, src_v + pix_x, s_c, alpha_ver_u, beta_ver_u, alpha_ver_v, beta_ver_v, edge);
+            }
+            edge = ((edge_flag[i_scu * 2]) | ((edge_flag[i_scu * 3]) << 8)) & 0x0202;
+            if (edge) {
+                uavs3e_funs_handle.deblock_chroma[0](src_u + pix_x + s_c * MIN_CU_SIZE, src_v + pix_x + s_c * MIN_CU_SIZE, s_c, alpha_ver_u, beta_ver_u, alpha_ver_v, beta_ver_v, edge);
+            }
+            edge = (M16(edge_flag - 4) >> 2) & 0x0202;
+            if (edge) {
+                uavs3e_funs_handle.deblock_chroma[1](src_u + pix_x - LOOPFILTER_GRID, src_v + pix_x - LOOPFILTER_GRID, s_c, alpha_hor_u, beta_hor_u, alpha_hor_v, beta_hor_v, edge);
+            }
+            edge = (M16(edge_flag - 2) >> 2) & 0x0202;
+            if (edge) {
+                uavs3e_funs_handle.deblock_chroma[1](src_u + pix_x - MIN_CU_SIZE, src_v + pix_x - MIN_CU_SIZE, s_c, alpha_hor_u, beta_hor_u, alpha_hor_v, beta_hor_v, edge);
             }
             edge_flag += 4;
         }
-        if (end_x == info->pic_width / 2 && pix_x - MIN_CU_SIZE < end_x) {
-            int edge = (M16(edge_flag - 2) >> 2) & 0x0202;
+        edge = (M16(edge_flag - 4) >> 2) & 0x0202;
+        if (edge) {
+            uavs3e_funs_handle.deblock_chroma[1](src_u + pix_x - LOOPFILTER_GRID, src_v + pix_x - LOOPFILTER_GRID, s_c, alpha_hor_u, beta_hor_u, alpha_hor_v, beta_hor_v, edge);
+        }
+        if (end_x == info->pic_width / 2) {
+            edge = (M16(edge_flag - 2) >> 2) & 0x0202;
             if (edge) {
                 uavs3e_funs_handle.deblock_chroma[1](src_u + pix_x - MIN_CU_SIZE, src_v + pix_x - MIN_CU_SIZE, s_c, alpha_hor_u, beta_hor_u, alpha_hor_v, beta_hor_v, edge);
             }
@@ -356,7 +424,6 @@ void com_df_rdo_luma(com_info_t *info, com_pic_header_t *pichdr, com_map_t *map,
     com_seqh_t *seqh = &info->sqh;
     int shift = info->bit_depth_internal - 8;
     int alpha_hor_y, beta_hor_y, alpha_ver_y, beta_ver_y;
-    int fix_qp = pichdr->fixed_picture_qp_flag;
     int QPOFFS  = info->qp_offset_bit_depth;
     pel *p = src;
 
@@ -364,7 +431,6 @@ void com_df_rdo_luma(com_info_t *info, com_pic_header_t *pichdr, com_map_t *map,
     int QP = map->map_qp[(pix_y >> info->log2_max_cuwh) * info->pic_width_in_lcu + (pix_x >> info->log2_max_cuwh)];
     com_df_cal_y_param(pichdr, QP, QP, QPOFFS, shift, &alpha_hor_y, &beta_hor_y);
     com_df_cal_y_param(pichdr, QP, QP, QPOFFS, shift, &alpha_ver_y, &beta_ver_y);
-
 
     for (pix_y = 0; pix_y < cuh - LOOPFILTER_GRID + 1; pix_y += LOOPFILTER_GRID) {
         u8 *edge_flag = edge + PEL2SCU(pix_y) * i_edge;
