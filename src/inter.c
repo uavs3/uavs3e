@@ -1732,7 +1732,7 @@ void analyze_inter_cu(core_t *core, lbac_t *lbac_best)
             if (core->slice_type == SLICE_B && cu_width *cu_height >= 64) {
                 analyze_bi(core, lbac_best, mv_L0L1, refi_L0L1, cost_L0L1);
 
-                if (info->sqh.smvd_enable && core->ptr - core->refp[0][REFP_0].ptr == core->refp[0][REFP_1].ptr - core->ptr && !cur_info->hmvp_flag && !(p_bef_data->visit && p_bef_data->smvd_history == 0) {
+                if (info->sqh.smvd_enable && core->ptr - core->refp[0][REFP_0].ptr == core->refp[0][REFP_1].ptr - core->ptr && !cur_info->hmvp_flag && !(history->visit && history->smvd_history == 0)) {
                     analyze_smvd(core, lbac_best);
                 }
             }
@@ -1770,6 +1770,7 @@ void analyze_inter_cu(core_t *core, lbac_t *lbac_best)
     if (!history->visit) {
         history->affine_flag_history = bst_info->affine_flag;
         history->mvr_idx_history     = bst_info->mvr_idx;
+        history->smvd_history        = bst_info->smvd_flag;
 
         if (bst_info->hmvp_flag) {
             history->mvr_hmvp_idx_history = bst_info->mvr_idx;
