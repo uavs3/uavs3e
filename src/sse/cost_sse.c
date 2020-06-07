@@ -1,17 +1,36 @@
 /**************************************************************************************
- * Copyright (C) 2018-2019 uavs3e project
+ * Copyright (c) 2018-2020 ["Peking University Shenzhen Graduate School",
+ *   "Peng Cheng Laboratory", and "Guangdong Bohua UHD Innovation Corporation"]
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the Open-Intelligence Open Source License V1.1.
+ * All rights reserved.
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * Open-Intelligence Open Source License V1.1 for more details.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ * 3. All advertising materials mentioning features or use of this software
+ *    must display the following acknowledgement:
+ *    This product includes the software uAVS3d developed by
+ *    Peking University Shenzhen Graduate School, Peng Cheng Laboratory
+ *    and Guangdong Bohua UHD Innovation Corporation.
+ * 4. Neither the name of the organizations (Peking University Shenzhen Graduate School,
+ *    Peng Cheng Laboratory and Guangdong Bohua UHD Innovation Corporation) nor the
+ *    names of its contributors may be used to endorse or promote products
+ *    derived from this software without specific prior written permission.
  *
- * You should have received a copy of the Open-Intelligence Open Source License V1.1
- * along with this program; if not, you can download it on:
- * http://www.aitisa.org.cn/uploadfile/2018/0910/20180910031548314.pdf
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS ''AS IS'' AND ANY
+ * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+ * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDERS BE LIABLE FOR ANY
+ * DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * For more information, contact us at rgwang@pkusz.edu.cn.
  **************************************************************************************/
@@ -1215,6 +1234,66 @@ u32 uavs3e_had_4x8_sse(pel *org, int s_org, pel *cur, int s_cur)
     satd = _mm_cvtsi128_si32(sum);
     satd = (int)(satd / com_tbl_sqrt[0] * 2);
     return satd;
+}
+
+u64 uavs3e_var_8_sse(pel* pix, int i_pix)
+{
+    u64 sum = 0, sqr = 0;
+    __m128i SUM = _mm_setzero_si128();
+    __m128i SQR = _mm_setzero_si128();
+    __m128i zero = _mm_setzero_si128();
+    int y;
+
+    for (y = 0; y < 8; y++) {
+        __m128i T = _mm_loadl_epi64((const __m128i*)pix);
+        T = _mm_unpacklo_epi8(T, zero);
+        SUM = _mm_add_epi16(SUM, T);
+        T = _mm_madd_epi16(T, T);
+        SQR = _mm_add_epi32(SQR, T);
+        pix += i_pix;
+    }
+
+    SUM = _mm_hadd_epi16(SUM, SUM);
+    SUM = _mm_hadd_epi16(SUM, SUM);
+    SUM = _mm_hadd_epi16(SUM, SUM);
+    sum = _mm_extract_epi16(SUM, 0);
+
+    SQR = _mm_hadd_epi32(SQR, SQR);
+    SQR = _mm_hadd_epi32(SQR, SQR);
+    sqr = _mm_extract_epi32(SQR, 0);
+
+    return sqr - (sum * sum >> 6);
+}
+
+u64 uavs3e_var_16_sse(pel* pix, int i_pix)
+{
+    u64 sum = 0, sqr = 0;
+    __m128i SUM = _mm_setzero_si128();
+    __m128i SQR = _mm_setzero_si128();
+    __m128i zero = _mm_setzero_si128();
+    int y;
+
+    for (y = 0; y < 16; y++) {
+        __m128i T1, T2;
+        __m128i T = _mm_loadu_si128((const __m128i*)pix);
+        SUM = _mm_add_epi16(SUM, _mm_sad_epu8(T, zero));
+        T1 = _mm_unpacklo_epi8(T, zero);
+        T2 = _mm_unpackhi_epi8(T, zero);
+        T = _mm_add_epi32(_mm_madd_epi16(T1, T1), _mm_madd_epi16(T2, T2));
+        SQR = _mm_add_epi32(SQR, T);
+        pix += i_pix;
+    }
+
+    SUM = _mm_hadd_epi16(SUM, SUM);
+    SUM = _mm_hadd_epi16(SUM, SUM);
+    SUM = _mm_hadd_epi16(SUM, SUM);
+    sum = _mm_extract_epi16(SUM, 0);
+
+    SQR = _mm_hadd_epi32(SQR, SQR);
+    SQR = _mm_hadd_epi32(SQR, SQR);
+    sqr = _mm_extract_epi32(SQR, 0);
+
+    return sqr - (sum * sum >> 8);
 }
 
 #elif (BIT_DEPTH == 10)

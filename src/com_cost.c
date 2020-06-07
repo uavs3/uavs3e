@@ -1,17 +1,36 @@
 /**************************************************************************************
- * Copyright (C) 2018-2019 uavs3e project
+ * Copyright (c) 2018-2020 ["Peking University Shenzhen Graduate School",
+ *   "Peng Cheng Laboratory", and "Guangdong Bohua UHD Innovation Corporation"]
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the Open-Intelligence Open Source License V1.1.
+ * All rights reserved.
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * Open-Intelligence Open Source License V1.1 for more details.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ * 3. All advertising materials mentioning features or use of this software
+ *    must display the following acknowledgement:
+ *    This product includes the software uAVS3d developed by
+ *    Peking University Shenzhen Graduate School, Peng Cheng Laboratory
+ *    and Guangdong Bohua UHD Innovation Corporation.
+ * 4. Neither the name of the organizations (Peking University Shenzhen Graduate School,
+ *    Peng Cheng Laboratory and Guangdong Bohua UHD Innovation Corporation) nor the
+ *    names of its contributors may be used to endorse or promote products
+ *    derived from this software without specific prior written permission.
  *
- * You should have received a copy of the Open-Intelligence Open Source License V1.1
- * along with this program; if not, you can download it on:
- * http://www.aitisa.org.cn/uploadfile/2018/0910/20180910031548314.pdf
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS ''AS IS'' AND ANY
+ * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+ * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDERS BE LIABLE FOR ANY
+ * DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * For more information, contact us at rgwang@pkusz.edu.cn.
  **************************************************************************************/
@@ -96,19 +115,19 @@ DEFINE_SAD_X4(64)
 DEFINE_SAD_X4(128)
 
 #define DEFINE_SSD(w) \
-    u64 com_get_ssd_##w(pel *p_org, int i_org, pel *p_pred, int i_pred, int height) { \
-        int i;                                                                        \
-        u64 uiSum = 0;                                                                \
-        for (; height != 0; height--) {                                               \
-            for (i = 0; i < w; i++) {                                                 \
-                int ssd = abs(p_org[i] - p_pred[i]);                                  \
-                uiSum += (ssd * ssd);                                                 \
-            }                                                                         \
-            p_org += i_org;                                                           \
-            p_pred += i_pred;                                                         \
-        }                                                                             \
-        return uiSum;                                                                 \
-    }
+static u64 com_get_ssd_##w(pel *p_org, int i_org, pel *p_pred, int i_pred, int height) { \
+    int i;                                                                               \
+    u64 uiSum = 0;                                                                       \
+    for (; height != 0; height--) {                                                      \
+        for (i = 0; i < w; i++) {                                                        \
+            int ssd = abs(p_org[i] - p_pred[i]);                                         \
+            uiSum += (ssd * ssd);                                                        \
+        }                                                                                \
+        p_org += i_org;                                                                  \
+        p_pred += i_pred;                                                                \
+    }                                                                                    \
+    return uiSum;                                                                        \
+}
 
 DEFINE_SSD(4)
 DEFINE_SSD(8)
@@ -116,6 +135,43 @@ DEFINE_SSD(16)
 DEFINE_SSD(32)
 DEFINE_SSD(64)
 DEFINE_SSD(128)
+
+#define DEFINE_VAR(w)                                                             \
+static u64 com_get_var_##w(pel *p_org, int i_org) {                               \
+    int i, height = w;                                                            \
+    u64 uiSum = 0, uiSSD = 0;                                                     \
+    for (; height != 0; height--) {                                               \
+        for (i = 0; i < w; i++) {                                                 \
+            uiSum += p_org[i];                                                    \
+            uiSSD += (p_org[i] * p_org[i]);                                       \
+        }                                                                         \
+        p_org += i_org;                                                           \
+    }                                                                             \
+    return uiSSD - ((uiSum * uiSum) >> (CONV_LOG2(w) * 2));                       \
+}
+
+DEFINE_VAR(4)
+DEFINE_VAR(8)
+DEFINE_VAR(16)
+DEFINE_VAR(32)
+DEFINE_VAR(64)
+DEFINE_VAR(128)
+
+static u64 com_var_cost(const pel* pix, int i_pix, int width, int height)
+{
+    u64 sum = 0, sqr = 0;
+    int x, y;
+
+    for (y = 0; y < width; y++) {
+        for (x = 0; x < height; x++) {
+            sum += pix[x];
+            sqr += pix[x] * pix[x];
+        }
+        pix += i_pix;
+    }
+    return sqr - (sum * sum >> 8);
+}
+
 
 u32 com_had_4x4(pel *org, int s_org, pel *cur, int s_cur)
 {
@@ -653,19 +709,18 @@ u32 com_had_4x8(pel *org, int s_org, pel *cur, int s_cur)
     return satd;
 }
 
-u32 com_had(int w, int h, void *addr_org, void *addr_curr, int s_org, int s_cur, int bit_depth)
+u32 com_had(int w, int h, pel *org, int s_org, pel *cur, int s_cur, int bit_depth)
 {
-    pel *org = addr_org;
-    pel *cur = addr_curr;
     int  x, y;
     int sum = 0;
     u32(*satd)(pel *p_org, int i_org, pel *p_pred, int i_pred);
+    int shift = bit_depth - 8;
 
     if (w == h) {
         if (w & 7) { // must be 4x4
-            sum = uavs3e_funs_handle.cost_satd[0][0](org, s_org, cur, s_cur);
+            return uavs3e_funs_handle.cost_satd[0][0](org, s_org, cur, s_cur) >> shift;
         } else if (w & 15) { // must be 8x8
-            sum = uavs3e_funs_handle.cost_satd[1][1](org, s_org, cur, s_cur);
+            return uavs3e_funs_handle.cost_satd[1][1](org, s_org, cur, s_cur) >> shift;
         } else {
             int  offset_org = s_org << 3;
             int  offset_cur = s_cur << 3;
@@ -678,20 +733,15 @@ u32 com_had(int w, int h, void *addr_org, void *addr_curr, int s_org, int s_cur,
                 org += offset_org;
                 cur += offset_cur;
             }
+            return sum >> shift;
         }
     } else if (w > h) {
         if (h == 4) {
-            if (w != 12) {
-                satd = uavs3e_funs_handle.cost_satd[1][0];
-                for (x = 0; x < w; x += 8) {
-                    sum += satd(&org[x], s_org, &cur[x], s_cur);
-                }
-            } else {
-                satd = uavs3e_funs_handle.cost_satd[0][0];
-                sum += satd(&org[0], s_org, &cur[0], s_cur);
-                sum += satd(&org[4], s_org, &cur[4], s_cur);
-                sum += satd(&org[8], s_org, &cur[8], s_cur);
+            satd = uavs3e_funs_handle.cost_satd[1][0];
+            for (x = 0; x < w; x += 8) {
+                sum += satd(&org[x], s_org, &cur[x], s_cur);
             }
+            return sum >> shift;
         } else if (h & 7) {
             int  offset_org = s_org << 2;
             int  offset_cur = s_cur << 2;
@@ -704,6 +754,7 @@ u32 com_had(int w, int h, void *addr_org, void *addr_curr, int s_org, int s_cur,
                 org += offset_org;
                 cur += offset_cur;
             }
+            return sum >> shift;
         } else {
             int  offset_org = s_org << 3;
             int  offset_cur = s_cur << 3;
@@ -716,31 +767,20 @@ u32 com_had(int w, int h, void *addr_org, void *addr_curr, int s_org, int s_cur,
                 org += offset_org;
                 cur += offset_cur;
             }
+            return sum >> shift;
         }
     } else {
         if (w == 4) {
-            if (h != 12) {
-                int  offset_org = s_org << 3;
-                int  offset_cur = s_cur << 3;
-                satd = uavs3e_funs_handle.cost_satd[0][1];
+            int  offset_org = s_org << 3;
+            int  offset_cur = s_cur << 3;
+            satd = uavs3e_funs_handle.cost_satd[0][1];
 
-                for (y = 0; y < h; y += 8) {
-                    sum += satd(org, s_org, cur, s_cur);
-                    org += offset_org;
-                    cur += offset_cur;
-                }
-            } else {
-                int  offset_org = s_org << 2;
-                int  offset_cur = s_cur << 2;
-                satd = uavs3e_funs_handle.cost_satd[0][0];
+            for (y = 0; y < h; y += 8) {
                 sum += satd(org, s_org, cur, s_cur);
                 org += offset_org;
                 cur += offset_cur;
-                sum += satd(org, s_org, cur, s_cur);
-                org += offset_org;
-                cur += offset_cur;
-                sum += satd(org, s_org, cur, s_cur);
             }
+            return sum >> shift;
         } else if (w & 7) {
             int  offset_org = s_org << 3;
             int  offset_cur = s_cur << 3;
@@ -753,6 +793,7 @@ u32 com_had(int w, int h, void *addr_org, void *addr_curr, int s_org, int s_cur,
                 org += offset_org;
                 cur += offset_cur;
             }
+            return sum >> shift;
         } else {
             int  offset_org = s_org << 4;
             int  offset_cur = s_cur << 4;
@@ -765,9 +806,92 @@ u32 com_had(int w, int h, void *addr_org, void *addr_curr, int s_org, int s_cur,
                 org += offset_org;
                 cur += offset_cur;
             }
+            return sum >> shift;
         }
     }
-    return (sum >> (bit_depth - 8));
+}
+
+static void ssim_4x4x2_core(const pel *pix1, int stride1, const pel *pix2, int stride2, int sums[2][4])
+{
+    int x, y, z;
+    for (z = 0; z < 2; z++) {
+        int s1 = 0, s2 = 0, ss = 0, s12 = 0;
+        for (y = 0; y < 4; y++) {
+            for (x = 0; x < 4; x++) {
+                int a = pix1[x + y * stride1];
+                int b = pix2[x + y * stride2];
+                s1 += a;
+                s2 += b;
+                ss += a * a;
+                ss += b * b;
+                s12 += a * b;
+            }
+        }
+        sums[z][0] = s1;
+        sums[z][1] = s2;
+        sums[z][2] = ss;
+        sums[z][3] = s12;
+        pix1 += 4;
+        pix2 += 4;
+    }
+}
+
+static float ssim_end1(int s1, int s2, int ss, int s12, float ssim_c1, float ssim_c2)
+{
+    float fs1 = (float)s1;
+    float fs2 = (float)s2;
+    float fss = (float)ss;
+    float fs12 = (float)s12;
+    float vars = (float)(fss * 64 - fs1 * fs1 - fs2 * fs2);
+    float covar = (float)(fs12 * 64 - fs1 * fs2);
+    return (float)(2 * fs1 * fs2 + ssim_c1) * (float)(2 * covar + ssim_c2) / ((float)(fs1 * fs1 + fs2 * fs2 + ssim_c1) * (float)(vars + ssim_c2));
+}
+
+static float ssim_end4(int sum0[5][4], int sum1[5][4], int width, float ssim_c1, float ssim_c2)
+{
+    float ssim = 0.0;
+    int i;
+    for (i = 0; i < width; i++)
+        ssim += ssim_end1(sum0[i][0] + sum0[i + 1][0] + sum1[i][0] + sum1[i + 1][0],
+            sum0[i][1] + sum0[i + 1][1] + sum1[i][1] + sum1[i + 1][1],
+            sum0[i][2] + sum0[i + 1][2] + sum1[i][2] + sum1[i + 1][2],
+            sum0[i][3] + sum0[i + 1][3] + sum1[i][3] + sum1[i + 1][3], ssim_c1, ssim_c2);
+    return ssim;
+}
+
+float com_ssim_img_plane(pel *pix1, int stride1, pel *pix2, int stride2, int width, int height, int *cnt, int bit_depth)
+{
+#define MAX_PIC_WIDTH (8192*2)
+
+    static int buf[2 * (MAX_PIC_WIDTH / 4 + 3)][4];
+    int x, y, z = 0;
+    float ssim = 0.0;
+    int(*sum0)[4] = buf;
+    int(*sum1)[4] = sum0 + (width >> 2) + 3;
+
+    width >>= 2;
+    height >>= 2;
+
+    /* Maximum value for 10-bit is: ss*64 = (2^10-1)^2*16*4*64 = 4286582784, which will overflow in some cases.
+    * s1*s1, s2*s2, and s1*s2 also obtain this value for edge cases: ((2^10-1)*16*4)^2 = 4286582784.
+    * Maximum value for 9-bit is: ss*64 = (2^9-1)^2*16*4*64 = 1069551616, which will not overflow. */
+    int pixel_max = bit_depth == 8 ? 255 : 1023;
+    float ssim_c1 = (float)(.01 * .01 * pixel_max * pixel_max * 64);
+    float ssim_c2 = (float)(.03 * .03 * pixel_max * pixel_max * 64 * 63);
+
+#define XCHG(type,a,b) do{ type t = a; a = b; b = t; } while(0)
+
+    for (y = 1; y < height; y++) {
+        for (; z <= y; z++) {
+            XCHG(void*, sum0, sum1);
+            for (x = 0; x < width; x += 2)
+                uavs3e_funs_handle.ssim_4x4x2_core(&pix1[4 * (x + z * stride1)], stride1, &pix2[4 * (x + z * stride2)], stride2, &sum0[x]);
+        }
+        for (x = 0; x < width - 1; x += 4)
+            ssim += uavs3e_funs_handle.ssim_end4(sum0 + x, sum1 + x, min(4, width - x - 1), ssim_c1, ssim_c2);
+    }
+    *cnt = (height - 1) * (width - 1);
+    return ssim;
 }
 
 void uavs3e_funs_init_cost_c()
@@ -806,4 +930,14 @@ void uavs3e_funs_init_cost_c()
     uavs3e_funs_handle.cost_satd[1][1] = com_had_8x8;
     uavs3e_funs_handle.cost_satd[2][1] = com_had_16x8;
     uavs3e_funs_handle.cost_satd[1][2] = com_had_8x16;
+
+    uavs3e_funs_handle.cost_var[0] = com_get_var_4;
+    uavs3e_funs_handle.cost_var[1] = com_get_var_8;
+    uavs3e_funs_handle.cost_var[2] = com_get_var_16;
+    uavs3e_funs_handle.cost_var[3] = com_get_var_32;
+    uavs3e_funs_handle.cost_var[4] = com_get_var_64;
+    uavs3e_funs_handle.cost_var[5] = com_get_var_128;
+
+    uavs3e_funs_handle.ssim_4x4x2_core = ssim_4x4x2_core;
+    uavs3e_funs_handle.ssim_end4 = ssim_end4;
 }

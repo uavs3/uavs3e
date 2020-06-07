@@ -1,17 +1,36 @@
 /**************************************************************************************
- * Copyright (C) 2018-2019 uavs3e project
+ * Copyright (c) 2018-2020 ["Peking University Shenzhen Graduate School",
+ *   "Peng Cheng Laboratory", and "Guangdong Bohua UHD Innovation Corporation"]
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the Open-Intelligence Open Source License V1.1.
+ * All rights reserved.
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * Open-Intelligence Open Source License V1.1 for more details.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ * 3. All advertising materials mentioning features or use of this software
+ *    must display the following acknowledgement:
+ *    This product includes the software uAVS3d developed by
+ *    Peking University Shenzhen Graduate School, Peng Cheng Laboratory
+ *    and Guangdong Bohua UHD Innovation Corporation.
+ * 4. Neither the name of the organizations (Peking University Shenzhen Graduate School,
+ *    Peng Cheng Laboratory and Guangdong Bohua UHD Innovation Corporation) nor the
+ *    names of its contributors may be used to endorse or promote products
+ *    derived from this software without specific prior written permission.
  *
- * You should have received a copy of the Open-Intelligence Open Source License V1.1
- * along with this program; if not, you can download it on:
- * http://www.aitisa.org.cn/uploadfile/2018/0910/20180910031548314.pdf
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS ''AS IS'' AND ANY
+ * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+ * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDERS BE LIABLE FOR ANY
+ * DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * For more information, contact us at rgwang@pkusz.edu.cn.
  **************************************************************************************/
@@ -76,7 +95,7 @@ static enc_pic_t *pic_enc_alloc(com_info_t *info)
     enc_pic_t *ep;
     u8 *buf;
     int ret;
-
+    int dqp_bufsize = (info->pic_width / UNIT_SIZE) * (info->pic_height / UNIT_SIZE);
     int linebuf_intra_size = ALIGN_MASK * 5 + sizeof(pel) * ((info->pic_width + MAX_CU_SIZE) * 2 + 3);
 
     int total_mem_size =
@@ -89,6 +108,7 @@ static enc_pic_t *pic_enc_alloc(com_info_t *info)
         ALIGN_MASK * 1 + sizeof(       s8) * info->f_scu +                                                      // map.map_ipm
         ALIGN_MASK * 1 + sizeof(       s8) * info->f_scu +                                                      // map.map_patch
         ALIGN_MASK * 1 + sizeof(      u32) * info->f_scu +                                                      // map.map_pos
+        ALIGN_MASK * 1 + sizeof(    float) * dqp_bufsize +                                                     // map.map_dqp
         ALIGN_MASK * 1 + (linebuf_intra_size + sizeof(pel *) * 3) * info->pic_height_in_lcu +                   // linebuf_intra
         ALIGN_MASK * 3 + sizeof(pel) * ((info->pic_width + MAX_CU_SIZE) * 2 + 3) +                              // linebuf_sao
         ALIGN_MASK * 1 + sizeof(             u8) * info->f_lcu +                                                // alf_var_map
@@ -108,6 +128,7 @@ static enc_pic_t *pic_enc_alloc(com_info_t *info)
     GIVE_BUFFER(ep->map_cu_data    , buf, sizeof(enc_cu_t ) * info->f_lcu);
     GIVE_BUFFER(ep->map.map_split  , buf, sizeof(s8       ) * info->f_lcu * info->cus_in_lcu * MAX_CU_DEPTH * NUM_BLOCK_SHAPE);
     GIVE_BUFFER(ep->map.map_qp     , buf, sizeof(s8       ) * info->f_lcu);
+    GIVE_BUFFER(ep->map.map_dqp    , buf, sizeof(float    ) * dqp_bufsize);
     GIVE_BUFFER(ep->map.map_scu    , buf, sizeof(com_scu_t) * info->f_scu); ep->map.map_scu   += info->i_scu + 1;
     GIVE_BUFFER(ep->map.map_edge   , buf, sizeof(u8       ) * info->f_scu); ep->map.map_edge  += info->i_scu + 1;
     GIVE_BUFFER(ep->map.map_ipm    , buf, sizeof(s8       ) * info->f_scu); ep->map.map_ipm   += info->i_scu + 1;
@@ -485,7 +506,7 @@ static void set_pic_header(enc_ctrl_t *h, com_pic_t *pic_rec)
     pichdr->top_field_first    = 0;
     pichdr->repeat_first_field = 0;
     pichdr->top_field_picture_flag = 0;
-    pichdr->fixed_picture_qp_flag = !h->cfg.dqp_enable;
+    pichdr->fixed_picture_qp_flag = !h->cfg.adaptive_dqp;
     pichdr->random_access_decodable_flag = 1; 
     pichdr->loop_filter_parameter_flag = 0;
     pichdr->alpha_c_offset = 0;
@@ -520,13 +541,6 @@ static void set_pic_header(enc_ctrl_t *h, com_pic_t *pic_rec)
         int is_ld = h->info.sqh.low_delay;
         int is_top = pic_rec->layer_id < FRM_DEPTH_2 && !is_ld;
 
-        for (int i = 0; i < h->rpm.cur_num_ref_pics; i++) {
-            com_pic_t *ref = h->rpm.pic[i];
-            if (ref && ref->b_ref && ref->layer_id <= FRM_DEPTH_1 && (h->top_pic[0] == NULL || h->top_pic[0]->ptr < ref->ptr)) {
-                h->top_pic[0] = ref;
-            }
-        }
-
         com_refm_remove_ref_pic(&h->rpm, pichdr, pic_rec, h->cfg.close_gop, is_ld);
         com_refm_build_ref_buf (&h->rpm);
 
@@ -539,6 +553,13 @@ static void set_pic_header(enc_ctrl_t *h, com_pic_t *pic_rec)
         } else {
             pichdr->rpl_l0.active = MAX_RA_ACTIVE;
             pichdr->rpl_l1.active = MAX_RA_ACTIVE;
+        }
+
+        for (int i = 0; i < h->rpm.cur_num_ref_pics; i++) {
+            com_pic_t *ref = h->rpm.pic[i];
+            if (ref && ref->b_ref && ref->layer_id <= FRM_DEPTH_1 && (h->top_pic[0] == NULL || h->top_pic[0]->ptr < ref->ptr)) {
+                h->top_pic[0] = ref;
+            }
         }
         com_refm_create_rpl(&h->rpm, pichdr, h->refp, h->top_pic, is_top);
         com_refm_pick_seqhdr_idx(&h->info.sqh, pichdr);
@@ -638,7 +659,7 @@ int enc_pic_finish(enc_ctrl_t *h, pic_thd_param_t *pic_thd, enc_stat_t *stat)
     com_img_t *imgb_c  = pic_rec->img;
 
     stat->type       = pic_thd->pichdr.slice_type;
-    stat->qp         = pic_org->picture_qp;
+    stat->qp         = (float)pic_rec->picture_qp_real;
     stat->poc        = pic_thd->ptr;
     stat->rec_img    = imgb_c;
     stat->org_img    = imgb_o;
@@ -675,18 +696,19 @@ int enc_pic_finish(enc_ctrl_t *h, pic_thd_param_t *pic_thd, enc_stat_t *stat)
 
 void *enc_lcu_row(core_t *core, enc_lcu_row_t *row)
 {
-    int lcu_y = row->lcu_y;
-    enc_pic_param_t *pic_ctx = row->pic_info;
-    int last_lcu_qp = pic_ctx->pathdr->slice_qp;
-    com_info_t *info = pic_ctx->info;
-    com_pic_header_t *pichdr = pic_ctx->pichdr;
-    u8 *map_qp = pic_ctx->map->map_qp + lcu_y * info->pic_width_in_lcu;
-    lbac_t *lbac = &row->sbac_row;
-    lbac_t *sbac_row_next = row->sbac_row_next;
-    uavs3e_sem_t *sem_up      = row->sem_up;
-    uavs3e_sem_t *sem_curr    = row->sem_curr;
+    int lcu_y                =  row->lcu_y;
+    enc_pic_param_t *pic_ctx =  row->pic_info;
+    uavs3e_sem_t *sem_up     =  row->sem_up;
+    uavs3e_sem_t *sem_curr   =  row->sem_curr;
+    lbac_t *lbac             = &row->lbac_row;
+    lbac_t *lbac_row_next    =  row->lbac_row_next;
 
-    row->total_qp       = 0;
+    int last_lcu_qp          = pic_ctx->pathdr->slice_qp;
+    com_info_t *info         = pic_ctx->info;
+    com_pic_header_t *pichdr = pic_ctx->pichdr;
+    u8 *map_qp               = pic_ctx->map->map_qp + lcu_y * info->pic_width_in_lcu;
+
+    row->total_qp        = 0;
     core->cnt_hmvp_cands = 0;
     core->lcu_y          = lcu_y;
     core->lcu_pix_y      = lcu_y << info->log2_max_cuwh;
@@ -736,12 +758,30 @@ void *enc_lcu_row(core_t *core, enc_lcu_row_t *row)
         if (core->pathdr->fixed_slice_qp_flag) {
             lcu_qp = core->pathdr->slice_qp;
         } else {
-            //for testing delta QP
-            int test_delta_qp = (((core->lcu_x + 1) * 5 + core->lcu_y * 3 + core->ptr * 6) % 16) + ((((core->lcu_x + 2) * 3 + core->lcu_y * 5 + core->ptr) % 8) << 4); //lower 4 bits and higher 3 bits
-            int max_abs_delta_qp = 32 + (info->bit_depth_internal - 8) * 4;
-            lcu_qp = last_lcu_qp + (test_delta_qp % (max_abs_delta_qp * 2 + 1)) - max_abs_delta_qp;
-            lcu_qp = COM_CLIP3(0, (MAX_QUANT_BASE + info->qp_offset_bit_depth), lcu_qp);
-            last_lcu_qp = lcu_qp;
+            if (core->param->adaptive_dqp) {
+                float *dqp_map = core->map->map_dqp + (core->lcu_pix_y / UNIT_SIZE) * (info->pic_width / UNIT_SIZE) + (core->lcu_pix_x / UNIT_SIZE);
+                double dqp_all = 0;
+                double blk_cnt = 0;
+                int lcu_w = COM_MIN(info->max_cuwh, info->pic_width  - core->lcu_pix_x);
+                int lcu_h = COM_MIN(info->max_cuwh, info->pic_height - core->lcu_pix_y);
+
+                for (int i = 0; i < lcu_h - (UNIT_SIZE - 1); i += UNIT_SIZE) {
+                    for (int j = 0; j < lcu_w - (UNIT_SIZE - 1); j += UNIT_SIZE) {
+                        dqp_all += dqp_map[j / UNIT_SIZE];
+                        blk_cnt++;
+                    }
+                    dqp_map += info->pic_width / UNIT_SIZE;
+                }
+                if (blk_cnt) {
+                    lcu_qp = (int)(core->pathdr->slice_qp + (dqp_all / blk_cnt) + 0.5);
+                    lcu_qp = COM_CLIP3(0, (MAX_QUANT_BASE + info->qp_offset_bit_depth), lcu_qp);
+                    last_lcu_qp = lcu_qp;
+                } else {
+                    lcu_qp = core->pathdr->slice_qp;
+                }
+            } else {
+                com_assert(0);
+            }
         }
         *map_qp++ = (u8)lcu_qp;
 
@@ -776,7 +816,7 @@ void *enc_lcu_row(core_t *core, enc_lcu_row_t *row)
 
         /* initialize structures *****************************************/
         enc_mode_init_lcu(core);
-        com_mset(core->bef_data, 0, sizeof(enc_history_t) * MAX_CU_DEPTH * MAX_CU_DEPTH * MAX_CU_CNT_IN_LCU);
+        com_mset(core->history_data, 0, sizeof(enc_history_t) * MAX_CU_DEPTH * MAX_CU_DEPTH * MAX_CU_CNT_IN_LCU);
 
         /* mode decision *************************************************/
         enc_mode_analyze_lcu(core, lbac);
@@ -796,14 +836,14 @@ void *enc_lcu_row(core_t *core, enc_lcu_row_t *row)
 
 #define KEEP_CONST 0
 
-        if (sbac_row_next) {
+        if (lbac_row_next) {
             if (core->param->wpp_threads > 1 || KEEP_CONST) {
                 if (core->lcu_x == 1) {
-                    lbac_copy(sbac_row_next, lbac);
+                    lbac_copy(lbac_row_next, lbac);
                 }
             } else {
                 if (core->lcu_x == info->pic_width_in_lcu - 1) {
-                    lbac_copy(sbac_row_next, lbac);
+                    lbac_copy(lbac_row_next, lbac);
                 }
             }
         }
@@ -830,9 +870,10 @@ void enc_get_pic_qp(enc_pic_t *ep, pic_thd_param_t *p)
     com_pic_t        *pic_org  = &p->pic_org;
     com_info_t       *info     = &ep->info;
     com_img_t        *img_org  = pic_org->img;
-    com_img_t        *ref_l0[2];
-    com_img_t        *ref_l1[2];
+    com_img_t        *ref_l0[4];
+    com_img_t        *ref_l1[4];
     int               base_qp;
+    double            icost, icost_uv[2];
 
     for (int refi = 0; refi < p->num_refp[PRED_L0]; refi++) {
         ref_l0[refi] = p->refp[refi][PRED_L0].pic->img;
@@ -849,8 +890,13 @@ void enc_get_pic_qp(enc_pic_t *ep, pic_thd_param_t *p)
         }
     }
 
-    pic_org->picture_satd = loka_estimate_coding_cost(&ep->pinter, img_org, ref_l0, ref_l1, p->num_refp, info->bit_depth_internal, NULL);
+    float *dqp_map = param->adaptive_dqp ? ep->map.map_dqp : NULL;
 
+    if (param->chroma_dqp) {
+        pic_org->picture_satd = loka_estimate_coding_cost(&ep->pinter, img_org, ref_l0, ref_l1, p->num_refp, info->bit_depth_internal, &icost, icost_uv, dqp_map);
+    } else {
+        pic_org->picture_satd = loka_estimate_coding_cost(&ep->pinter, img_org, ref_l0, ref_l1, p->num_refp, info->bit_depth_internal, NULL, NULL, dqp_map);
+    }
     if (param->rc_type == RC_TYPE_NULL) {
         base_qp = (int)(enc_get_hgop_qp(param->qp, pic_org->layer_id, info->sqh.low_delay) + 0.5);
     } else {
@@ -860,20 +906,40 @@ void enc_get_pic_qp(enc_pic_t *ep, pic_thd_param_t *p)
     }
     pic_org->picture_qp = (u8)COM_CLIP3(0, (MAX_QUANT_BASE + info->qp_offset_bit_depth), base_qp + info->qp_offset_bit_depth);
 
-    //find a qp_offset_cb that makes com_tbl_qp_chroma_ajudst[qp + qp_offset_cb] equal to com_tbl_qp_chroma_adjust_enc[qp + 1]
-    int opt_c_dqp;
     int qp_l = pic_org->picture_qp - info->qp_offset_bit_depth;
-    int target_chroma_qp = com_tbl_qp_chroma_adjust_enc[COM_CLIP(qp_l + 1, 0, 63)];
+    int target_chroma_qp, opt_c_dqp;
 
-    for (opt_c_dqp = -5; opt_c_dqp < 10; opt_c_dqp++) {
+    // delta QP of Cb
+    if (p->param->chroma_dqp) {
+        target_chroma_qp = com_tbl_qp_chroma_adjust_enc[COM_CLIP(qp_l + 1, 0, 63)] - (int)(icost / icost_uv[0]) + 1;
+    } else {
+        target_chroma_qp = com_tbl_qp_chroma_adjust_enc[COM_CLIP(qp_l + 1, 0, 63)];
+    }
+    target_chroma_qp = COM_MAX(0, target_chroma_qp);
+    for (opt_c_dqp = -10; opt_c_dqp < 10; opt_c_dqp++) {
         if (target_chroma_qp == com_tbl_qp_chroma_ajudst[COM_CLIP(qp_l + opt_c_dqp, 0, 63)]) {
             break;
         }
     }
-    opt_c_dqp = COM_MIN(opt_c_dqp, 63 - qp_l);
-
+    opt_c_dqp = COM_CLIP(opt_c_dqp, -qp_l, 63 - qp_l);
     pichdr->chroma_quant_param_delta_cb = param->qp_offset_cb + opt_c_dqp;
+    pichdr->chroma_quant_param_delta_cb = COM_CLIP(pichdr->chroma_quant_param_delta_cb, -16, 16);
+
+    // delta QP of Cr
+    if (p->param->chroma_dqp) {
+        target_chroma_qp = com_tbl_qp_chroma_adjust_enc[COM_CLIP(qp_l + 1, 0, 63)] - (int)(icost / icost_uv[1]) + 1;
+    } else {
+        target_chroma_qp = com_tbl_qp_chroma_adjust_enc[COM_CLIP(qp_l + 1, 0, 63)];
+    }
+    target_chroma_qp = COM_MAX(0, target_chroma_qp);
+    for (opt_c_dqp = -10; opt_c_dqp < 10; opt_c_dqp++) {
+        if (target_chroma_qp == com_tbl_qp_chroma_ajudst[COM_CLIP(qp_l + opt_c_dqp, 0, 63)]) {
+            break;
+        }
+    }
+    opt_c_dqp = COM_CLIP(opt_c_dqp, -qp_l, 63 - qp_l);
     pichdr->chroma_quant_param_delta_cr = param->qp_offset_cr + opt_c_dqp;
+    pichdr->chroma_quant_param_delta_cr = COM_CLIP(pichdr->chroma_quant_param_delta_cr, -16, 16);
 
     if (pichdr->chroma_quant_param_delta_cb == 0 && pichdr->chroma_quant_param_delta_cr == 0) {
         pichdr->chroma_quant_param_disable_flag = 1;
@@ -928,9 +994,9 @@ void *enc_pic_thread(enc_pic_t *ep, pic_thd_param_t *p)
 
     p->total_qp = 0;
 
-    lbac_t *sbac_fst_row = &ep->array_row[0].sbac_row;
-    lbac_reset(sbac_fst_row);
-    com_sbac_ctx_init(&sbac_fst_row->h);
+    lbac_t *lbac_fst_row = &ep->array_row[0].lbac_row;
+    lbac_reset(lbac_fst_row);
+    lbac_ctx_init(&lbac_fst_row->h);
 
     if (info->wpp_threads == 1) {
         for (int lcu_y = 0; lcu_y < info->pic_height_in_lcu; lcu_y++) {
@@ -939,7 +1005,7 @@ void *enc_pic_thread(enc_pic_t *ep, pic_thd_param_t *p)
             row->lcu_y         = lcu_y;
             row->sem_up        = NULL;
             row->sem_curr      = NULL;
-            row->sbac_row_next = (lcu_y == info->pic_height_in_lcu - 1) ? NULL : &ep->array_row[lcu_y + 1].sbac_row;
+            row->lbac_row_next = (lcu_y == info->pic_height_in_lcu - 1) ? NULL : &ep->array_row[lcu_y + 1].lbac_row;
             enc_lcu_row(ep->main_core, row);
             p->total_qp += row->total_qp;
         }
@@ -955,7 +1021,7 @@ void *enc_pic_thread(enc_pic_t *ep, pic_thd_param_t *p)
             row->lcu_y         = lcu_y;
             row->sem_up        = lcu_y ? &ep->array_row[lcu_y - 1].sem : NULL;
             row->sem_curr      = (lcu_y == info->pic_height_in_lcu - 1) ? NULL : &row->sem;
-            row->sbac_row_next = (lcu_y == info->pic_height_in_lcu - 1) ? NULL : &ep->array_row[lcu_y + 1].sbac_row;
+            row->lbac_row_next = (lcu_y == info->pic_height_in_lcu - 1) ? NULL : &ep->array_row[lcu_y + 1].lbac_row;
             uavs3e_threadpool_run(ep->wpp_threads_pool, (void*(*)(void *, void*))enc_lcu_row, row, 1);
         }
         for (int lcu_y = 0; lcu_y < info->pic_height_in_lcu; lcu_y++) {
@@ -971,7 +1037,7 @@ void *enc_pic_thread(enc_pic_t *ep, pic_thd_param_t *p)
         double lambda = 1.43631 * pow(2.0, (p->total_qp * 1.0 / info->f_lcu - 16.0) / 4.0);
         pichdr->m_alfPictureParam = ep->Enc_ALF.m_alfPictureParam;
         pichdr->pic_alf_on = ep->pic_alf_on;
-        enc_alf_avs2(ep, pic_rec, pic_org, lambda);
+        uavs3e_alf_frame(ep, pic_rec, pic_org, lambda);
     } else {
         pichdr->m_alfPictureParam = NULL;
         pichdr->pic_alf_on = NULL;
@@ -1042,10 +1108,10 @@ void *enc_pic_thread(enc_pic_t *ep, pic_thd_param_t *p)
     }
 
     int lcu_pos = 0;
-    lbac_t sbac_enc;
-    lbac_t *lbac = &sbac_enc;
+    lbac_t lbac_enc;
+    lbac_t *lbac = &lbac_enc;
     lbac_reset(lbac);
-    com_sbac_ctx_init(&lbac->h);
+    lbac_ctx_init(&lbac->h);
 
     /* Encode slice data */
     int last_lcu_qp = pathdr.slice_qp;
@@ -1109,7 +1175,7 @@ void *enc_pic_thread(enc_pic_t *ep, pic_thd_param_t *p)
     return ep;
 }
 
-static void enc_push_frm(enc_ctrl_t *h, com_img_t *img)
+static void enc_push_frm(enc_ctrl_t *h, com_img_t *img, int insert_idr)
 {
     img->ptr = h->ptr++;
 
@@ -1121,7 +1187,7 @@ static void enc_push_frm(enc_ctrl_t *h, com_img_t *img)
         return;
     }
     if (h->info.sqh.low_delay) { // LD
-        if (h->lastI_ptr == -1 || (h->cfg.i_period && img->ptr - h->lastI_ptr == h->cfg.i_period)) {
+        if (h->lastI_ptr == -1 || insert_idr || (h->cfg.i_period && img->ptr - h->lastI_ptr == h->cfg.i_period)) {
             add_input_node(h, img, 1, FRM_DEPTH_0, SLICE_I);
             h->lastI_ptr = img->ptr;
         } else {
@@ -1133,7 +1199,6 @@ static void enc_push_frm(enc_ctrl_t *h, com_img_t *img)
     }
 
     /*** RA ***/
-
     if (h->lastI_ptr == -1) { // First frame
         add_input_node(h, img, 1, FRM_DEPTH_0, SLICE_I);
         h->lastI_ptr = img->ptr;
@@ -1145,8 +1210,9 @@ static void enc_push_frm(enc_ctrl_t *h, com_img_t *img)
     com_img_t *last_img = h->img_rsize ? h->img_rlist[h->img_rsize - 1].img : h->img_lastIP;
     int bit_depth = h->info.bit_depth_internal;
 
-    h->img_rlist[h->img_rsize].img = img;
-    h->img_rlist[h->img_rsize].sc_ratio = loka_get_sc_ratio(&h->pinter, img, last_img, bit_depth);
+    h->img_rlist[h->img_rsize].img        = img;
+    h->img_rlist[h->img_rsize].insert_idr = insert_idr;
+    h->img_rlist[h->img_rsize].sc_ratio   = loka_get_sc_ratio(&h->pinter, img, last_img, bit_depth);
     h->img_rsize++;
 
     if (h->img_rsize < h->cfg.lookahead) {
@@ -1221,33 +1287,14 @@ void *uavs3e_create(enc_cfg_t *cfg, int *err)
 
     rc_init(&h->rc, &h->cfg);
 
-
 #if defined(ENABLE_FUNCTION_C)
     uavs3e_funs_init_c();
 #endif
 
-#if (BIT_DEPTH == 8)
-
-#if defined(ENABLE_FUNCTION_ARM64)
-    uavs3e_funs_init_arm64();
-#elif defined(ENABLE_FUNCTION_ARM32)
-    //uavs3e_funs_init_arm32();
-#elif defined(ENABLE_FUNCTION_X86)
-
-    uavs3e_funs_init_sse();
-
-    if (uavs3e_simd_avx_level(NULL) >= 2) {
-        uavs3e_funs_init_avx2();
-    }
-#endif
-#elif (BIT_DEPTH == 10)
-#if defined(ENABLE_FUNCTION_X86)
     uavs3e_funs_init_sse();
     if (uavs3e_simd_avx_level(NULL) >= 2) {
         uavs3e_funs_init_avx2();
     }
-#endif
-#endif
 
     com_scan_tbl_init();
     com_dct_coef_create();
@@ -1259,9 +1306,16 @@ void *uavs3e_create(enc_cfg_t *cfg, int *err)
 
 void uavs3e_free(void *id)
 {
+    int ret;
     enc_ctrl_t *h = (enc_ctrl_t *)id;
 
-    int i;
+    do { // flush
+        enc_stat_t stat;
+        stat.ext_info = NULL;
+        stat.ext_info_buf_size = 0;
+        stat.insert_idr = 0;
+        ret = uavs3e_enc(id, &stat, NULL);
+    } while (ret == COM_OK);
 
     com_assert(h);
     com_refm_free(&h->rpm);
@@ -1278,7 +1332,7 @@ void uavs3e_free(void *id)
         }
         com_mfree(h->pic_thd_params);
     }
-    for (i = 0; i < h->ilist_size; i++) {
+    for (int i = 0; i < h->ilist_size; i++) {
         if (h->ilist_imgs[i]) {
             com_img_release(h->ilist_imgs[i]);
         }
@@ -1293,48 +1347,17 @@ void uavs3e_free(void *id)
     com_scan_tbl_delete();
 }
 
-int uavs3e_enc(void *id, enc_stat_t *stat, com_img_t *img_enc)
+static int start_one_frame(enc_ctrl_t *h)
 {
-    enc_ctrl_t *h = (enc_ctrl_t *)id;
     int ret;
-    int gop_size = h->info.gop_size;
-
-    if (img_enc) {
-        enc_push_frm(h, img_enc);
-
-        /* store input picture and return if needed */
-        if (h->ptr < h->cfg.lookahead && h->cfg.max_b_frames) {
-            return COM_OK_OUT_NOT_AVAILABLE;
-        }
-    } else { // flush
-        if (h->img_rsize && !h->node_size) {
-            loka_slicetype_decision(h);
-        }
-
-        /* check whether input pictures are remaining or not in node_input[] */
-        if (!h->node_size) { // bumping
-            if (h->pic_thd_active) {
-                pic_thd_param_t *pic_thd_param = &h->pic_thd_params[h->pic_thd_tail];
-                h->pic_thd_tail = (h->pic_thd_tail + 1) % h->cfg.frm_threads;
-                uavs3e_threadpool_wait(h->frm_threads_pool, pic_thd_param);
-                enc_pic_finish(h, pic_thd_param, stat);
-                h->pic_thd_active--;
-
-                if (h->cfg.rc_type != RC_TYPE_NULL) {
-                    rc_update(&h->rc, pic_thd_param->pic_rec, stat->ext_info, stat->ext_info_buf_size);
-                }
-                return COM_OK;
-            } else {
-                return COM_OK_NO_MORE_FRM;
-            }
-        }
-    }
-
-    assert(h->node_size > 0);
 
     /* initialize variables for a picture encoding */
     input_node_t node = h->node_list[0];
     com_pic_t *pic_rec = com_refm_find_free_pic(&h->rpm, node.b_ref, &ret);
+
+    if (ret != COM_OK) {
+        return ret;
+    }
 
     for (int i = 0; i < h->node_size - 1; i++) {
         h->node_list[i] = h->node_list[i + 1];
@@ -1404,8 +1427,58 @@ int uavs3e_enc(void *id, enc_stat_t *stat, com_img_t *img_enc)
     h->pic_thd_head = (h->pic_thd_head + 1) % h->cfg.frm_threads;
     h->pic_thd_active++;
 
+    return ret;
+}
+
+int uavs3e_enc(void *id, enc_stat_t *stat, com_img_t *img_enc)
+{
+    int ret;
+    enc_ctrl_t *h = (enc_ctrl_t *)id;
+
+    if (img_enc) {
+        enc_push_frm(h, img_enc, stat->insert_idr);
+
+        /* store input picture and return if needed */
+        if (h->ptr < h->cfg.lookahead && h->cfg.max_b_frames) {
+            return COM_OK_OUT_NOT_AVAILABLE;
+        }
+    } else { // flush
+        if (h->img_rsize && !h->node_size) {
+            loka_slicetype_decision(h);
+        }
+
+        while (h->pic_thd_active < h->cfg.frm_threads - 1 && (h->img_rsize || h->node_size)) {
+            if (h->img_rsize && !h->node_size) {
+                loka_slicetype_decision(h);
+            }
+            ret = start_one_frame(h);
+        }
+
+        /* check whether input pictures are remaining or not in node_input[] */
+        if (!h->node_size) { // bumping
+            if (h->pic_thd_active) {
+                pic_thd_param_t *pic_thd_param = &h->pic_thd_params[h->pic_thd_tail];
+                h->pic_thd_tail = (h->pic_thd_tail + 1) % h->cfg.frm_threads;
+                uavs3e_threadpool_wait(h->frm_threads_pool, pic_thd_param);
+                enc_pic_finish(h, pic_thd_param, stat);
+                h->pic_thd_active--;
+
+                if (h->cfg.rc_type != RC_TYPE_NULL) {
+                    rc_update(&h->rc, pic_thd_param->pic_rec, stat->ext_info, stat->ext_info_buf_size);
+                }
+                return COM_OK;
+            } else {
+                return COM_OK_NO_MORE_FRM;
+            }
+        }
+    }
+
+    assert(h->node_size > 0);
+
+    ret = start_one_frame(h);
+
     if (h->pic_thd_active == h->cfg.frm_threads) {
-        pic_thd_param = &h->pic_thd_params[h->pic_thd_tail];
+        pic_thd_param_t *pic_thd_param = &h->pic_thd_params[h->pic_thd_tail];
         h->pic_thd_tail = (h->pic_thd_tail + 1) % h->cfg.frm_threads;
         uavs3e_threadpool_wait(h->frm_threads_pool, pic_thd_param);
         enc_pic_finish(h, pic_thd_param, stat);
@@ -1419,4 +1492,89 @@ int uavs3e_enc(void *id, enc_stat_t *stat, com_img_t *img_enc)
     } else {
         return COM_OK_OUT_NOT_AVAILABLE;
     }
+}
+
+void uavs3e_load_default_cfg(enc_cfg_t *cfg)
+{
+    memset(cfg, 0, sizeof(enc_cfg_t));
+
+    //#=========== Misc. ===============================
+    cfg->use_pic_sign        =   1;
+    cfg->bit_depth_internal  =   8;
+    cfg->chroma_format       =   1;
+
+    //#========== speed/quality trade-off ==============
+    cfg->speed_level         =   1;
+
+    //#========== parallel configuration ===============
+    cfg->wpp_threads         =   1;
+    cfg->frm_threads         =   1;
+
+    //#=========== split configuration =================
+    cfg->ctu_size            = 128;
+    cfg->min_cu_size         =   4;
+    cfg->max_part_ratio      =   8;
+    cfg->max_split_times     =   6;
+    cfg->min_qt_size         =   8;
+    cfg->max_bt_size         = 128;
+    cfg->max_eqt_size        =  64;
+    cfg->max_dt_size         =  64;
+
+    //#======== Coding Structure =======================
+    cfg->i_period            =  64;
+    cfg->max_b_frames        =  15;
+    cfg->close_gop           =   0;
+    cfg->scenecut            =   0;
+    cfg->adaptive_gop        =   0;
+    cfg->lookahead           =  40;
+
+    //#========== Rate Control =========================
+    cfg->rc_type             =    0;
+    cfg->rc_bitrate          = 3000; 
+    cfg->rc_max_bitrate      =    0;
+    cfg->rc_min_qp           =    0;
+    cfg->rc_max_qp           =   63;
+    cfg->rc_crf              =   34;
+
+    cfg->qp                  =   34;
+    cfg->qp_offset_cb        =    0;
+    cfg->qp_offset_cr        =    0;
+
+    //#=========== Coding Tools ========================
+    cfg->amvr_enable         =   1;
+    cfg->affine_enable       =   1;
+    cfg->smvd_enable         =   1;
+    cfg->num_of_hmvp         =   8;
+    cfg->ipf_flag            =   1;
+    cfg->tscpm_enable        =   1;
+    cfg->umve_enable         =   1;
+    cfg->emvr_enable         =   1;
+    cfg->dt_enable           =   1;
+    cfg->sectrans_enable     =   1;
+    cfg->pbt_enable          =   1;
+    cfg->use_deblock         =   1;
+    cfg->sao_enable          =   1;
+    cfg->alf_enable          =   1;
+
+    //#=========== weight quant ========================
+    cfg->wq_enable           =   0;
+    cfg->seq_wq_mode         =   0;
+    cfg->pic_wq_data_idx     =   1;
+    strcpy(cfg->seq_wq_user, "[64,64,64,68,64,64,68,72,64,68,76,80,72,76,84,96,64,64,64,64,68,68,72,76,64,64,64,68,72,76,84,92,64,64,68,72,76,80,88,100,64,68,72,80,84,92,100,112,68,72,80,84,92,104,112,128,76,80,84,92,104,116,132,152,96,100,104,116,124,140,164,188,104,108,116,128,152,172,192,216]");
+    strcpy(cfg->pic_wq_user, "[64,64,64,68,64,64,68,72,64,68,76,80,72,76,84,96,64,64,64,64,68,68,72,76,64,64,64,68,72,76,84,92,64,64,68,72,76,80,88,100,64,68,72,80,84,92,100,112,68,72,80,84,92,104,112,128,76,80,84,92,104,116,132,152,96,100,104,116,124,140,164,188,104,108,116,128,152,172,192,216]");
+    cfg->wq_param = 0;
+    cfg->wq_model = 1;
+    strcpy(cfg->wq_param_detailed, "[64,49,53,58,58,64]");
+    strcpy(cfg->wq_param_undetailed, "[67,71,71,80,80,106]");
+
+    //#=========== patch ===============================
+    cfg->filter_cross_patch  =   1;
+    cfg->colocated_patch     =   0;
+    cfg->patch_width         =   0;
+    cfg->patch_height        =   0;
+
+    //#======= other encoder-size tools ================
+    cfg->chroma_dqp   = 1;
+    cfg->adaptive_dqp = 0;
+
 }

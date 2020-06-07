@@ -1,17 +1,36 @@
 ﻿/**************************************************************************************
- * Copyright (C) 2018-2019 uavs3e project
+ * Copyright (c) 2018-2020 ["Peking University Shenzhen Graduate School",
+ *   "Peng Cheng Laboratory", and "Guangdong Bohua UHD Innovation Corporation"]
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the Open-Intelligence Open Source License V1.1.
+ * All rights reserved.
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * Open-Intelligence Open Source License V1.1 for more details.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ * 3. All advertising materials mentioning features or use of this software
+ *    must display the following acknowledgement:
+ *    This product includes the software uAVS3d developed by
+ *    Peking University Shenzhen Graduate School, Peng Cheng Laboratory
+ *    and Guangdong Bohua UHD Innovation Corporation.
+ * 4. Neither the name of the organizations (Peking University Shenzhen Graduate School,
+ *    Peng Cheng Laboratory and Guangdong Bohua UHD Innovation Corporation) nor the
+ *    names of its contributors may be used to endorse or promote products
+ *    derived from this software without specific prior written permission.
  *
- * You should have received a copy of the Open-Intelligence Open Source License V1.1
- * along with this program; if not, you can download it on:
- * http://www.aitisa.org.cn/uploadfile/2018/0910/20180910031548314.pdf
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS ''AS IS'' AND ANY
+ * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+ * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDERS BE LIABLE FOR ANY
+ * DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * For more information, contact us at rgwang@pkusz.edu.cn.
  **************************************************************************************/
@@ -43,21 +62,42 @@ void com_mc_blk_luma(com_pic_t *pic, pel *dst, int dst_stride, int x_pos, int y_
     y_pos = COM_CLIP3(-MAX_CU_SIZE - 4, max_posy, y_pos);
 
     if (hp_flag) {
-        pel *src = pic->y + y_pos * i_src + x_pos;
-
-        if (dx == 0 && dy == 0) {
+        if ((dx == 0 || dx == 8) && (dy == 0 && dy == 8)) {
+            dx = dx >> 2;
+            dy = dy >> 2;
+            pel *src = (pel*)pic->subpel->imgs[dy][dx]->planes[0] + y_pos * i_src + x_pos;
             uavs3e_funs_handle.ipcpy[widx](src, i_src, dst, dst_stride, width, height);
-        } else if (dy == 0) {
-            uavs3e_funs_handle.ipflt[IPFILTER_H_8][widx](src, i_src, dst, dst_stride, width, height, coeff[dx], max_val);
-        } else if (dx == 0) {
-            uavs3e_funs_handle.ipflt[IPFILTER_V_8][widx](src, i_src, dst, dst_stride, width, height, coeff[dy], max_val);
         } else {
-            uavs3e_funs_handle.ipflt_ext[IPFILTER_EXT_8][widx](src, i_src, dst, dst_stride, width, height, coeff[dx], coeff[dy], max_val);
+            pel *src = pic->y + y_pos * i_src + x_pos;
+
+            if (dx == 0 && dy == 0) {
+                uavs3e_funs_handle.ipcpy[widx](src, i_src, dst, dst_stride, width, height);
+            } else if (dy == 0) {
+                uavs3e_funs_handle.ipflt[IPFILTER_H_8][widx](src, i_src, dst, dst_stride, width, height, coeff[dx], max_val);
+            } else if (dx == 0) {
+                uavs3e_funs_handle.ipflt[IPFILTER_V_8][widx](src, i_src, dst, dst_stride, width, height, coeff[dy], max_val);
+            } else {
+                uavs3e_funs_handle.ipflt_ext[IPFILTER_EXT_8][widx](src, i_src, dst, dst_stride, width, height, coeff[dx], coeff[dy], max_val);
+            }
         }
     } else {
         pel *src = (pel*)pic->subpel->imgs[dy][dx]->planes[0] + y_pos * i_src + x_pos;
         uavs3e_funs_handle.ipcpy[widx](src, i_src, dst, dst_stride, width, height);
     }
+}
+
+pel* com_mc_blk_luma_pointer(com_pic_t *pic, int x_pos, int y_pos, int max_posx, int max_posy)
+{
+    int dx = x_pos & 3;
+    int dy = y_pos & 3;
+
+    x_pos >>= 2;
+    y_pos >>= 2;
+
+    x_pos = COM_CLIP3(-MAX_CU_SIZE - 4, max_posx, x_pos);
+    y_pos = COM_CLIP3(-MAX_CU_SIZE - 4, max_posy, y_pos);
+
+    return  (pel*)pic->subpel->imgs[dy][dx]->planes[0] + y_pos * pic->stride_luma + x_pos;
 }
 
 static void com_mc_blk_chroma(com_pic_t *pic, int uv_flag, pel *dst, int dst_stride, int x_pos, int y_pos, int width, int height, int widx, int max_posx, int max_posy, int max_val, int hp_flag)
@@ -99,20 +139,18 @@ static void com_mc_blk_chroma(com_pic_t *pic, int uv_flag, pel *dst, int dst_str
 
 void com_mc_cu(int x, int y, int pic_w, int pic_h, int w, int h, s8 refi[REFP_NUM], s16 mv[REFP_NUM][MV_D], com_ref_pic_t(*refp)[REFP_NUM], pel pred_buf[N_C][MAX_CU_DIM], int pred_stride, channel_type_t channel, int bit_depth)
 {
-    com_pic_t    *ref_pic;
     ALIGNED_32(pel pred_snd[N_C][MAX_CU_DIM]);
     pel(*pred)[MAX_CU_DIM] = pred_buf;
-    int qpel_gmv_x, qpel_gmv_y;
-    int bidx = 0;
     int max_posx = pic_w + 4;
     int max_posy = pic_h + 4;
     int widx = CONV_LOG2(w) - MIN_CU_LOG2;
+    int bidx = 0;
 
     if (REFI_IS_VALID(refi[REFP_0])) {
         /* forward */
-        ref_pic = refp[refi[REFP_0]][REFP_0].pic;
-        qpel_gmv_x = (x << 2) + mv[REFP_0][MV_X];
-        qpel_gmv_y = (y << 2) + mv[REFP_0][MV_Y];
+        com_pic_t *ref_pic = refp[refi[REFP_0]][REFP_0].pic;
+        int qpel_gmv_x = (x << 2) + mv[REFP_0][MV_X];
+        int qpel_gmv_y = (y << 2) + mv[REFP_0][MV_Y];
 
         if (channel != CHANNEL_C) {
             com_mc_blk_luma(ref_pic, pred[Y_C], pred_stride, qpel_gmv_x, qpel_gmv_y, w, h, widx, max_posx, max_posy, (1 << bit_depth) - 1, 0);
@@ -134,9 +172,9 @@ void com_mc_cu(int x, int y, int pic_w, int pic_h, int w, int h, s8 refi[REFP_NU
         if (bidx) {
             pred = pred_snd;
         }
-        ref_pic = refp[refi[REFP_1]][REFP_1].pic;
-        qpel_gmv_x = (x << 2) + mv[REFP_1][MV_X];
-        qpel_gmv_y = (y << 2) + mv[REFP_1][MV_Y];
+        com_pic_t *ref_pic = refp[refi[REFP_1]][REFP_1].pic;
+        int qpel_gmv_x = (x << 2) + mv[REFP_1][MV_X];
+        int qpel_gmv_y = (y << 2) + mv[REFP_1][MV_Y];
 
         if (channel != CHANNEL_C) {
             com_mc_blk_luma(ref_pic, pred[Y_C], pred_stride, qpel_gmv_x, qpel_gmv_y, w, h, widx, max_posx, max_posy, (1 << bit_depth) - 1, 0);
@@ -161,44 +199,30 @@ void com_mc_cu(int x, int y, int pic_w, int pic_h, int w, int h, s8 refi[REFP_NU
     }
 }
 
-void com_mc_blk_affine_luma(int x, int y, int pic_w, int pic_h, int cu_width, int cu_height, CPMV ac_mv[VER_NUM][MV_D], com_pic_t *ref_pic, pel pred[MAX_CU_DIM], int cp_num, int sub_w, int sub_h, int bit_depth)
+void com_mc_blk_affine_luma(int x, int y, int pic_w, int pic_h, int cu_width, int cu_height, CPMV ac_mv[VER_NUM][MV_D], com_pic_t *ref_pic, pel pred[MAX_CU_DIM], int sub_w, int sub_h, int bit_depth)
 {
-    assert(com_tbl_log2[cu_width] >= 4);
+    assert(com_tbl_log2[cu_width ] >= 4);
     assert(com_tbl_log2[cu_height] >= 4);
 
-    int qpel_gmv_x, qpel_gmv_y;
-    pel *pred_y = pred;
-    int w, h;
-    int half_w, half_h;
-
-    s32 dmv_hor_x, dmv_ver_x, dmv_hor_y, dmv_ver_y;
+    int half_w = sub_w >> 1;
+    int half_h = sub_h >> 1;
     s32 mv_scale_hor = (s32)ac_mv[0][MV_X] << 7;
     s32 mv_scale_ver = (s32)ac_mv[0][MV_Y] << 7;
     s32 mv_scale_tmp_hor, mv_scale_tmp_ver;
 
-    // get sub block size
-    half_w = sub_w >> 1;
-    half_h = sub_h >> 1;
-
     // convert to 2^(storeBit + bit) precision
-    dmv_hor_x = (((s32)ac_mv[1][MV_X] - (s32)ac_mv[0][MV_X]) << 7) >> com_tbl_log2[cu_width];      // deltaMvHor
-    dmv_hor_y = (((s32)ac_mv[1][MV_Y] - (s32)ac_mv[0][MV_Y]) << 7) >> com_tbl_log2[cu_width];
-
-    if (cp_num == 3) {
-        dmv_ver_x = (((s32)ac_mv[2][MV_X] - (s32)ac_mv[0][MV_X]) << 7) >> com_tbl_log2[cu_height]; // deltaMvVer
-        dmv_ver_y = (((s32)ac_mv[2][MV_Y] - (s32)ac_mv[0][MV_Y]) << 7) >> com_tbl_log2[cu_height];
-    } else {
-        dmv_ver_x = -dmv_hor_y;                                                                    // deltaMvVer
-        dmv_ver_y = dmv_hor_x;
-    }
+    s32 dmv_hor_x = (((s32)ac_mv[1][MV_X] - (s32)ac_mv[0][MV_X]) << 7) >> com_tbl_log2[cu_width];      // deltaMvHor
+    s32 dmv_hor_y = (((s32)ac_mv[1][MV_Y] - (s32)ac_mv[0][MV_Y]) << 7) >> com_tbl_log2[cu_width];
+    s32 dmv_ver_x = -dmv_hor_y;                                                                        // deltaMvVer
+    s32 dmv_ver_y = dmv_hor_x;
 
     int widx = CONV_LOG2(sub_w) - MIN_CU_LOG2;
     int max_posx = pic_w + 4;
     int max_posy = pic_h + 4;
 
     // get prediction block by block
-    for (h = 0; h < cu_height; h += sub_h) {
-        for (w = 0; w < cu_width; w += sub_w) {
+    for (int h = 0; h < cu_height; h += sub_h) {
+        for (int w = 0; w < cu_width; w += sub_w) {
             int pos_x = w + half_w;
             int pos_y = h + half_h;
 
@@ -208,10 +232,7 @@ void com_mc_blk_affine_luma(int x, int y, int pic_w, int pic_h, int cu_width, in
             } else if (w + sub_w == cu_width && h == 0) {
                 pos_x = cu_width;
                 pos_y = 0;
-            } else if (w == 0 && h + sub_h == cu_height && cp_num == 3) {
-                pos_x = 0;
-                pos_y = cu_height;
-            }
+            } 
 
             mv_scale_tmp_hor = mv_scale_hor + dmv_hor_x * pos_x + dmv_ver_x * pos_y;
             mv_scale_tmp_ver = mv_scale_ver + dmv_hor_y * pos_x + dmv_ver_y * pos_y;
@@ -221,16 +242,16 @@ void com_mc_blk_affine_luma(int x, int y, int pic_w, int pic_h, int cu_width, in
             mv_scale_tmp_hor = COM_CLIP3(COM_INT18_MIN, COM_INT18_MAX, mv_scale_tmp_hor);
             mv_scale_tmp_ver = COM_CLIP3(COM_INT18_MIN, COM_INT18_MAX, mv_scale_tmp_ver);
 
-            qpel_gmv_x = ((x + w) << 4) + mv_scale_tmp_hor;
-            qpel_gmv_y = ((y + h) << 4) + mv_scale_tmp_ver;
+            int qpel_gmv_x = ((x + w) << 4) + mv_scale_tmp_hor;
+            int qpel_gmv_y = ((y + h) << 4) + mv_scale_tmp_ver;
 
-            com_mc_blk_luma(ref_pic, pred_y + w, cu_width, qpel_gmv_x, qpel_gmv_y, sub_w, sub_h, widx, max_posx, max_posy, (1 << bit_depth) - 1, 1);
+            com_mc_blk_luma(ref_pic, pred + w, cu_width, qpel_gmv_x, qpel_gmv_y, sub_w, sub_h, widx, max_posx, max_posy, (1 << bit_depth) - 1, 1);
         }
-        pred_y += (cu_width * sub_h);
+        pred += (cu_width * sub_h);
     }
 }
 
-static void com_mc_blk_affine(int x, int y, int pic_w, int pic_h, int cu_width, int cu_height, CPMV ac_mv[VER_NUM][MV_D], com_pic_t *ref_pic, pel pred[N_C][MAX_CU_DIM], int cp_num, int sub_w, int sub_h, s16(*map_mv)[REFP_NUM][MV_D], int lidx, int bit_depth)
+static void com_mc_blk_affine(int x, int y, int pic_w, int pic_h, int cu_width, int cu_height, CPMV ac_mv[VER_NUM][MV_D], com_pic_t *ref_pic, pel pred[N_C][MAX_CU_DIM], int cp_num, int sub_w, int sub_h, int lidx, int bit_depth)
 {
     assert(com_tbl_log2[cu_width] >= 4);
     assert(com_tbl_log2[cu_height] >= 4);
@@ -335,7 +356,7 @@ static void com_mc_blk_affine(int x, int y, int pic_w, int pic_h, int cu_width, 
     }
 }
 
-void com_mc_cu_affine(int x, int y, int pic_w, int pic_h, int w, int h, s8 refi[REFP_NUM], CPMV mv[REFP_NUM][VER_NUM][MV_D], com_ref_pic_t(*refp)[REFP_NUM], pel pred_buf[N_C][MAX_CU_DIM], int vertex_num, com_pic_header_t *sh, s16(*map_mv)[REFP_NUM][MV_D], int bit_depth)
+void com_mc_cu_affine(int x, int y, int pic_w, int pic_h, int w, int h, s8 refi[REFP_NUM], CPMV mv[REFP_NUM][VER_NUM][MV_D], com_ref_pic_t(*refp)[REFP_NUM], pel pred_buf[N_C][MAX_CU_DIM], int vertex_num, com_pic_header_t *sh, int bit_depth)
 {
     com_pic_t *ref_pic;
     ALIGNED_32(pel pred_snd[N_C][MAX_CU_DIM]);
@@ -357,7 +378,7 @@ void com_mc_cu_affine(int x, int y, int pic_w, int pic_h, int w, int h, s8 refi[
     if (REFI_IS_VALID(refi[REFP_0])) {
         /* forward */
         ref_pic = refp[refi[REFP_0]][REFP_0].pic;
-        com_mc_blk_affine(x, y, pic_w, pic_h, w, h, mv[REFP_0], ref_pic, pred, vertex_num, sub_w, sub_h, map_mv, 0, bit_depth);
+        com_mc_blk_affine(x, y, pic_w, pic_h, w, h, mv[REFP_0], ref_pic, pred, vertex_num, sub_w, sub_h, 0, bit_depth);
         bidx++;
     }
 
@@ -367,7 +388,7 @@ void com_mc_cu_affine(int x, int y, int pic_w, int pic_h, int w, int h, s8 refi[
             pred = pred_snd;
         }
         ref_pic = refp[refi[REFP_1]][REFP_1].pic;
-        com_mc_blk_affine(x, y, pic_w, pic_h, w, h, mv[REFP_1], ref_pic, pred, vertex_num, sub_w, sub_h, map_mv, 1, bit_depth);
+        com_mc_blk_affine(x, y, pic_w, pic_h, w, h, mv[REFP_1], ref_pic, pred, vertex_num, sub_w, sub_h, 1, bit_depth);
         bidx++;
     }
 

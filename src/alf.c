@@ -1,20 +1,39 @@
 /**************************************************************************************
- * Copyright (C) 2018-2019 uavs3e project
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the Open-Intelligence Open Source License V1.1.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * Open-Intelligence Open Source License V1.1 for more details.
- *
- * You should have received a copy of the Open-Intelligence Open Source License V1.1
- * along with this program; if not, you can download it on:
- * http://www.aitisa.org.cn/uploadfile/2018/0910/20180910031548314.pdf
- *
- * For more information, contact us at rgwang@pkusz.edu.cn.
- **************************************************************************************/
+* Copyright (c) 2018-2020 ["Peking University Shenzhen Graduate School",
+*   "Peng Cheng Laboratory", and "Guangdong Bohua UHD Innovation Corporation"]
+*
+* All rights reserved.
+*
+* Redistribution and use in source and binary forms, with or without
+* modification, are permitted provided that the following conditions are met:
+* 1. Redistributions of source code must retain the above copyright
+*    notice, this list of conditions and the following disclaimer.
+* 2. Redistributions in binary form must reproduce the above copyright
+*    notice, this list of conditions and the following disclaimer in the
+*    documentation and/or other materials provided with the distribution.
+* 3. All advertising materials mentioning features or use of this software
+*    must display the following acknowledgement:
+*    This product includes the software uAVS3d developed by
+*    Peking University Shenzhen Graduate School, Peng Cheng Laboratory
+*    and Guangdong Bohua UHD Innovation Corporation.
+* 4. Neither the name of the organizations (Peking University Shenzhen Graduate School,
+*    Peng Cheng Laboratory and Guangdong Bohua UHD Innovation Corporation) nor the
+*    names of its contributors may be used to endorse or promote products
+*    derived from this software without specific prior written permission.
+*
+* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS ''AS IS'' AND ANY
+* EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+* WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+* DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDERS BE LIABLE FOR ANY
+* DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+* (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+* LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+* ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+* (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+* SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+*
+* For more information, contact us at rgwang@pkusz.edu.cn.
+**************************************************************************************/
 
 #include "define.h"
 
@@ -22,27 +41,23 @@
 #define REG              0.0001
 #define REG_SQR          0.0000001
 
-//enc_alf_var_t *Enc_ALF;
-
 #define Clip_post(high,val) ((val > high)? high: val)
 
-void copyToImage(pel *pDest, pel *pSrc, int stride_in, int img_height, int img_width, int formatShift)
+static void copyToImage(pel *pDest, pel *pSrc, int stride_in, int img_height, int img_width, int formatShift)
 {
-    int j, width, height;
-    pel *pdst;
-    pel *psrc;
-    height = img_height >> formatShift;
-    width = img_width >> formatShift;
-    psrc = pSrc;
-    pdst = pDest;
-    for (j = 0; j < height; j++) {
+    int height = img_height >> formatShift;
+    int width  = img_width  >> formatShift;
+    pel *psrc  = pSrc;
+    pel *pdst  = pDest;
+
+    for (int j = 0; j < height; j++) {
         memcpy(pdst, psrc, width * sizeof(pel));
         pdst = pdst + stride_in;
         psrc = psrc + stride_in;
     }
 }
 
-void copyOneAlfBlk(pel *picDst, pel *picSrc, int stride, int ypos, int xpos, int height, int width, int isAboveAvail, int isBelowAvail)
+static void copyOneAlfBlk(pel *picDst, pel *picSrc, int stride, int ypos, int xpos, int height, int width, int isAboveAvail, int isBelowAvail)
 {
     int posOffset = (ypos * stride) + xpos;
     pel *pelDst;
@@ -60,116 +75,83 @@ void copyOneAlfBlk(pel *picDst, pel *picSrc, int stride, int ypos, int xpos, int
     }
 }
 
-long long xCalcSSD(enc_alf_var_t *Enc_ALF, pel *pOrg, int i_org, pel *pCmp, int iWidth, int iHeight, int iStride)
+static long long cal_lcu_ssd(enc_alf_var_t *Enc_ALF, pel *pOrg, int i_org, pel *pCmp, int iWidth, int iHeight, int iStride)
 {
-    long long uiSSD = 0;
-    int x, y;
-    unsigned int  uiShift = Enc_ALF->m_uiBitIncrement << 1;
-    int iTemp;
-    for (y = 0; y < iHeight; y++) {
-        for (x = 0; x < iWidth; x++) {
-            iTemp = pOrg[x] - pCmp[x];
-            uiSSD += (iTemp * iTemp) >> uiShift;
+    if (iWidth < 256 && CONV_LOG2(iWidth) != -1) {
+        int widx = CONV_LOG2(iWidth) - MIN_CU_LOG2;
+        return uavs3e_funs_handle.cost_ssd[widx](pOrg, i_org, pCmp, iStride, iHeight);
+    } else {
+        long long uiSSD = 0;
+
+        for (int y = 0; y < iHeight; y++) {
+            for (int x = 0; x < iWidth; x++) {
+                int iTemp = pOrg[x] - pCmp[x];
+                uiSSD += iTemp * iTemp;
+            }
+            pOrg += i_org;
+            pCmp += iStride;
         }
-        pOrg += i_org;
-        pCmp += iStride;
+        return uiSSD;
     }
-    return uiSSD;;
 }
 
-long long calcAlfLCUDist(enc_pic_t *ep, int compIdx, int lcuAddr, int ctuYPos, int ctuXPos, int ctuHeight,
-    int ctuWidth, BOOL isAboveAvail, pel *picSrc, int i_src, pel *picCmp, int stride, int formatShift)
+static long long cal_alf_lcu_dist(enc_pic_t *ep, int compIdx, int lcuAddr, int ctuYPos, int ctuXPos, int ctuHeight,
+    int ctuWidth, BOOL isAboveAvail, pel *picSrc, int i_src, pel *picCmp, int stride)
 {
-    enc_alf_var_t *Enc_ALF = &ep->Enc_ALF;
-    long long dist = 0;
-    int  ypos, xpos, height, width;
-    pel *pelCmp;
-    pel *pelSrc;
-
-    switch (compIdx) {
-    case U_C:
-    case V_C: {
-        ypos = (ctuYPos >> formatShift);
-        xpos = (ctuXPos >> formatShift);
-        height = (ctuHeight >> formatShift);
-        width = (ctuWidth >> formatShift);
+    if (compIdx == Y_C) {
+        pel *pelCmp = picCmp + ctuYPos * stride + ctuXPos;
+        pel *pelSrc = picSrc + ctuYPos * i_src  + ctuXPos;
+        return cal_lcu_ssd(&ep->Enc_ALF, pelSrc, i_src, pelCmp, ctuWidth, ctuHeight, stride);
+    } else {
+        ctuYPos   >>= 1;
+        ctuXPos   >>= 1;
+        ctuHeight >>= 1;
+        ctuWidth  >>= 1;
 
         if (isAboveAvail) {
-            ypos -= 4;
+            ctuYPos -= 4;
         }
-
-        pelCmp = picCmp + ypos * stride + xpos;
-        pelSrc = picSrc + ypos * i_src + xpos;
-        dist += xCalcSSD(Enc_ALF, pelSrc, i_src, pelCmp, width, height, stride);
+        pel *pelCmp = picCmp + ctuYPos * stride + ctuXPos;
+        pel *pelSrc = picSrc + ctuYPos * i_src  + ctuXPos;
+        return cal_lcu_ssd(&ep->Enc_ALF, pelSrc, i_src, pelCmp, ctuWidth, ctuHeight, stride);
     }
-              break;
-    case Y_C: {
-        ypos = (ctuYPos >> formatShift);
-        xpos = (ctuXPos >> formatShift);
-        height = (ctuHeight >> formatShift);
-        width = (ctuWidth >> formatShift);
-
-        pelCmp = picCmp + ypos * stride + xpos;
-        pelSrc = picSrc + ypos * i_src + xpos;
-
-        dist += xCalcSSD(Enc_ALF, pelSrc, i_src, pelCmp, width, height, stride);
-    }
-              break;
-    default: {
-        printf("not a legal component ID for ALF \n");
-        assert(0);
-        exit(-1);
-    }
-    }
-    return dist;
 }
 
-void mergeFrom(enc_alf_corr_t *dst, enc_alf_corr_t *src, int *mergeTable, BOOL doPixAccMerge)
+static void mergeFrom(enc_alf_corr_t *dst, enc_alf_corr_t *src, int *mergeTable)
 {
-    int numCoef = ALF_MAX_NUM_COEF;
-    double(*srcE)[ALF_MAX_NUM_COEF], (*dstE)[ALF_MAX_NUM_COEF];
-    double *srcy, *dsty;
-    int maxFilterSetSize, j, i, varInd, filtIdx;
-    assert(dst->componentID == src->componentID);
-
     switch (dst->componentID) {
     case U_C:
     case V_C: {
-        srcE = src->ECorr[0];
-        dstE = dst->ECorr[0];
-        srcy = src->yCorr[0];
-        dsty = dst->yCorr[0];
-        for (j = 0; j < numCoef; j++) {
-            for (i = 0; i < numCoef; i++) {
+        double(*srcE)[ALF_MAX_NUM_COEF] = src->ECorr[0];
+        double(*dstE)[ALF_MAX_NUM_COEF] = dst->ECorr[0];
+        double *srcy = src->yCorr[0];
+        double *dsty = dst->yCorr[0];
+
+        for (int j = 0; j < ALF_MAX_NUM_COEF; j++) {
+            for (int i = 0; i < ALF_MAX_NUM_COEF; i++) {
                 dstE[j][i] += srcE[j][i];
             }
             dsty[j] += srcy[j];
         }
-        if (doPixAccMerge) {
-            dst->pixAcc[0] = src->pixAcc[0];
-        }
+        break;
     }
-              break;
     case Y_C: {
-        maxFilterSetSize = (int)NO_VAR_BINS;
-        for (varInd = 0; varInd < maxFilterSetSize; varInd++) {
-            filtIdx = (mergeTable == NULL) ? (0) : (mergeTable[varInd]);
-            srcE = src->ECorr[varInd];
-            dstE = dst->ECorr[filtIdx];
-            srcy = src->yCorr[varInd];
-            dsty = dst->yCorr[filtIdx];
-            for (j = 0; j < numCoef; j++) {
-                for (i = 0; i < numCoef; i++) {
+        for (int varInd = 0; varInd < NO_VAR_BINS; varInd++) {
+            int filtIdx = (mergeTable == NULL) ? (0) : (mergeTable[varInd]);
+            double(*srcE)[ALF_MAX_NUM_COEF] = src->ECorr[varInd];
+            double(*dstE)[ALF_MAX_NUM_COEF] = dst->ECorr[filtIdx];
+            double *srcy = src->yCorr[varInd];
+            double *dsty = dst->yCorr[filtIdx];
+
+            for (int j = 0; j < ALF_MAX_NUM_COEF; j++) {
+                for (int i = 0; i < ALF_MAX_NUM_COEF; i++) {
                     dstE[j][i] += srcE[j][i];
                 }
                 dsty[j] += srcy[j];
             }
-            if (doPixAccMerge) {
-                dst->pixAcc[filtIdx] += src->pixAcc[varInd];
-            }
         }
+        break;
     }
-              break;
     default: {
         printf("not a legal component ID\n");
         assert(0);
@@ -178,7 +160,7 @@ void mergeFrom(enc_alf_corr_t *dst, enc_alf_corr_t *src, int *mergeTable, BOOL d
     }
 }
 
-void predictALFCoeff(int(*coeff)[ALF_MAX_NUM_COEF], int numCoef, int numFilters)
+static void predictALFCoeff(int(*coeff)[ALF_MAX_NUM_COEF], int numCoef, int numFilters)
 {
     int g, pred, sum, i;
     for (g = 0; g < numFilters; g++) {
@@ -191,269 +173,35 @@ void predictALFCoeff(int(*coeff)[ALF_MAX_NUM_COEF], int numCoef, int numFilters)
     }
 }
 
-
-
-void deriveBoundaryAvail(enc_pic_t *ep, int numLCUInPicWidth, int numLCUInPicHeight, int ctu, BOOL *isLeftAvail,
-    BOOL *isRightAvail, BOOL *isAboveAvail, BOOL *isBelowAvail, BOOL *isAboveLeftAvail,
-    BOOL *isAboveRightAvail)
+static void deriveBoundaryAvail(enc_pic_t *ep, int numLCUInPicWidth, int numLCUInPicHeight, int ctu, BOOL *isAboveAvail, BOOL *isBelowAvail)
 {
-    int  numLCUsInFrame = numLCUInPicHeight * numLCUInPicWidth;
-    int  lcuHeight = 1 << ep->info.log2_max_cuwh;
-    int  lcuWidth = lcuHeight;
-    int  NumCUInFrame;
-    int  pic_x;
-    int  pic_y;
-    int  mb_x;
-    int  mb_y;
-    int  mb_nr;
-    int  i_scu = ep->info.i_scu;
-    int  cuCurrNum;
-    int  cuCurr;
-    int  cuLeft;
-    int  cuRight;
-    int  cuAbove;
-    int  cuAboveLeft;
-    int  cuAboveRight;
-    int curSliceNr, neighorSliceNr;
-    int cross_patch_flag = ep->info.sqh.filter_cross_patch;
-    NumCUInFrame = numLCUInPicHeight * numLCUInPicWidth;
-    pic_x = (ctu % numLCUInPicWidth) * lcuWidth;
-    pic_y = (ctu / numLCUInPicWidth) * lcuHeight;
-
-    mb_x = pic_x / MIN_CU_SIZE;
-    mb_y = pic_y / MIN_CU_SIZE;
-    mb_nr = mb_y * i_scu + mb_x;
-    cuCurrNum = mb_nr;
-    *isLeftAvail = (ctu % numLCUInPicWidth != 0);
-    *isRightAvail = (ctu % numLCUInPicWidth != numLCUInPicWidth - 1);
+    int numLCUsInFrame = numLCUInPicHeight * numLCUInPicWidth;
+    int lcuHeight = 1 << ep->info.log2_max_cuwh;
+    int lcuWidth = lcuHeight;
+    int i_scu = ep->info.i_scu;
+    int pic_x = (ctu % numLCUInPicWidth) * lcuWidth;
+    int pic_y = (ctu / numLCUInPicWidth) * lcuHeight;
+    int mb_x = pic_x / MIN_CU_SIZE;
+    int mb_y = pic_y / MIN_CU_SIZE;
+    int mb_nr = mb_y * i_scu + mb_x;
+ 
     *isAboveAvail = (ctu >= numLCUInPicWidth);
     *isBelowAvail = (ctu < numLCUsInFrame - numLCUInPicWidth);
-    *isAboveLeftAvail = *isAboveAvail && *isLeftAvail;
-    *isAboveRightAvail = *isAboveAvail && *isRightAvail;
+
     s8 *map_patch = ep->map.map_patch;
-    cuCurr = (cuCurrNum);
-    cuLeft = *isLeftAvail ? (cuCurrNum - 1) : -1;
-    cuRight = *isRightAvail ? (cuCurrNum + (lcuWidth >> MIN_CU_LOG2)) : -1;
-    cuAbove = *isAboveAvail ? (cuCurrNum - i_scu) : -1;
-    cuAboveLeft = *isAboveLeftAvail ? (cuCurrNum - i_scu - 1) : -1;
-    cuAboveRight = *isAboveRightAvail ? (cuCurrNum - i_scu + (lcuWidth >> MIN_CU_LOG2)) : -1;
-    if (!cross_patch_flag) {
-        *isLeftAvail = *isRightAvail = *isAboveAvail = FALSE;
-        *isAboveLeftAvail = *isAboveRightAvail = FALSE;
-        curSliceNr = map_patch[cuCurr];
-        if (cuLeft != -1) {
-            neighorSliceNr = map_patch[cuLeft];
-            if (curSliceNr == neighorSliceNr) {
-                *isLeftAvail = TRUE;
-            }
-        }
-        if (cuRight != -1) {
-            neighorSliceNr = map_patch[cuRight];
-            if (curSliceNr == neighorSliceNr) {
-                *isRightAvail = TRUE;
-            }
-        }
+    int cuCurr = (mb_nr);
+    int cuAbove = *isAboveAvail ? (mb_nr - i_scu) : -1;
+
+    if (!ep->info.sqh.filter_cross_patch) {
+        *isAboveAvail = FALSE;
+
+        int curSliceNr = map_patch[cuCurr];
+
         if (cuAbove != -1) {
-            neighorSliceNr = map_patch[cuAbove];
+            int neighorSliceNr = map_patch[cuAbove];
             if (curSliceNr == neighorSliceNr) {
                 *isAboveAvail = TRUE;
             }
-        }
-        if (cuAboveLeft != -1) {
-            neighorSliceNr = map_patch[cuAboveLeft];
-            if (curSliceNr == neighorSliceNr) {
-                *isAboveLeftAvail = TRUE;
-            }
-        }
-        if (cuAboveRight != -1) {
-            neighorSliceNr = map_patch[cuAboveRight];
-            if (curSliceNr == neighorSliceNr) {
-                *isAboveRightAvail = TRUE;
-            }
-        }
-    }
-}
-
-
-
-
-/*
-*************************************************************************
-* Function: Calculate the correlation matrix for Luma
-*************************************************************************
-*/
-void calcCorrOneCompRegionLuma(enc_alf_var_t *Enc_ALF, pel *imgOrg, int i_org, pel *imgPad, int stride, int yPos, int xPos, int height, int width
-                               , double eCorr[NO_VAR_BINS][ALF_MAX_NUM_COEF][ALF_MAX_NUM_COEF], double yCorr[NO_VAR_BINS][ALF_MAX_NUM_COEF],
-                               double *pixAcc, int varInd, int isLeftAvail, int isRightAvail, int isAboveAvail,
-                               int isBelowAvail, int isAboveLeftAvail, int isAboveRightAvail)
-{
-    int xPosEnd = xPos + width;
-    int N = ALF_MAX_NUM_COEF;
-    int startPosLuma = isAboveAvail ? (yPos - 4) : yPos;
-    int endPosLuma = isBelowAvail ? (yPos + height - 4) : (yPos + height);
-    int xOffSetLeft = isLeftAvail ? -3 : 0;
-    int xOffSetRight = isRightAvail ? 3 : 0;
-    int yUp, yBottom;
-    int xLeft, xRight;
-    int ELocal[ALF_MAX_NUM_COEF];
-    pel *imgPad1, *imgPad2, *imgPad3, *imgPad4, *imgPad5, *imgPad6;
-    int i, j, k, l, yLocal;
-    double (*E)[ALF_MAX_NUM_COEF];
-    double *yy;
-    imgPad += startPosLuma * stride;
-    imgOrg += startPosLuma * i_org;
-    //loop region height
-    for (i = startPosLuma; i < endPosLuma; i++) {
-        yUp = COM_CLIP3(startPosLuma, endPosLuma - 1, i - 1);
-        yBottom = COM_CLIP3(startPosLuma, endPosLuma - 1, i + 1);
-        imgPad1 = imgPad + (yBottom - i) * stride;
-        imgPad2 = imgPad + (yUp - i) * stride;
-        yUp = COM_CLIP3(startPosLuma, endPosLuma - 1, i - 2);
-        yBottom = COM_CLIP3(startPosLuma, endPosLuma - 1, i + 2);
-        imgPad3 = imgPad + (yBottom - i) * stride;
-        imgPad4 = imgPad + (yUp - i) * stride;
-        yUp = COM_CLIP3(startPosLuma, endPosLuma - 1, i - 3);
-        yBottom = COM_CLIP3(startPosLuma, endPosLuma - 1, i + 3);
-        imgPad5 = imgPad + (yBottom - i) * stride;
-        imgPad6 = imgPad + (yUp - i) * stride;
-        //loop current ctu width
-        for (j = xPos; j < xPosEnd; j++) {
-            memset(ELocal, 0, N * sizeof(int));
-            ELocal[0] = (imgPad5[j] + imgPad6[j]);
-            ELocal[1] = (imgPad3[j] + imgPad4[j]);
-            ELocal[3] = (imgPad1[j] + imgPad2[j]);
-            // upper left c2
-            xLeft = com_alf_check_boundary(j - 1, i - 1, xPos, yPos, xPos, startPosLuma, xPosEnd - 1,
-                    endPosLuma - 1, isAboveLeftAvail, isLeftAvail, isAboveRightAvail, isRightAvail);
-            ELocal[2] = imgPad2[xLeft];
-            // upper right c4
-            xRight = com_alf_check_boundary(j + 1, i - 1, xPos, yPos, xPos, startPosLuma, xPosEnd - 1,
-                     endPosLuma - 1, isAboveLeftAvail, isLeftAvail, isAboveRightAvail, isRightAvail);
-            ELocal[4] = imgPad2[xRight];
-            // lower left c4
-            xLeft = com_alf_check_boundary(j - 1, i + 1, xPos, yPos, xPos, startPosLuma, xPosEnd - 1,
-                    endPosLuma - 1, isAboveLeftAvail, isLeftAvail, isAboveRightAvail, isRightAvail);
-            ELocal[4] += imgPad1[xLeft];
-            // lower right c2
-            xRight = com_alf_check_boundary(j + 1, i + 1, xPos, yPos, xPos, startPosLuma, xPosEnd - 1,
-                     endPosLuma - 1, isAboveLeftAvail, isLeftAvail, isAboveRightAvail, isRightAvail);
-            ELocal[2] += imgPad1[xRight];
-            xLeft = COM_CLIP3(xPos + xOffSetLeft, xPosEnd - 1 + xOffSetRight, j - 1);
-            xRight = COM_CLIP3(xPos + xOffSetLeft, xPosEnd - 1 + xOffSetRight, j + 1);
-            ELocal[7] = (imgPad[xRight] + imgPad[xLeft]);
-            xLeft = COM_CLIP3(xPos + xOffSetLeft, xPosEnd - 1 + xOffSetRight, j - 2);
-            xRight = COM_CLIP3(xPos + xOffSetLeft, xPosEnd - 1 + xOffSetRight, j + 2);
-            ELocal[6] = (imgPad[xRight] + imgPad[xLeft]);
-            xLeft = COM_CLIP3(xPos + xOffSetLeft, xPosEnd - 1 + xOffSetRight, j - 3);
-            xRight = COM_CLIP3(xPos + xOffSetLeft, xPosEnd - 1 + xOffSetRight, j + 3);
-            ELocal[5] = (imgPad[xRight] + imgPad[xLeft]);
-            ELocal[8] = (imgPad[j]);
-            yLocal = imgOrg[j];
-            pixAcc[varInd] += (yLocal * yLocal);
-            E = eCorr[varInd];
-            yy = yCorr[varInd];
-            for (k = 0; k < N; k++) {
-                for (l = k; l < N; l++) {
-                    E[k][l] += (double)(ELocal[k] * ELocal[l]);
-                }
-                yy[k] += (double)(ELocal[k] * yLocal);
-            }
-        }
-        imgPad += stride;
-        imgOrg += i_org;
-    }
-    for (varInd = 0; varInd < NO_VAR_BINS; varInd++) {
-        E = eCorr[varInd];
-        for (k = 1; k < N; k++) {
-            for (l = 0; l < k; l++) {
-                E[k][l] = E[l][k];
-            }
-        }
-    }
-}
-
-
-/*
-*************************************************************************
-* Function: Calculate the correlation matrix for Chroma
-*************************************************************************
-*/
-void calcCorrOneCompRegionChma(pel *imgOrg, int i_org, pel *imgPad, int stride, int yPos, int xPos, int height, int width,
-                               double eCorr[ALF_MAX_NUM_COEF][ALF_MAX_NUM_COEF], double *yCorr, int isLeftAvail, int isRightAvail, int isAboveAvail, int isBelowAvail,
-                               int isAboveLeftAvail, int isAboveRightAvail)
-{
-    int xPosEnd = xPos + width;
-    int N = ALF_MAX_NUM_COEF;
-    int startPosChroma = isAboveAvail ? (yPos - 4) : yPos;
-    int endPosChroma = isBelowAvail ? (yPos + height - 4) : (yPos + height);
-    int xOffSetLeft = isLeftAvail ? -3 : 0;
-    int xOffSetRight = isRightAvail ? 3 : 0;
-    int yUp, yBottom;
-    int xLeft, xRight;
-    int ELocal[ALF_MAX_NUM_COEF];
-    pel *imgPad1, *imgPad2, *imgPad3, *imgPad4, *imgPad5, *imgPad6;
-    int i, j, k, l, yLocal;
-    imgPad += startPosChroma * stride;
-    imgOrg += startPosChroma * i_org;
-    for (i = startPosChroma; i < endPosChroma; i++) {
-        yUp = COM_CLIP3(startPosChroma, endPosChroma - 1, i - 1);
-        yBottom = COM_CLIP3(startPosChroma, endPosChroma - 1, i + 1);
-        imgPad1 = imgPad + (yBottom - i) * stride;
-        imgPad2 = imgPad + (yUp - i) * stride;
-        yUp = COM_CLIP3(startPosChroma, endPosChroma - 1, i - 2);
-        yBottom = COM_CLIP3(startPosChroma, endPosChroma - 1, i + 2);
-        imgPad3 = imgPad + (yBottom - i) * stride;
-        imgPad4 = imgPad + (yUp - i) * stride;
-        yUp = COM_CLIP3(startPosChroma, endPosChroma - 1, i - 3);
-        yBottom = COM_CLIP3(startPosChroma, endPosChroma - 1, i + 3);
-        imgPad5 = imgPad + (yBottom - i) * stride;
-        imgPad6 = imgPad + (yUp - i) * stride;
-        for (j = xPos; j < xPosEnd; j++) {
-            memset(ELocal, 0, N * sizeof(int));
-            ELocal[0] = (imgPad5[j] + imgPad6[j]);
-            ELocal[1] = (imgPad3[j] + imgPad4[j]);
-            ELocal[3] = (imgPad1[j] + imgPad2[j]);
-            // upper left c2
-            xLeft = com_alf_check_boundary(j - 1, i - 1, xPos, yPos, xPos, startPosChroma, xPosEnd - 1,
-                    endPosChroma - 1, isAboveLeftAvail, isLeftAvail, isAboveRightAvail, isRightAvail);
-            ELocal[2] = imgPad2[xLeft];
-            // upper right c4
-            xRight = com_alf_check_boundary(j + 1, i - 1, xPos, yPos, xPos, startPosChroma, xPosEnd - 1,
-                     endPosChroma - 1, isAboveLeftAvail, isLeftAvail, isAboveRightAvail, isRightAvail);
-            ELocal[4] = imgPad2[xRight];
-            // lower left c4
-            xLeft = com_alf_check_boundary(j - 1, i + 1, xPos, yPos, xPos, startPosChroma, xPosEnd - 1,
-                    endPosChroma - 1, isAboveLeftAvail, isLeftAvail, isAboveRightAvail, isRightAvail);
-            ELocal[4] += imgPad1[xLeft];
-            // lower right c2
-            xRight = com_alf_check_boundary(j + 1, i + 1, xPos, yPos, xPos, startPosChroma, xPosEnd - 1,
-                     endPosChroma - 1, isAboveLeftAvail, isLeftAvail, isAboveRightAvail, isRightAvail);
-            ELocal[2] += imgPad1[xRight];
-            xLeft = COM_CLIP3(xPos + xOffSetLeft, xPosEnd - 1 + xOffSetRight, j - 1);
-            xRight = COM_CLIP3(xPos + xOffSetLeft, xPosEnd - 1 + xOffSetRight, j + 1);
-            ELocal[7] = (imgPad[xRight] + imgPad[xLeft]);
-            xLeft = COM_CLIP3(xPos + xOffSetLeft, xPosEnd - 1 + xOffSetRight, j - 2);
-            xRight = COM_CLIP3(xPos + xOffSetLeft, xPosEnd - 1 + xOffSetRight, j + 2);
-            ELocal[6] = (imgPad[xRight] + imgPad[xLeft]);
-            xLeft = COM_CLIP3(xPos + xOffSetLeft, xPosEnd - 1 + xOffSetRight, j - 3);
-            xRight = COM_CLIP3(xPos + xOffSetLeft, xPosEnd - 1 + xOffSetRight, j + 3);
-            ELocal[5] = (imgPad[xRight] + imgPad[xLeft]);
-            ELocal[8] = (imgPad[j]);
-            yLocal = (int)imgOrg[j];
-            for (k = 0; k < N; k++) {
-                eCorr[k][k] += ELocal[k] * ELocal[k];
-                for (l = k + 1; l < N; l++) {
-                    eCorr[k][l] += ELocal[k] * ELocal[l];
-                }
-                yCorr[k] += yLocal * ELocal[k];
-            }
-        }
-        imgPad += stride;
-        imgOrg += i_org;
-    }
-    for (j = 0; j < N - 1; j++) {
-        for (i = j + 1; i < N; i++) {
-            eCorr[i][j] = eCorr[j][i];
         }
     }
 }
@@ -474,39 +222,22 @@ void calcCorrOneCompRegionChma(pel *imgOrg, int i_org, pel *imgPad, int stride, 
 * Return:
 *************************************************************************
 */
-void getStatisticsOneLCU(enc_alf_var_t *Enc_ALF, int compIdx, int varInd
-    , int ctuYPos, int ctuXPos, int ctuHeight, int ctuWidth
-    , BOOL isAboveAvail, BOOL isBelowAvail, BOOL isLeftAvail, BOOL isRightAvail
-    , BOOL isAboveLeftAvail, BOOL isAboveRightAvail, enc_alf_corr_t *alfCorr, pel *pPicOrg, int i_org, pel *pPicSrc
-    , int stride, int formatShift)
+static void getStatisticsOneLCU(int varInd, int ctuYPos, int ctuXPos, int ctuHeight, int ctuWidth
+    , BOOL isAboveAvail, BOOL isBelowAvail, enc_alf_corr_t *lcu_alfCorr, com_pic_t *pic_org, com_pic_t *pic_rec)
 {
-    int ypos, xpos, height, width;
-    switch (compIdx) {
-    case U_C:
-    case V_C: {
-        ypos = (ctuYPos >> formatShift);
-        xpos = (ctuXPos >> formatShift);
-        height = (ctuHeight >> formatShift);
-        width = (ctuWidth >> formatShift);
-        calcCorrOneCompRegionChma(pPicOrg, i_org, pPicSrc, stride, ypos, xpos, height, width, alfCorr->ECorr[0], alfCorr->yCorr[0],
-            isLeftAvail, isRightAvail, isAboveAvail, isBelowAvail, isAboveLeftAvail, isAboveRightAvail);
-    }
-              break;
-    case Y_C: {
-        ypos = (ctuYPos >> formatShift);
-        xpos = (ctuXPos >> formatShift);
-        height = (ctuHeight >> formatShift);
-        width = (ctuWidth >> formatShift);
-        calcCorrOneCompRegionLuma(Enc_ALF, pPicOrg, i_org, pPicSrc, stride, ypos, xpos, height, width, alfCorr->ECorr, alfCorr->yCorr,
-            alfCorr->pixAcc, varInd, isLeftAvail, isRightAvail, isAboveAvail, isBelowAvail, isAboveLeftAvail, isAboveRightAvail);
-    }
-              break;
-    default: {
-        printf("Not a legal component index for ALF\n");
-        assert(0);
-        exit(-1);
-    }
-    }
+    enc_alf_corr_t *alfCorr = lcu_alfCorr;
+    uavs3e_funs_handle.alf_calc(pic_org->y, pic_org->stride_luma, pic_rec->y, pic_rec->stride_luma, ctuXPos, ctuYPos, ctuWidth, ctuHeight, alfCorr->ECorr[varInd], alfCorr->yCorr[varInd], isAboveAvail, isBelowAvail);
+
+    ctuYPos   >>= 1;
+    ctuXPos   >>= 1;
+    ctuHeight >>= 1;
+    ctuWidth  >>= 1;
+
+    alfCorr = lcu_alfCorr + 1;
+    uavs3e_funs_handle.alf_calc(pic_org->u, pic_org->stride_chroma, pic_rec->u, pic_rec->stride_chroma, ctuXPos, ctuYPos, ctuWidth, ctuHeight, alfCorr->ECorr[0], alfCorr->yCorr[0], isAboveAvail, isBelowAvail);
+
+    alfCorr = lcu_alfCorr + 2;
+    uavs3e_funs_handle.alf_calc(pic_org->v, pic_org->stride_chroma, pic_rec->v, pic_rec->stride_chroma, ctuXPos, ctuYPos, ctuWidth, ctuHeight, alfCorr->ECorr[0], alfCorr->yCorr[0], isAboveAvail, isBelowAvail);
 }
 
 
@@ -523,53 +254,34 @@ void getStatisticsOneLCU(enc_alf_var_t *Enc_ALF, int compIdx, int varInd
 * Return:
 *************************************************************************
 */
-void alf_get_statistics(enc_pic_t *ep, pel *imgY_org, pel **imgUV_org, int i_org, pel *imgY_Dec, pel **imgUV_Dec, int stride)
+static void alf_get_statistics(enc_pic_t *ep, com_pic_t *pic_org, com_pic_t *pic_rec)
 {
     enc_alf_var_t *Enc_ALF = &ep->Enc_ALF;
-    BOOL  isLeftAvail, isRightAvail, isAboveAvail, isBelowAvail;
-    BOOL  isAboveLeftAvail, isAboveRightAvail;
-    int lcuHeight, lcuWidth, img_height, img_width;
-    int ctu, NumCUInFrame, numLCUInPicWidth, numLCUInPicHeight;
-    int ctuYPos, ctuXPos, ctuHeight, ctuWidth;
-    int compIdx, formatShift;
-    lcuHeight = 1 << ep->info.log2_max_cuwh;
-    lcuWidth = lcuHeight;
-    img_height = ep->info.pic_height;
-    img_width = ep->info.pic_width;
-    numLCUInPicWidth = img_width / lcuWidth;
-    numLCUInPicHeight = img_height / lcuHeight;
-    numLCUInPicWidth += (img_width % lcuWidth) ? 1 : 0;
-    numLCUInPicHeight += (img_height % lcuHeight) ? 1 : 0;
-    NumCUInFrame = numLCUInPicHeight * numLCUInPicWidth;
+    int lcu_size           =  ep->info.max_cuwh;
+    int img_height         =  ep->info.pic_height;
+    int img_width          =  ep->info.pic_width;
+    int numLCUInPicWidth   =  ep->info.pic_width_in_lcu;
+    int numLCUInPicHeight  =  ep->info.pic_height_in_lcu;
 
-    for (ctu = 0; ctu < NumCUInFrame; ctu++) {
-        int varIdx = ep->alf_var_map[ctu];
+    int NumCUInFrame = numLCUInPicHeight * numLCUInPicWidth;
 
-        ctuYPos = (ctu / numLCUInPicWidth) * lcuHeight;
-        ctuXPos = (ctu % numLCUInPicWidth) * lcuWidth;
-        ctuHeight = (ctuYPos + lcuHeight > img_height) ? (img_height - ctuYPos) : lcuHeight;
-        ctuWidth = (ctuXPos + lcuWidth > img_width) ? (img_width - ctuXPos) : lcuWidth;
-        deriveBoundaryAvail(ep, numLCUInPicWidth, numLCUInPicHeight, ctu, &isLeftAvail, &isRightAvail, &isAboveAvail, &isBelowAvail, &isAboveLeftAvail, &isAboveRightAvail);
+    for (int ctu = 0; ctu < NumCUInFrame; ctu++) {
+        int varIdx    = ep->alf_var_map[ctu];
+        int ctuYPos   = (ctu / numLCUInPicWidth) * lcu_size;
+        int ctuXPos   = (ctu % numLCUInPicWidth) * lcu_size;
+        int ctuHeight = (ctuYPos + lcu_size > img_height) ? (img_height - ctuYPos) : lcu_size;
+        int ctuWidth  = (ctuXPos + lcu_size > img_width ) ? (img_width  - ctuXPos) : lcu_size;
+        BOOL  isAboveAvail, isBelowAvail;
 
-        for (compIdx = 0; compIdx < N_C; compIdx++) {
-            formatShift = (compIdx == Y_C) ? 0 : 1;
-            memset(&Enc_ALF->m_alfCorr[ctu][compIdx], 0, sizeof(enc_alf_corr_t));
-            if (compIdx == Y_C) {
-                getStatisticsOneLCU(&ep->Enc_ALF, compIdx, varIdx, ctuYPos, ctuXPos, ctuHeight, ctuWidth, isAboveAvail,
-                    isBelowAvail, isLeftAvail, isRightAvail
-                    , isAboveLeftAvail, isAboveRightAvail, &Enc_ALF->m_alfCorr[ctu][compIdx], imgY_org, i_org, imgY_Dec, stride, formatShift);
-            }
-            else {
-                getStatisticsOneLCU(&ep->Enc_ALF, compIdx, varIdx, ctuYPos, ctuXPos, ctuHeight, ctuWidth, isAboveAvail,
-                    isBelowAvail, isLeftAvail, isRightAvail
-                    , isAboveLeftAvail, isAboveRightAvail, &Enc_ALF->m_alfCorr[ctu][compIdx], imgUV_org[compIdx - U_C], i_org >> 1,
-                    imgUV_Dec[compIdx - U_C], (stride >> 1), formatShift);
-            }
-        }
+        memset(&Enc_ALF->m_alfCorr[ctu], 0, sizeof(enc_alf_corr_t) * N_C);
+
+        deriveBoundaryAvail(ep, numLCUInPicWidth, numLCUInPicHeight, ctu, &isAboveAvail, &isBelowAvail);
+
+        getStatisticsOneLCU(varIdx, ctuYPos, ctuXPos, ctuHeight, ctuWidth, isAboveAvail, isBelowAvail, Enc_ALF->m_alfCorr[ctu], pic_org, pic_rec);
     }
 }
 
-unsigned int uvlcBitrateEstimate(int val)
+static unsigned int uvlcBitrateEstimate(int val)
 {
     unsigned int length = 1;
     val++;
@@ -580,12 +292,13 @@ unsigned int uvlcBitrateEstimate(int val)
     }
     return ((length >> 1) + ((length + 1) >> 1));
 }
-unsigned int svlcBitrateEsitmate(int val)
+
+static unsigned int svlcBitrateEsitmate(int val)
 {
     return uvlcBitrateEstimate((val <= 0) ? (-val << 1) : ((val << 1) - 1));
 }
 
-unsigned int filterCoeffBitrateEstimate(int *coeff)
+static unsigned int filterCoeffBitrateEstimate(int *coeff)
 {
     unsigned int  bitrate = 0;
     int i;
@@ -594,7 +307,8 @@ unsigned int filterCoeffBitrateEstimate(int *coeff)
     }
     return bitrate;
 }
-unsigned int ALFParamBitrateEstimate(com_alf_pic_param_t *alfParam)
+
+static unsigned int ALFParamBitrateEstimate(com_alf_pic_param_t *alfParam)
 {
     unsigned int  bitrate = 0; //alf enabled flag
     int noFilters, g;
@@ -611,7 +325,7 @@ unsigned int ALFParamBitrateEstimate(com_alf_pic_param_t *alfParam)
     return bitrate;
 }
 
-unsigned int estimateALFBitrateInPicHeader(com_alf_pic_param_t *alfPicParam)
+static unsigned int estimateALFBitrateInPicHeader(com_alf_pic_param_t *alfPicParam)
 {
     //CXCTBD please help to check if the implementation is consistent with syntax coding
     int compIdx;
@@ -624,40 +338,34 @@ unsigned int estimateALFBitrateInPicHeader(com_alf_pic_param_t *alfPicParam)
     return bitrate;
 }
 
-long long xFastFiltDistEstimation(enc_alf_var_t *Enc_ALF, double ppdE[ALF_MAX_NUM_COEF][ALF_MAX_NUM_COEF], double *pdy, int *piCoeff, int iFiltLength)
+static long long xFastFiltDistEstimation(enc_alf_var_t *Enc_ALF, double ppdE[ALF_MAX_NUM_COEF][ALF_MAX_NUM_COEF], double *pdy, int *piCoeff, int iFiltLength)
 {
-    //static memory
     double pdcoeff[ALF_MAX_NUM_COEF];
-    //variable
-    int    i, j;
-    long long  iDist;
-    double dDist, dsum;
-    unsigned int uiShift;
-    for (i = 0; i < iFiltLength; i++) {
+    double dDist = 0;
+
+    for (int i = 0; i < iFiltLength; i++) {
         pdcoeff[i] = (double)piCoeff[i] / (double)(1 << ((int)ALF_NUM_BIT_SHIFT));
     }
-    dDist = 0;
-    for (i = 0; i < iFiltLength; i++) {
-        dsum = ((double)ppdE[i][i]) * pdcoeff[i];
-        for (j = i + 1; j < iFiltLength; j++) {
+    for (int i = 0; i < iFiltLength; i++) {
+        double dsum = ((double)ppdE[i][i]) * pdcoeff[i];
+        for (int j = i + 1; j < iFiltLength; j++) {
             dsum += (double)(2 * ppdE[i][j]) * pdcoeff[j];
         }
         dDist += ((dsum - 2.0 * pdy[i]) * pdcoeff[i]);
     }
-    uiShift = Enc_ALF->m_uiBitIncrement << 1;
     if (dDist < 0) {
-        iDist = -(((long long)(-dDist + 0.5)) >> uiShift);
-    } else { //dDist >=0
-        iDist = ((long long)(dDist + 0.5)) >> uiShift;
+        return -((long long)(-dDist + 0.5));
+    } else { 
+        return  ((long long)( dDist + 0.5));
     }
-    return iDist;
 }
-long long estimateFilterDistortion(enc_alf_var_t *Enc_ALF, int compIdx, enc_alf_corr_t *alfCorr, int(*coeffSet)[ALF_MAX_NUM_COEF], int filterSetSize, int *mergeTable, BOOL doPixAccMerge)
+
+static long long estimate_alf_lcu_dist(enc_alf_var_t *Enc_ALF, enc_alf_corr_t *alfCorr, int(*coeffSet)[ALF_MAX_NUM_COEF], int filterSetSize, int *mergeTable)
 {
     enc_alf_corr_t alfMerged;
     long long iDist = 0;
     memset(&alfMerged, 0, sizeof(enc_alf_corr_t));
-    mergeFrom(&alfMerged, alfCorr, mergeTable, doPixAccMerge);
+    mergeFrom(&alfMerged, alfCorr, mergeTable);
 
     for (int f = 0; f < filterSetSize; f++) {
         iDist += xFastFiltDistEstimation(Enc_ALF, alfMerged.ECorr[f], alfMerged.yCorr[f], coeffSet ? coeffSet[f] : Enc_ALF->m_coeffNoFilter, ALF_MAX_NUM_COEF);
@@ -665,10 +373,8 @@ long long estimateFilterDistortion(enc_alf_var_t *Enc_ALF, int compIdx, enc_alf_
     return iDist;
 }
 
-void filterOneCTB(enc_alf_var_t *Enc_ALF, pel *pRest, pel *pDec, int varIdx, int stride, int compIdx, int bit_depth, com_alf_pic_param_t *alfParam, int ctuYPos, int ctuHeight,
-    int ctuXPos, int ctuWidth, int(*coeffSet)[ALF_MAX_NUM_COEF]
-    , BOOL isAboveAvail, BOOL isBelowAvail, BOOL isLeftAvail, BOOL isRightAvail, BOOL isAboveLeftAvail,
-    BOOL isAboveRightAvail)
+static void filterOneCTB(enc_alf_var_t *Enc_ALF, pel *pRest, pel *pDec, int varIdx, int stride, int compIdx, int bit_depth, com_alf_pic_param_t *alfParam, int ctuYPos, int ctuHeight,
+    int ctuXPos, int ctuWidth, int(*coeffSet)[ALF_MAX_NUM_COEF], BOOL isAboveAvail, BOOL isBelowAvail)
 {
     //half size of 7x7cross+ 3x3square
     int  formatShift = (compIdx == Y_C) ? 0 : 1;
@@ -688,21 +394,6 @@ void filterOneCTB(enc_alf_var_t *Enc_ALF, pel *pRest, pel *pDec, int varIdx, int
         height -= 4;
     }
 
-    if (!isLeftAvail) {
-        pel *p = pDec + ypos * stride;
-        for (int i = 0; i < height; i++) {
-            p[-1] = p[-2] = p[-3] = p[0];
-            p += stride;
-        }
-    }
-    if (!isRightAvail) {
-        pel *p = pDec + ypos * stride + xpos + width - 1;
-        for (int i = 0; i < height; i++) {
-            p[1] = p[2] = p[3] = p[0];
-            p += stride;
-        }
-    }
-
     pRest += ypos * stride + xpos;
     pDec += ypos * stride + xpos;
 
@@ -716,7 +407,7 @@ void filterOneCTB(enc_alf_var_t *Enc_ALF, pel *pRest, pel *pDec, int varIdx, int
 * Function: ALF On/Off decision for LCU
 *************************************************************************
 */
-double alf_decision_all_lcu(enc_pic_t *ep, lbac_t *lbac, com_alf_pic_param_t *alfPictureParam
+static double alf_decision_all_lcu(enc_pic_t *ep, lbac_t *lbac, com_alf_pic_param_t *alfPictureParam
                             , double lambda
                             , BOOL isRDOEstimate
                             , enc_alf_corr_t (*alfCorr)[N_C]
@@ -724,42 +415,25 @@ double alf_decision_all_lcu(enc_pic_t *ep, lbac_t *lbac, com_alf_pic_param_t *al
                             , int stride)
 {
     enc_alf_var_t *Enc_ALF = &ep->Enc_ALF;
-    int bit_depth = ep->info.bit_depth_internal;
-    long long  distEnc, distOff;
-    double  rateEnc, rateOff, costEnc, costOff, costAlfOn, costAlfOff;
-    BOOL isLeftAvail, isRightAvail, isAboveAvail, isBelowAvail;
-    BOOL isAboveLeftAvail, isAboveRightAvail;
-    long long  distBestPic[N_C];
-    double rateBestPic[N_C];
-    int compIdx, ctu, ctuYPos, ctuXPos, ctuHeight, ctuWidth, formatShift, n, stride_in, i_org_plane;
-    pel *org = NULL;
-    pel *pDec = NULL;
-    pel *pRest = NULL;
-    double lambda_luma, lambda_chroma;
-    /////
-    int lcuHeight, lcuWidth, img_height, img_width;
-    int NumCUsInFrame, numLCUInPicWidth, numLCUInPicHeight;
-    double bestCost = 0;
+    BOOL isAboveAvail, isBelowAvail;
+
+    long long  distBestPic[N_C] = { 0 };
+    double     rateBestPic[N_C] = { 0 };
+
+    double lambda_luma    = lambda;
+    double lambda_chroma  = lambda; //todo: lambda is not correct
+    int lcu_size          = ep->info.max_cuwh;
+    int img_height        = ep->info.pic_height;
+    int img_width         = ep->info.pic_width;
+    int numLCUInPicWidth  = ep->info.pic_width_in_lcu;
+    int numLCUInPicHeight = ep->info.pic_height_in_lcu;
+    int NumCUsInFrame     = numLCUInPicHeight * numLCUInPicWidth;
+
     lbac_t alf_sbac;
     lbac_copy(&alf_sbac, lbac);
-
-    lcuHeight = 1 << ep->info.log2_max_cuwh;
-    lcuWidth = lcuHeight;
-    img_height = ep->info.pic_height;
-    img_width = ep->info.pic_width;
-    numLCUInPicWidth = img_width / lcuWidth;
-    numLCUInPicHeight = img_height / lcuHeight;
-    numLCUInPicWidth += (img_width % lcuWidth) ? 1 : 0;
-    numLCUInPicHeight += (img_height % lcuHeight) ? 1 : 0;
-    NumCUsInFrame = numLCUInPicHeight * numLCUInPicWidth;
-    lambda_luma = lambda; //VKTBD lambda is not correct
-    lambda_chroma = lambda_luma;
-
     int coefs[N_C][NO_VAR_BINS][ALF_MAX_NUM_COEF];
 
-    for (compIdx = 0; compIdx < N_C; compIdx++) {
-        distBestPic[compIdx] = 0;
-        rateBestPic[compIdx] = 0;
+    for (int compIdx = 0; compIdx < N_C; compIdx++) {
         com_alf_recon_coef(&alfPictureParam[compIdx], coefs[compIdx]);
     }
 
@@ -775,16 +449,15 @@ double alf_decision_all_lcu(enc_pic_t *ep, lbac_t *lbac, com_alf_pic_param_t *al
         }
     }
 
-    for (ctu = 0; ctu < NumCUsInFrame; ctu++) {
-        //derive CTU width and height
-        ctuYPos = (ctu / numLCUInPicWidth) * lcuHeight;
-        ctuXPos = (ctu % numLCUInPicWidth) * lcuWidth;
-        ctuHeight = (ctuYPos + lcuHeight > img_height) ? (img_height - ctuYPos) : lcuHeight;
-        ctuWidth = (ctuXPos + lcuWidth  > img_width) ? (img_width - ctuXPos) : lcuWidth;
-        //if the current CTU is the starting CTU at the slice, reset cabac
+    for (int ctu = 0; ctu < NumCUsInFrame; ctu++) {
+        int ctuYPos   = (ctu / numLCUInPicWidth) * lcu_size;
+        int ctuXPos   = (ctu % numLCUInPicWidth) * lcu_size;
+        int ctuHeight = (ctuYPos + lcu_size > img_height) ? (img_height - ctuYPos) : lcu_size;
+        int ctuWidth  = (ctuXPos + lcu_size  > img_width) ? (img_width  - ctuXPos) : lcu_size;
+
         if (ctu > 0) {
-            int prev_ctuYPos = ((ctu - 1) / numLCUInPicWidth) * lcuHeight;
-            int prev_ctuXPos = ((ctu - 1) % numLCUInPicWidth) * lcuWidth;
+            int prev_ctuYPos = ((ctu - 1) / numLCUInPicWidth) * lcu_size;
+            int prev_ctuXPos = ((ctu - 1) % numLCUInPicWidth) * lcu_size;
             s8 *map_patch = ep->map.map_patch;
             int curr_mb_nr = (ctuYPos >> MIN_CU_LOG2) * (img_width >> MIN_CU_LOG2) + (ctuXPos >> MIN_CU_LOG2);
             int prev_mb_nr = (prev_ctuYPos >> MIN_CU_LOG2) * (img_width >> MIN_CU_LOG2) + (prev_ctuXPos >> MIN_CU_LOG2);
@@ -794,60 +467,50 @@ double alf_decision_all_lcu(enc_pic_t *ep, lbac_t *lbac, com_alf_pic_param_t *al
                 lbac_reset(&alf_sbac);    // init lbac for alf rdo
             }
         }
-        //derive CTU boundary availabilities
-        deriveBoundaryAvail(ep, numLCUInPicWidth, numLCUInPicHeight, ctu, &isLeftAvail, &isRightAvail, &isAboveAvail, &isBelowAvail, &isAboveLeftAvail, &isAboveRightAvail);
 
-        for (compIdx = 0; compIdx < N_C; compIdx++) {
-            //if slice-level enabled flag is 0, set CTB-level enabled flag 0
+        deriveBoundaryAvail(ep, numLCUInPicWidth, numLCUInPicHeight, ctu, &isAboveAvail, &isBelowAvail);
+
+        for (int compIdx = 0; compIdx < N_C; compIdx++) {
+            pel *org = NULL, *pDec = NULL, *pRest = NULL;
+            int formatShift = 0, stride_in = 0;
+            long long distEnc;
+
+            if (!isRDOEstimate) {
+                formatShift = (compIdx == Y_C) ? 0 : 1;
+                stride_in   = (compIdx == Y_C) ? (stride) : (stride >> 1);
+                org         = (compIdx == Y_C) ? imgY_org : imgUV_org[compIdx - U_C];
+                pDec        = (compIdx == Y_C) ? imgY_Dec : imgUV_Dec[compIdx - U_C];
+                pRest       = (compIdx == Y_C) ? imgY_Res : imgUV_Res[compIdx - U_C];
+            }
             if (alfPictureParam[compIdx].alf_flag == 0) {
                 Enc_ALF->m_AlfLCUEnabled[ctu][compIdx] = FALSE;
                 continue;
             }
-            if (!isRDOEstimate) {
-                formatShift = (compIdx == Y_C) ? 0 : 1;
-                org = (compIdx == Y_C) ? imgY_org : imgUV_org[compIdx - U_C];
-                pDec = (compIdx == Y_C) ? imgY_Dec : imgUV_Dec[compIdx - U_C];
-                pRest = (compIdx == Y_C) ? imgY_Res : imgUV_Res[compIdx - U_C];
-                stride_in = (compIdx == Y_C) ? (stride) : (stride >> 1);
-                i_org_plane = (compIdx == Y_C) ? (i_org) : (i_org >> 1);
-            } else {
-                formatShift = 0;
-                stride_in = 0;
-                i_org_plane = 0;
-                org = NULL;
-                pDec = NULL;
-                pRest = NULL;
-            }
-
-            //ALF on
             if (isRDOEstimate) {
-                //distEnc is the estimated distortion reduction compared with filter-off case
-                distEnc = estimateFilterDistortion(Enc_ALF, compIdx, &alfCorr[ctu][compIdx], coefs[compIdx],
-                                                   alfPictureParam[compIdx].filters_per_group, Enc_ALF->m_varIndTab, FALSE)
-                          - estimateFilterDistortion(Enc_ALF, compIdx, &alfCorr[ctu][compIdx], NULL, 1, NULL, FALSE);
+                distEnc = estimate_alf_lcu_dist(Enc_ALF, &alfCorr[ctu][compIdx], coefs[compIdx], alfPictureParam[compIdx].filters_per_group, Enc_ALF->m_varIndTab)
+                        - estimate_alf_lcu_dist(Enc_ALF, &alfCorr[ctu][compIdx], NULL, 1, NULL);
             } else {
-                filterOneCTB(Enc_ALF, pRest, pDec, ep->alf_var_map[ctu], stride_in, compIdx, bit_depth, &alfPictureParam[compIdx]
-                             , ctuYPos, ctuHeight, ctuXPos, ctuWidth, coefs[compIdx], isAboveAvail, isBelowAvail, isLeftAvail, isRightAvail, isAboveLeftAvail,
-                             isAboveRightAvail);
+                int i_org_plane = (compIdx == Y_C) ? (i_org) : (i_org >> 1);
 
-                distEnc = calcAlfLCUDist(ep, compIdx, ctu, ctuYPos, ctuXPos, ctuHeight, ctuWidth, isAboveAvail, org, i_org_plane, pRest, stride_in, formatShift);
-                distEnc -= calcAlfLCUDist(ep, compIdx, ctu, ctuYPos, ctuXPos, ctuHeight, ctuWidth, isAboveAvail, org, i_org_plane, pDec, stride_in, formatShift);
+                filterOneCTB(Enc_ALF, pRest, pDec, ep->alf_var_map[ctu], stride_in, compIdx, ep->info.bit_depth_internal, &alfPictureParam[compIdx], ctuYPos, ctuHeight, ctuXPos, ctuWidth, coefs[compIdx], isAboveAvail, isBelowAvail);
+
+                distEnc  = cal_alf_lcu_dist(ep, compIdx, ctu, ctuYPos, ctuXPos, ctuHeight, ctuWidth, isAboveAvail, org, i_org_plane, pRest, stride_in);
+                distEnc -= cal_alf_lcu_dist(ep, compIdx, ctu, ctuYPos, ctuXPos, ctuHeight, ctuWidth, isAboveAvail, org, i_org_plane, pDec,  stride_in);
             }
-            lbac_t alf_sbac_off;
-            lbac_copy(&alf_sbac_off, &alf_sbac);
+            lbac_t alf_lbac_off;
+            lbac_copy(&alf_lbac_off, &alf_sbac);
 
             // ALF ON
-            rateEnc = lbac_get_bits(&alf_sbac);
+            double rateEnc = lbac_get_bits(&alf_sbac);
             lbac_enc_alf_flag(&alf_sbac, NULL, 1);
             rateEnc = lbac_get_bits(&alf_sbac) - rateEnc;
-            costEnc = (double)distEnc + (compIdx == 0 ? lambda_luma : lambda_chroma) * rateEnc;
+            double costEnc = (double)distEnc + (compIdx == 0 ? lambda_luma : lambda_chroma) * rateEnc;
 
             //ALF OFF
-            distOff = 0;
-            rateOff = lbac_get_bits(&alf_sbac_off);
-            lbac_enc_alf_flag(&alf_sbac_off, NULL, 0);
-            rateOff = lbac_get_bits(&alf_sbac_off) - rateOff;
-            costOff = (double)distOff + (compIdx == 0 ? lambda_luma : lambda_chroma) * rateOff;
+            double rateOff = lbac_get_bits(&alf_lbac_off);
+            lbac_enc_alf_flag(&alf_lbac_off, NULL, 0);
+            rateOff = lbac_get_bits(&alf_lbac_off) - rateOff;
+            double costOff = (compIdx == 0 ? lambda_luma : lambda_chroma) * rateOff;
 
             if (costEnc >= costOff) {
                 Enc_ALF->m_AlfLCUEnabled[ctu][compIdx] = FALSE;
@@ -855,57 +518,47 @@ double alf_decision_all_lcu(enc_pic_t *ep, lbac_t *lbac, com_alf_pic_param_t *al
                 if (!isRDOEstimate) {
                     copyOneAlfBlk(pRest, pDec, stride_in, ctuYPos >> formatShift, ctuXPos >> formatShift, ctuHeight >> formatShift, ctuWidth >> formatShift, isAboveAvail, isBelowAvail);
                 }
-                lbac_copy(&alf_sbac, &alf_sbac_off);
+                lbac_copy(&alf_sbac, &alf_lbac_off);
             } else {
                 Enc_ALF->m_AlfLCUEnabled[ctu][compIdx] = TRUE;
             }
 
             rateBestPic[compIdx] += (Enc_ALF->m_AlfLCUEnabled[ctu][compIdx] ? rateEnc : rateOff);
-            distBestPic[compIdx] += (Enc_ALF->m_AlfLCUEnabled[ctu][compIdx] ? distEnc : distOff);
-        } //CTB
-    } //CTU
+            distBestPic[compIdx] += (Enc_ALF->m_AlfLCUEnabled[ctu][compIdx] ? distEnc : 0);
+        } 
+    } 
 
-    for (compIdx = 0; compIdx < N_C; compIdx++) {
+    for (int compIdx = 0; compIdx < N_C; compIdx++) {
         if (alfPictureParam[compIdx].alf_flag == 1) {
-            costAlfOn = (double)distBestPic[compIdx] + (compIdx == 0 ? lambda_luma : lambda_chroma) * (rateBestPic[compIdx] +
+            double costAlfOn = (double)distBestPic[compIdx] + (compIdx == 0 ? lambda_luma : lambda_chroma) * (rateBestPic[compIdx] +
                         (double)(ALFParamBitrateEstimate(&alfPictureParam[compIdx])));
-            costAlfOff = 0;
-            if (costAlfOn >= costAlfOff) {
+
+            if (costAlfOn >= 0) {
                 alfPictureParam[compIdx].alf_flag = 0;
-                for (n = 0; n < NumCUsInFrame; n++) {
+                for (int n = 0; n < NumCUsInFrame; n++) {
                     Enc_ALF->m_AlfLCUEnabled[n][compIdx] = FALSE;
                 }
                 if (!isRDOEstimate) {
-                    formatShift = (compIdx == Y_C) ? 0 : 1;
-                    pDec = (compIdx == Y_C) ? imgY_Dec : imgUV_Dec[compIdx - U_C];
-                    pRest = (compIdx == Y_C) ? imgY_Res : imgUV_Res[compIdx - U_C];
-                    stride_in = (compIdx == Y_C) ? (stride) : (stride >> 1);
+                    int  formatShift = (compIdx == Y_C) ? 0 : 1;
+                    pel *pDec        = (compIdx == Y_C) ? imgY_Dec : imgUV_Dec[compIdx - U_C];
+                    pel *pRest       = (compIdx == Y_C) ? imgY_Res : imgUV_Res[compIdx - U_C];
+                    int  stride_in   = (compIdx == Y_C) ? (stride) : (stride >> 1);
                     copyToImage(pRest, pDec, stride_in, img_height, img_width, formatShift);
                 }
             }
         }
     }
-
-    bestCost = 0;
-    for (compIdx = 0; compIdx < N_C; compIdx++) {
+    double bestCost = 0;
+    for (int compIdx = 0; compIdx < N_C; compIdx++) {
         if (alfPictureParam[compIdx].alf_flag == 1) {
             bestCost += (double)distBestPic[compIdx] + (compIdx == 0 ? lambda_luma : lambda_chroma) * (rateBestPic[compIdx]);
         }
     }
-    //return the block-level RD cost
+
     return bestCost;
 }
 
-/*
-*************************************************************************
-* Function: ALF filter on CTB
-*************************************************************************
-*/
-
-
-
-
-void ADD_AlfCorrData(enc_alf_corr_t *A, enc_alf_corr_t *B, enc_alf_corr_t *C)
+static void add_corr_data(enc_alf_corr_t *A, enc_alf_corr_t *B, enc_alf_corr_t *C)
 {
     int numCoef = ALF_MAX_NUM_COEF;
     int maxNumGroups = NO_VAR_BINS;
@@ -914,7 +567,6 @@ void ADD_AlfCorrData(enc_alf_corr_t *A, enc_alf_corr_t *B, enc_alf_corr_t *C)
     if (A->componentID >= 0) {
         numGroups = (A->componentID == Y_C) ? (maxNumGroups) : (1);
         for (g = 0; g < numGroups; g++) {
-            C->pixAcc[g] = A->pixAcc[g] + B->pixAcc[g];
             for (j = 0; j < numCoef; j++) {
                 C->yCorr[g][j] = A->yCorr[g][j] + B->yCorr[g][j];
                 for (i = 0; i < numCoef; i++) {
@@ -924,29 +576,22 @@ void ADD_AlfCorrData(enc_alf_corr_t *A, enc_alf_corr_t *B, enc_alf_corr_t *C)
         }
     }
 }
-void accumulateLCUCorrelations(enc_pic_t *ep, enc_alf_corr_t *alfCorrAcc, enc_alf_corr_t (*alfCorSrcLCU)[N_C], BOOL useAllLCUs)
+
+static void accumulate_lcu_corr(enc_pic_t *ep, enc_alf_corr_t *alf_corr, enc_alf_corr_t (*alfCorSrcLCU)[N_C], BOOL useAllLCUs)
 {
     enc_alf_var_t *Enc_ALF = &ep->Enc_ALF;
-    int compIdx, numStatLCU, addr;
-    enc_alf_corr_t *alfCorrAccComp;
-    int lcuHeight, lcuWidth, img_height, img_width;
-    int NumCUsInFrame, numLCUInPicWidth, numLCUInPicHeight;
-    lcuHeight = 1 << ep->info.log2_max_cuwh;
-    lcuWidth = lcuHeight;
-    img_height = ep->info.pic_height;
-    img_width = ep->info.pic_width;
-    numLCUInPicWidth = img_width / lcuWidth;
-    numLCUInPicHeight = img_height / lcuHeight;
-    numLCUInPicWidth += (img_width % lcuWidth) ? 1 : 0;
-    numLCUInPicHeight += (img_height % lcuHeight) ? 1 : 0;
-    NumCUsInFrame = numLCUInPicHeight * numLCUInPicWidth;
-    for (compIdx = 0; compIdx < N_C; compIdx++) {
-        alfCorrAccComp = &alfCorrAcc[compIdx];
-        memset(alfCorrAccComp, 0, sizeof(enc_alf_corr_t));
+    int numLCUInPicWidth   =  ep->info.pic_width_in_lcu;
+    int numLCUInPicHeight  =  ep->info.pic_height_in_lcu;
+    int NumCUInFrame = numLCUInPicHeight * numLCUInPicWidth;
+
+    memset(alf_corr, 0, sizeof(enc_alf_corr_t) * 3);
+
+    for (int compIdx = 0; compIdx < N_C; compIdx++) {
+        enc_alf_corr_t *corr = &alf_corr[compIdx];
    
         if (!useAllLCUs) {
-            numStatLCU = 0;
-            for (addr = 0; addr < NumCUsInFrame; addr++) {
+            int numStatLCU = 0;
+            for (int addr = 0; addr < NumCUInFrame; addr++) {
                 if (Enc_ALF->m_AlfLCUEnabled[addr][compIdx]) {
                     numStatLCU++;
                     break;
@@ -956,17 +601,15 @@ void accumulateLCUCorrelations(enc_pic_t *ep, enc_alf_corr_t *alfCorrAcc, enc_al
                 useAllLCUs = TRUE;
             }
         }
-        for (addr = 0; addr < (int)NumCUsInFrame; addr++) {
+        for (int addr = 0; addr < (int)NumCUInFrame; addr++) {
             if (useAllLCUs || Enc_ALF->m_AlfLCUEnabled[addr][compIdx]) {
-                ADD_AlfCorrData(&alfCorSrcLCU[addr][compIdx], alfCorrAccComp, alfCorrAccComp);
+                add_corr_data(&alfCorSrcLCU[addr][compIdx], corr, corr);
             }
         }
     }
 }
 
-
-
-void xcodeFiltCoeff(int *varIndTab, int numFilters, com_alf_pic_param_t *alfParam)
+static void xcodeFiltCoeff(int *varIndTab, int numFilters, com_alf_pic_param_t *alfParam)
 {
     int filterPattern[NO_VAR_BINS], i;
     memset(filterPattern, 0, NO_VAR_BINS * sizeof(int));
@@ -991,7 +634,7 @@ static tab_u8 tbl_weights_shape_1sym[ALF_MAX_NUM_COEF + 1] = {
     1
 };
 
-void xFilterCoefQuickSort(double *coef_data, int *coef_num, int upper, int lower)
+static void xFilterCoefQuickSort(double *coef_data, int *coef_num, int upper, int lower)
 {
     double mid, tmp_data;
     int i, j, tmp_num;
@@ -1024,8 +667,7 @@ void xFilterCoefQuickSort(double *coef_data, int *coef_num, int upper, int lower
     }
 }
 
-
-void xQuantFilterCoef(double *h, int *qh)
+static void xQuantFilterCoef(double *h, int *qh)
 {
     int i, N;
     int max_value, min_value;
@@ -1106,8 +748,7 @@ void xQuantFilterCoef(double *h, int *qh)
     nc = NULL;
 }
 
-
-double xfindBestCoeffCodMethod(int(*filterCoeffSymQuant)[ALF_MAX_NUM_COEF], int sqrFiltLength, int filters_per_fr,
+static double xfindBestCoeffCodMethod(int(*filterCoeffSymQuant)[ALF_MAX_NUM_COEF], int sqrFiltLength, int filters_per_fr,
                                double errorForce0CoeffTab[NO_VAR_BINS][2], double lambda)
 {
     int coeffBits, i;
@@ -1133,7 +774,7 @@ double xfindBestCoeffCodMethod(int(*filterCoeffSymQuant)[ALF_MAX_NUM_COEF], int 
     return (lagrangian);
 }
 
-int gnsCholeskyDec(double (*inpMatr)[ALF_MAX_NUM_COEF], double outMatr[ALF_MAX_NUM_COEF][ALF_MAX_NUM_COEF], int noEq)
+static int gnsCholeskyDec(double (*inpMatr)[ALF_MAX_NUM_COEF], double outMatr[ALF_MAX_NUM_COEF][ALF_MAX_NUM_COEF], int noEq)
 {
     int i, j, k;     /* Looping Variables */
     double scale;       /* scaling factor for each row */
@@ -1167,7 +808,7 @@ int gnsCholeskyDec(double (*inpMatr)[ALF_MAX_NUM_COEF], double outMatr[ALF_MAX_N
     return 1; /* Signal that Cholesky factorization is successfully performed */
 }
 
-void gnsTransposeBacksubstitution(double U[ALF_MAX_NUM_COEF][ALF_MAX_NUM_COEF], double rhs[], double x[], int order)
+static void gnsTransposeBacksubstitution(double U[ALF_MAX_NUM_COEF][ALF_MAX_NUM_COEF], double rhs[], double x[], int order)
 {
     int i, j;             /* Looping variables */
     double sum;              /* Holds backsubstitution from already handled rows */
@@ -1181,8 +822,8 @@ void gnsTransposeBacksubstitution(double U[ALF_MAX_NUM_COEF][ALF_MAX_NUM_COEF], 
         x[i] = (rhs[i] - sum) / U[i][i];       /* i'th component of solution vect.  */
     }
 }
-void gnsBacksubstitution(double R[ALF_MAX_NUM_COEF][ALF_MAX_NUM_COEF], double z[ALF_MAX_NUM_COEF], int R_size,
-    double A[ALF_MAX_NUM_COEF])
+
+static void gnsBacksubstitution(double R[ALF_MAX_NUM_COEF][ALF_MAX_NUM_COEF], double z[ALF_MAX_NUM_COEF], int R_size, double A[ALF_MAX_NUM_COEF])
 {
     int i, j;
     double sum;
@@ -1196,8 +837,7 @@ void gnsBacksubstitution(double R[ALF_MAX_NUM_COEF][ALF_MAX_NUM_COEF], double z[
     }
 }
 
-
-int gnsSolveByChol(double(*LHS)[ALF_MAX_NUM_COEF], double *rhs, double *x, int noEq)
+static int gnsSolveByChol(double(*LHS)[ALF_MAX_NUM_COEF], double *rhs, double *x, int noEq)
 {
     double aux[ALF_MAX_NUM_COEF];     /* Auxiliary vector */
     double U[ALF_MAX_NUM_COEF][ALF_MAX_NUM_COEF];    /* Upper triangular Cholesky factor of LHS */
@@ -1238,7 +878,7 @@ int gnsSolveByChol(double(*LHS)[ALF_MAX_NUM_COEF], double *rhs, double *x, int n
     return singular;
 }
 
-double calculateErrorAbs(double(*A)[ALF_MAX_NUM_COEF], double *b, double y, int size)
+static double calculateErrorAbs(double(*A)[ALF_MAX_NUM_COEF], double *b, int size)
 {
     int i;
     double error, sum;
@@ -1248,11 +888,11 @@ double calculateErrorAbs(double(*A)[ALF_MAX_NUM_COEF], double *b, double y, int 
     for (i = 0; i < size; i++) {
         sum += c[i] * b[i];
     }
-    error = y - sum;
+    error = - sum;
     return error;
 }
 
-double mergeFiltersGreedy(enc_alf_var_t *Enc_ALF, double (*yGlobalSeq)[ALF_MAX_NUM_COEF], double (*EGlobalSeq)[ALF_MAX_NUM_COEF][ALF_MAX_NUM_COEF], double *pixAccGlobalSeq,
+static double mergeFiltersGreedy(enc_alf_var_t *Enc_ALF, double (*yGlobalSeq)[ALF_MAX_NUM_COEF], double (*EGlobalSeq)[ALF_MAX_NUM_COEF][ALF_MAX_NUM_COEF],
                           int intervalBest[NO_VAR_BINS][2],
                           double error_tab[NO_VAR_BINS], double error_comb_tab[NO_VAR_BINS],
                           int indexList[NO_VAR_BINS], int available[NO_VAR_BINS],
@@ -1265,30 +905,28 @@ double mergeFiltersGreedy(enc_alf_var_t *Enc_ALF, double (*yGlobalSeq)[ALF_MAX_N
         for (ind = 0; ind < NO_VAR_BINS; ind++) {
             indexList[ind] = ind;
             available[ind] = 1;
-            Enc_ALF->m_pixAcc_merged[ind] = pixAccGlobalSeq[ind];
+ 
             memcpy(Enc_ALF->m_y_merged[ind], yGlobalSeq[ind], sizeof(double)*sqrFiltLength);
             for (i = 0; i < sqrFiltLength; i++) {
                 memcpy(Enc_ALF->m_E_merged[ind][i], EGlobalSeq[ind][i], sizeof(double)*sqrFiltLength);
             }
         }
         for (ind = 0; ind < NO_VAR_BINS; ind++) {
-            error_tab[ind] = calculateErrorAbs(Enc_ALF->m_E_merged[ind], Enc_ALF->m_y_merged[ind], Enc_ALF->m_pixAcc_merged[ind],
-                                               sqrFiltLength);
+            error_tab[ind] = calculateErrorAbs(Enc_ALF->m_E_merged[ind], Enc_ALF->m_y_merged[ind], sqrFiltLength);
         }
         for (ind = 0; ind < NO_VAR_BINS - 1; ind++) {
             ind1 = indexList[ind];
             ind2 = indexList[ind + 1];
             error1 = error_tab[ind1];
             error2 = error_tab[ind2];
-            double pixAcc_temp = Enc_ALF->m_pixAcc_merged[ind1] + Enc_ALF->m_pixAcc_merged[ind2];
+  
             for (i = 0; i < sqrFiltLength; i++) {
                 Enc_ALF->m_y_temp[i] = Enc_ALF->m_y_merged[ind1][i] + Enc_ALF->m_y_merged[ind2][i];
                 for (j = 0; j < sqrFiltLength; j++) {
                     Enc_ALF->m_E_temp[i][j] = Enc_ALF->m_E_merged[ind1][i][j] + Enc_ALF->m_E_merged[ind2][i][j];
                 }
             }
-            error_comb_tab[ind1] = calculateErrorAbs(Enc_ALF->m_E_temp, Enc_ALF->m_y_temp, pixAcc_temp,
-                                   sqrFiltLength) - error1 - error2;
+            error_comb_tab[ind1] = calculateErrorAbs(Enc_ALF->m_E_temp, Enc_ALF->m_y_temp, sqrFiltLength) - error1 - error2;
         }
     } else {
         errorMin = 0;
@@ -1304,7 +942,7 @@ double mergeFiltersGreedy(enc_alf_var_t *Enc_ALF, double (*yGlobalSeq)[ALF_MAX_N
         }
         ind1 = indexList[bestToMerge];
         ind2 = indexList[bestToMerge + 1];
-        Enc_ALF->m_pixAcc_merged[ind1] += Enc_ALF->m_pixAcc_merged[ind2];
+
         for (i = 0; i < sqrFiltLength; i++) {
             Enc_ALF->m_y_merged[ind1][i] += Enc_ALF->m_y_merged[ind2][i];
             for (j = 0; j < sqrFiltLength; j++) {
@@ -1319,30 +957,28 @@ double mergeFiltersGreedy(enc_alf_var_t *Enc_ALF, double (*yGlobalSeq)[ALF_MAX_N
             ind2 = indexList[bestToMerge];
             error1 = error_tab[ind1];
             error2 = error_tab[ind2];
-            double pixAcc_temp = Enc_ALF->m_pixAcc_merged[ind1] + Enc_ALF->m_pixAcc_merged[ind2];
+
             for (i = 0; i < sqrFiltLength; i++) {
                 Enc_ALF->m_y_temp[i] = Enc_ALF->m_y_merged[ind1][i] + Enc_ALF->m_y_merged[ind2][i];
                 for (j = 0; j < sqrFiltLength; j++) {
                     Enc_ALF->m_E_temp[i][j] = Enc_ALF->m_E_merged[ind1][i][j] + Enc_ALF->m_E_merged[ind2][i][j];
                 }
             }
-            error_comb_tab[ind1] = calculateErrorAbs(Enc_ALF->m_E_temp, Enc_ALF->m_y_temp, pixAcc_temp,
-                                   sqrFiltLength) - error1 - error2;
+            error_comb_tab[ind1] = calculateErrorAbs(Enc_ALF->m_E_temp, Enc_ALF->m_y_temp, sqrFiltLength) - error1 - error2;
         }
         if (indexList[bestToMerge + 1] < NO_VAR_BINS - 1) {
             ind1 = indexList[bestToMerge];
             ind2 = indexList[bestToMerge + 2];
             error1 = error_tab[ind1];
             error2 = error_tab[ind2];
-            double pixAcc_temp = Enc_ALF->m_pixAcc_merged[ind1] + Enc_ALF->m_pixAcc_merged[ind2];
+
             for (i = 0; i < sqrFiltLength; i++) {
                 Enc_ALF->m_y_temp[i] = Enc_ALF->m_y_merged[ind1][i] + Enc_ALF->m_y_merged[ind2][i];
                 for (j = 0; j < sqrFiltLength; j++) {
                     Enc_ALF->m_E_temp[i][j] = Enc_ALF->m_E_merged[ind1][i][j] + Enc_ALF->m_E_merged[ind2][i][j];
                 }
             }
-            error_comb_tab[ind1] = calculateErrorAbs(Enc_ALF->m_E_temp, Enc_ALF->m_y_temp, pixAcc_temp,
-                                   sqrFiltLength) - error1 - error2;
+            error_comb_tab[ind1] = calculateErrorAbs(Enc_ALF->m_E_temp, Enc_ALF->m_y_temp, sqrFiltLength) - error1 - error2;
         }
         ind = 0;
         for (i = 0; i < NO_VAR_BINS; i++) {
@@ -1365,7 +1001,7 @@ double mergeFiltersGreedy(enc_alf_var_t *Enc_ALF, double (*yGlobalSeq)[ALF_MAX_N
     return (errorMin);
 }
 
-void add_A(double (*Amerged)[ALF_MAX_NUM_COEF], double (*A)[ALF_MAX_NUM_COEF][ALF_MAX_NUM_COEF], int start, int stop, int size)
+static void add_A(double (*Amerged)[ALF_MAX_NUM_COEF], double (*A)[ALF_MAX_NUM_COEF][ALF_MAX_NUM_COEF], int start, int stop, int size)
 {
     int i, j, ind;          /* Looping variable */
     for (i = 0; i < size; i++) {
@@ -1378,7 +1014,7 @@ void add_A(double (*Amerged)[ALF_MAX_NUM_COEF], double (*A)[ALF_MAX_NUM_COEF][AL
     }
 }
 
-void add_b(double *bmerged, double (*b)[ALF_MAX_NUM_COEF], int start, int stop, int size)
+static void add_b(double *bmerged, double (*b)[ALF_MAX_NUM_COEF], int start, int stop, int size)
 {
     int i, ind;          /* Looping variable */
     for (i = 0; i < size; i++) {
@@ -1389,7 +1025,7 @@ void add_b(double *bmerged, double (*b)[ALF_MAX_NUM_COEF], int start, int stop, 
     }
 }
 
-void roundFiltCoeff(int *FilterCoeffQuan, double *FilterCoeff, int sqrFiltLength, int factor)
+static void roundFiltCoeff(int *FilterCoeffQuan, double *FilterCoeff, int sqrFiltLength, int factor)
 {
     int i;
     double diff;
@@ -1402,7 +1038,7 @@ void roundFiltCoeff(int *FilterCoeffQuan, double *FilterCoeff, int sqrFiltLength
     }
 }
 
-double calculateErrorCoeffProvided(double (*A)[ALF_MAX_NUM_COEF], double *b, double *c, int size)
+static double calculateErrorCoeffProvided(double (*A)[ALF_MAX_NUM_COEF], double *b, double *c, int size)
 {
     int i, j;
     double error, sum = 0;
@@ -1495,7 +1131,7 @@ static double alf_quant_int_flt_coef(double *filterCoeff, int *filterCoeffQuant,
     return (error);
 }
 
-static double alf_find_coef(enc_alf_var_t *Enc_ALF, double(*EGlobalSeq)[ALF_MAX_NUM_COEF][ALF_MAX_NUM_COEF], double(*yGlobalSeq)[ALF_MAX_NUM_COEF], double *pixAccGlobalSeq, int(*filterCoeffSeq)[ALF_MAX_NUM_COEF],
+static double alf_find_coef(enc_alf_var_t *Enc_ALF, double(*EGlobalSeq)[ALF_MAX_NUM_COEF][ALF_MAX_NUM_COEF], double(*yGlobalSeq)[ALF_MAX_NUM_COEF], int(*filterCoeffSeq)[ALF_MAX_NUM_COEF],
     int(*filterCoeffQuantSeq)[ALF_MAX_NUM_COEF], int intervalBest[NO_VAR_BINS][2], int varIndTab[NO_VAR_BINS], int sqrFiltLength,
     int filters_per_fr, double errorTabForce0Coeff[NO_VAR_BINS][2])
 {
@@ -1508,14 +1144,10 @@ static double alf_find_coef(enc_alf_var_t *Enc_ALF, double(*EGlobalSeq)[ALF_MAX_
     for (filtNo = 0; filtNo < filters_per_fr; filtNo++) {
         add_A(Enc_ALF->m_E_temp, EGlobalSeq, intervalBest[filtNo][0], intervalBest[filtNo][1], sqrFiltLength);
         add_b(Enc_ALF->m_y_temp, yGlobalSeq, intervalBest[filtNo][0], intervalBest[filtNo][1], sqrFiltLength);
-        double pixAcc_temp = 0;
-        for (k = intervalBest[filtNo][0]; k <= intervalBest[filtNo][1]; k++) {
-            pixAcc_temp += pixAccGlobalSeq[k];
-        }
+
         // Find coeffcients
-        errorTabForce0Coeff[filtNo][1] = pixAcc_temp + alf_quant_int_flt_coef(filterCoeff, filterCoeffQuant, Enc_ALF->m_E_temp,
-            Enc_ALF->m_y_temp, sqrFiltLength);
-        errorTabForce0Coeff[filtNo][0] = pixAcc_temp;
+        errorTabForce0Coeff[filtNo][1] = alf_quant_int_flt_coef(filterCoeff, filterCoeffQuant, Enc_ALF->m_E_temp, Enc_ALF->m_y_temp, sqrFiltLength);
+        errorTabForce0Coeff[filtNo][0] = 0;
         error += errorTabForce0Coeff[filtNo][1];
         for (k = 0; k < sqrFiltLength; k++) {
             filterCoeffSeq[filtNo][k] = filterCoeffQuant[k];
@@ -1530,7 +1162,7 @@ static double alf_find_coef(enc_alf_var_t *Enc_ALF, double(*EGlobalSeq)[ALF_MAX_
     return (error);
 }
 
-static void alf_find_best_flt_var(enc_alf_var_t *Enc_ALF, double(*ySym)[ALF_MAX_NUM_COEF], double(*ESym)[ALF_MAX_NUM_COEF][ALF_MAX_NUM_COEF], double *pixAcc, int(*filterCoeffSym)[ALF_MAX_NUM_COEF],
+static void alf_find_best_flt_var(enc_alf_var_t *Enc_ALF, double(*ySym)[ALF_MAX_NUM_COEF], double(*ESym)[ALF_MAX_NUM_COEF][ALF_MAX_NUM_COEF], int(*filterCoeffSym)[ALF_MAX_NUM_COEF],
     int *filters_per_fr_best, int varIndTab[], double lambda_val, int numMaxFilters)
 {
     int filterCoeffSymQuant[NO_VAR_BINS][ALF_MAX_NUM_COEF];
@@ -1553,9 +1185,9 @@ static void alf_find_best_flt_var(enc_alf_var_t *Enc_ALF, double(*ySym)[ALF_MAX_
     lagrangianMin = 0;
     filters_per_fr = NO_VAR_BINS;
     while (filters_per_fr >= 1) {
-        mergeFiltersGreedy(Enc_ALF, ySym, ESym, pixAcc, interval, error_tab, error_comb_tab, indexList, available, sqrFiltLength, filters_per_fr);
+        mergeFiltersGreedy(Enc_ALF, ySym, ESym, interval, error_tab, error_comb_tab, indexList, available, sqrFiltLength, filters_per_fr);
 
-        alf_find_coef(Enc_ALF, ESym, ySym, pixAcc, filterCoeffSym, filterCoeffSymQuant, interval,
+        alf_find_coef(Enc_ALF, ESym, ySym, filterCoeffSym, filterCoeffSymQuant, interval,
             varIndTab, sqrFiltLength, filters_per_fr, errorForce0CoeffTab);
         lagrangian = xfindBestCoeffCodMethod(filterCoeffSymQuant, sqrFiltLength, filters_per_fr,
             errorForce0CoeffTab, lambda_val);
@@ -1567,7 +1199,7 @@ static void alf_find_best_flt_var(enc_alf_var_t *Enc_ALF, double(*ySym)[ALF_MAX_
         }
         filters_per_fr--;
     }
-    alf_find_coef(Enc_ALF, ESym, ySym, pixAcc, filterCoeffSym, filterCoeffSymQuant, intervalBest,
+    alf_find_coef(Enc_ALF, ESym, ySym, filterCoeffSym, filterCoeffSymQuant, intervalBest,
         varIndTab, sqrFiltLength, (*filters_per_fr_best), errorForce0CoeffTab);
     if (*filters_per_fr_best == 1) {
         memset(varIndTab, 0, sizeof(int)*NO_VAR_BINS);
@@ -1576,26 +1208,24 @@ static void alf_find_best_flt_var(enc_alf_var_t *Enc_ALF, double(*ySym)[ALF_MAX_
 
 static void alf_derive_flt_coef(enc_alf_var_t *Enc_ALF, int compIdx, enc_alf_corr_t *alfCorr, com_alf_pic_param_t *alfFiltParam, int maxNumFilters, double lambda)
 {
-    int numCoeff = ALF_MAX_NUM_COEF;
-    double coef[ALF_MAX_NUM_COEF];
-    int lambdaForMerge, numFilters;
     switch (compIdx) {
     case Y_C: {
-        lambdaForMerge = ((int)lambda) * (1 << (2 * Enc_ALF->m_uiBitIncrement));
+        int numFilters;
+        int lambdaForMerge = (int)lambda;
         memset(Enc_ALF->m_varIndTab, 0, sizeof(int)*NO_VAR_BINS);
-        alf_find_best_flt_var(Enc_ALF, alfCorr->yCorr, alfCorr->ECorr, alfCorr->pixAcc, alfFiltParam->coeffmulti, &numFilters,
-            Enc_ALF->m_varIndTab, lambdaForMerge, maxNumFilters);
+        alf_find_best_flt_var(Enc_ALF, alfCorr->yCorr, alfCorr->ECorr, alfFiltParam->coeffmulti, &numFilters, Enc_ALF->m_varIndTab, lambdaForMerge, maxNumFilters);
         xcodeFiltCoeff(Enc_ALF->m_varIndTab, numFilters, alfFiltParam);
+        break;
     }
-              break;
     case U_C:
     case V_C: {
+        double coef[ALF_MAX_NUM_COEF];
         alfFiltParam->filters_per_group = 1;
-        gnsSolveByChol(alfCorr->ECorr[0], alfCorr->yCorr[0], coef, numCoeff);
+        gnsSolveByChol(alfCorr->ECorr[0], alfCorr->yCorr[0], coef, ALF_MAX_NUM_COEF);
         xQuantFilterCoef(coef, alfFiltParam->coeffmulti[0]);
-        predictALFCoeff(alfFiltParam->coeffmulti, numCoeff, alfFiltParam->filters_per_group);
+        predictALFCoeff(alfFiltParam->coeffmulti, ALF_MAX_NUM_COEF, alfFiltParam->filters_per_group);
+        break;
     }
-              break;
     default: {
         printf("Not a legal component ID\n");
         assert(0);
@@ -1606,104 +1236,81 @@ static void alf_derive_flt_coef(enc_alf_var_t *Enc_ALF, int compIdx, enc_alf_cor
 
 static void alf_decide_pic_param(enc_alf_var_t *Enc_ALF, com_alf_pic_param_t *alfPictureParam, enc_alf_corr_t *alfCorr, double lambdaLuma)
 {
-    double lambdaWeighting = (1.0);
-    int compIdx;
-    double lambda;
-    com_alf_pic_param_t *alfParam;
-    enc_alf_corr_t *picCorr;
-    for (compIdx = 0; compIdx < N_C; compIdx++) {
-        //VKTBD chroma need different lambdas? lambdaWeighting needed?
-        lambda = lambdaLuma * lambdaWeighting;
-        alfParam = &alfPictureParam[compIdx];
-        picCorr = &alfCorr[compIdx];
+    //todo: chroma need different lambdas? lambdaWeighting needed?
+
+    for (int compIdx = 0; compIdx < N_C; compIdx++) {
+        com_alf_pic_param_t *alfParam = &alfPictureParam[compIdx];
+        enc_alf_corr_t *picCorr = &alfCorr[compIdx];
         alfParam->alf_flag = 1;
-        alf_derive_flt_coef(Enc_ALF, compIdx, picCorr, alfParam, NO_VAR_BINS, lambda);
+        alf_derive_flt_coef(Enc_ALF, compIdx, picCorr, alfParam, NO_VAR_BINS, lambdaLuma);
     }
 }
 
 static void alf_get_filter_coefs(enc_pic_t *ep, lbac_t *lbac, com_alf_pic_param_t *alfPictureParam, double lambda)
 {
     enc_alf_var_t *Enc_ALF = &ep->Enc_ALF;
-    int compIdx, i;
     enc_alf_corr_t alfPicCorr[N_C];
-    double costMin, cost;
-    com_alf_pic_param_t tempAlfParam[N_C];
-    int picHeaderBitrate = 0;
-    for (compIdx = 0; compIdx < N_C; compIdx++) {
-        tempAlfParam[compIdx].alf_flag = 0;
-        tempAlfParam[compIdx].filters_per_group = 1;
-        tempAlfParam[compIdx].componentID = compIdx;
+    com_alf_pic_param_t tmp_alf_param[N_C];
+    double costMin = 1.7e+308;
+
+    for (int compIdx = 0; compIdx < N_C; compIdx++) {
+        tmp_alf_param[compIdx].alf_flag = 0;
+        tmp_alf_param[compIdx].filters_per_group = 1;
+        tmp_alf_param[compIdx].componentID = compIdx;
     }
     memset(alfPicCorr, 0, sizeof(alfPicCorr));
 
-    // normal part
-    costMin = 1.7e+308; // max double
+    accumulate_lcu_corr(ep, alfPicCorr, Enc_ALF->m_alfCorr, TRUE);
+    alf_decide_pic_param(Enc_ALF, tmp_alf_param, alfPicCorr, lambda);
 
-    accumulateLCUCorrelations(ep, alfPicCorr, Enc_ALF->m_alfCorr, TRUE);
-    alf_decide_pic_param(Enc_ALF, tempAlfParam, alfPicCorr, lambda);
-
-    for (i = 0; i < ALF_REDESIGN_ITERATION; i++) {
+    for (int i = 0; i < ALF_REDESIGN_ITERATION; i++) {
         if (i != 0) {
-            //redesign filter according to the last on off results
-            accumulateLCUCorrelations(ep, alfPicCorr, Enc_ALF->m_alfCorr, FALSE);
-            alf_decide_pic_param(Enc_ALF, tempAlfParam, alfPicCorr, lambda);
+            accumulate_lcu_corr(ep, alfPicCorr, Enc_ALF->m_alfCorr, FALSE);
+            alf_decide_pic_param(Enc_ALF, tmp_alf_param, alfPicCorr, lambda);
         }
-        //estimate cost
-        cost = alf_decision_all_lcu(ep, lbac, tempAlfParam, lambda, TRUE, Enc_ALF->m_alfCorr, NULL, NULL, 0, NULL, NULL, NULL, NULL, 0);
-        picHeaderBitrate = estimateALFBitrateInPicHeader(tempAlfParam);
-        cost += (double)picHeaderBitrate * lambda;
+        double cost = alf_decision_all_lcu(ep, lbac, tmp_alf_param, lambda, TRUE, Enc_ALF->m_alfCorr, NULL, NULL, 0, NULL, NULL, NULL, NULL, 0)
+                    + estimateALFBitrateInPicHeader(tmp_alf_param) * lambda;
 
         if (cost < costMin) {
             costMin = cost;
-            for (compIdx = 0; compIdx < N_C; compIdx++) {
-                com_alf_copy_param(&alfPictureParam[compIdx], &tempAlfParam[compIdx]);
+            for (int compIdx = 0; compIdx < N_C; compIdx++) {
+                com_alf_copy_param(&alfPictureParam[compIdx], &tmp_alf_param[compIdx]);
             }
         }
     }
 }
 
-static void alf_decision(enc_pic_t *ep, com_alf_pic_param_t *alfPictureParam, com_pic_t *pic_rec, com_pic_t *pic_alf_Org, com_pic_t *pic_alf_Rec, double lambda_mode)
+int uavs3e_alf_frame(enc_pic_t *ep, com_pic_t *pic_rec, com_pic_t *pic_org, double lambda)
 {
-    int lumaStride; // Add to avoid micro trubles
-    pel *pResY, *pDecY, *pOrgY;
-    pel *pResUV[2], *pDecUV[2], *pOrgUV[2];
-    lbac_t sbac_alf;
-    lbac_t *lbac = &sbac_alf;
+    lbac_t lbac_alf;
+    lbac_t *lbac = &lbac_alf;
+    com_pic_t *alf_rec = ep->pic_alf_Rec;
+    com_alf_pic_param_t *alf_param = ep->Enc_ALF.m_alfPictureParam;
 
-    pResY = pic_rec->y;
-    pResUV[0] = pic_rec->u;
-    pResUV[1] = pic_rec->v;
-    pDecY = pic_alf_Rec->y;
-    pDecUV[0] = pic_alf_Rec->u;
-    pDecUV[1] = pic_alf_Rec->v;
-    pOrgY = pic_alf_Org->y;
-    pOrgUV[0] = pic_alf_Org->u;
-    pOrgUV[1] = pic_alf_Org->v;
+    pel *pResY = pic_rec->y;
+    pel *pDecY = alf_rec->y;
+    pel *pOrgY = pic_org->y;
 
-    lbac_reset(lbac); // init lbac for alf rdo
-    com_sbac_ctx_init(&lbac->h);
+    pel *pResUV[2] = { pic_rec->u, pic_rec->v };
+    pel *pDecUV[2] = { alf_rec->u, alf_rec->v };
+    pel *pOrgUV[2] = { pic_org->u, pic_org->v };
 
-    lumaStride = pic_rec->stride_luma;
+    alf_rec->stride_luma   = pic_rec->stride_luma;
+    alf_rec->stride_chroma = pic_rec->stride_chroma;
 
-    alf_get_statistics(ep, pOrgY, pOrgUV, pic_alf_Org->stride_luma, pDecY, pDecUV, lumaStride);
-    alf_get_filter_coefs(ep, lbac, alfPictureParam, lambda_mode);
-    alf_decision_all_lcu(ep, lbac, alfPictureParam, lambda_mode, FALSE, NULL, pOrgY, pOrgUV, pic_alf_Org->stride_luma, pDecY, pDecUV, pResY, pResUV, lumaStride);
+    com_alf_copy_frm(alf_rec, pic_rec);
 
-}
+    lbac_reset(lbac);
+    lbac_ctx_init(&lbac->h);
 
-int enc_alf_avs2(enc_pic_t *ep, com_pic_t *pic_rec, com_pic_t *pic_org, double lambda)
-{
-    com_alf_pic_param_t *final_alfPictureParam = ep->Enc_ALF.m_alfPictureParam;
-    int bit_depth = ep->info.bit_depth_internal;
-    int scale_lambda = (bit_depth == 10) ? ep->info.qp_offset_bit_depth : 1;
-    ep->pic_alf_Rec->stride_luma = pic_rec->stride_luma;
-    ep->pic_alf_Rec->stride_chroma = pic_rec->stride_chroma;
-    com_alf_copy_frm(ep->pic_alf_Rec, pic_rec);
+    lambda *= (ep->info.bit_depth_internal == 10) ? ep->info.qp_offset_bit_depth : 1;
 
-    alf_decision(ep, final_alfPictureParam, pic_rec, pic_org, ep->pic_alf_Rec, lambda * scale_lambda);
+    alf_get_statistics(ep, pic_org, alf_rec);
+    alf_get_filter_coefs(ep, lbac, alf_param, lambda);
+    alf_decision_all_lcu(ep, lbac, alf_param, lambda, FALSE, NULL, pOrgY, pOrgUV, pic_org->stride_luma, pDecY, pDecUV, pResY, pResUV, pic_rec->stride_luma);
 
     for (int i = 0; i < N_C; i++) {
-        ep->pic_alf_on[i] = final_alfPictureParam[i].alf_flag;
+        ep->pic_alf_on[i] = alf_param[i].alf_flag;
     }
     return COM_OK;
 }

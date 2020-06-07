@@ -1,17 +1,36 @@
 /**************************************************************************************
- * Copyright (C) 2018-2019 uavs3e project
+ * Copyright (c) 2018-2020 ["Peking University Shenzhen Graduate School",
+ *   "Peng Cheng Laboratory", and "Guangdong Bohua UHD Innovation Corporation"]
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the Open-Intelligence Open Source License V1.1.
+ * All rights reserved.
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * Open-Intelligence Open Source License V1.1 for more details.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ * 3. All advertising materials mentioning features or use of this software
+ *    must display the following acknowledgement:
+ *    This product includes the software uAVS3d developed by
+ *    Peking University Shenzhen Graduate School, Peng Cheng Laboratory
+ *    and Guangdong Bohua UHD Innovation Corporation.
+ * 4. Neither the name of the organizations (Peking University Shenzhen Graduate School,
+ *    Peng Cheng Laboratory and Guangdong Bohua UHD Innovation Corporation) nor the
+ *    names of its contributors may be used to endorse or promote products
+ *    derived from this software without specific prior written permission.
  *
- * You should have received a copy of the Open-Intelligence Open Source License V1.1
- * along with this program; if not, you can download it on:
- * http://www.aitisa.org.cn/uploadfile/2018/0910/20180910031548314.pdf
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS ''AS IS'' AND ANY
+ * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+ * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDERS BE LIABLE FOR ANY
+ * DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * For more information, contact us at rgwang@pkusz.edu.cn.
  **************************************************************************************/
@@ -1085,14 +1104,27 @@ static avs3_always_inline int get_shift(int v)
 #endif
 }
 
+void lbac_ctx_init(com_lbac_all_ctx_t *lbac_ctx)
+{
+    com_mset(lbac_ctx, 0x00, sizeof(*lbac_ctx));
+
+    /* Initialization of the context models */
+    int num = sizeof(com_lbac_all_ctx_t) / sizeof(lbac_ctx_model_t);
+    lbac_ctx_model_t *p = (lbac_ctx_model_t *)lbac_ctx;
+
+    for (int i = 0; i < num; i++) {
+        p[i] = PROB_INIT;
+    }
+}
+
 void lbac_reset(lbac_t *lbac)
 {
-    lbac->range = 0x1FF;
-    lbac->code = 0;
-    lbac->left_bits = 23;
-    lbac->pending_byte = 0;
+    lbac->range           = 0x1FF;
+    lbac->code            = 0;
+    lbac->left_bits       = 23;
+    lbac->pending_byte    = 0;
     lbac->is_pending_byte = 0;
-    lbac->stacked_ff = 0;
+    lbac->stacked_ff      = 0;
 }
 
 void lbac_finish(lbac_t *lbac, bs_t *bs)
@@ -1284,7 +1316,7 @@ void lbac_encode_bin_trm(u32 bin, lbac_t *lbac, bs_t *bs)
     }
 }
 
-static void sbac_encode_bin_ep(u32 bin, lbac_t *lbac, bs_t *bs)
+static void lbac_encode_bin_ep(u32 bin, lbac_t *lbac, bs_t *bs)
 {
     if (bs == NULL) {
         lbac->bitcounter++;
@@ -1299,7 +1331,7 @@ static void sbac_encode_bin_ep(u32 bin, lbac_t *lbac, bs_t *bs)
     }
 }
 
-static void sbac_write_unary_sym_ep(u32 sym, lbac_t *lbac, bs_t *bs)
+static void lbac_write_unary_sym_ep(u32 sym, lbac_t *lbac, bs_t *bs)
 {
     if (bs == NULL) {
         lbac->bitcounter += sym + 1;
@@ -1316,7 +1348,7 @@ static void sbac_write_unary_sym_ep(u32 sym, lbac_t *lbac, bs_t *bs)
     }
 }
 
-static void sbac_write_truncate_unary_sym(u32 sym, u32 num_ctx, u32 max_num, lbac_t *lbac, lbac_ctx_model_t *model_base, bs_t *bs)
+static void lbac_write_truncate_unary_sym(u32 sym, u32 num_ctx, u32 max_num, lbac_t *lbac, lbac_ctx_model_t *model_base, bs_t *bs)
 {
     u32 ctx_idx = 0;
 
@@ -1348,18 +1380,16 @@ static void sbac_write_truncate_unary_sym(u32 sym, u32 num_ctx, u32 max_num, lba
     }
 }
 
-static void sbac_encode_bins_msb(u32 value, int num_bin, lbac_t *lbac, lbac_ctx_model_t *model, bs_t *bs)
+static void lbac_encode_bins_msb(u32 value, int num_bin, lbac_t *lbac, lbac_ctx_model_t *model, bs_t *bs)
 {
     if (bs == NULL) {
         for (int i = num_bin - 1; i >= 0; i--, model++) {
-            u16 cmps = (*model) & 1;
             u32 rLPS = ((*model) & PROB_MASK) >> (LG_PMPS_SHIFTNO + 1);
             u32 rMPS = lbac->range - rLPS;
             int s_flag = rMPS < QUAR_HALF_PROB;
-            int bin = (value >> i) & 1;
             rMPS |= 0x100;
 
-            if (bin == cmps) { // MPS
+            if (!(((value >> i) ^ (*model)) & 1)) { // MPS
                 lbac->bitcounter += s_flag;
                 lbac->range = rMPS;
                 *model = tbl_plps[*model];
@@ -1378,7 +1408,7 @@ static void sbac_encode_bins_msb(u32 value, int num_bin, lbac_t *lbac, lbac_ctx_
     }
 }
 
-static void sbac_encode_bins_ep_msb(u32 value, int num_bin, lbac_t *lbac, bs_t *bs)
+static void lbac_encode_bins_ep_msb(u32 value, int num_bin, lbac_t *lbac, bs_t *bs)
 {
     if (bs == NULL) {
         lbac->bitcounter += num_bin;
@@ -1404,7 +1434,7 @@ void lbac_enc_affine_flag(lbac_t *lbac, bs_t *bs, core_t *core, int flag)
 
 void lbac_enc_affine_mrg_idx(lbac_t *lbac, bs_t *bs, s16 affine_mrg_idx)
 {
-    sbac_write_truncate_unary_sym(affine_mrg_idx, LBAC_CTX_AFFINE_MRG, AFF_MAX_NUM_MRG, lbac, lbac->h.affine_mrg_idx, bs);
+    lbac_write_truncate_unary_sym(affine_mrg_idx, LBAC_CTX_AFFINE_MRG, AFF_MAX_NUM_MRG, lbac, lbac->h.affine_mrg_idx, bs);
 }
 
 void lbac_enc_smvd_flag(lbac_t *lbac, bs_t *bs, int flag)
@@ -1512,14 +1542,14 @@ void lbac_enc_umve_idx(lbac_t *lbac, bs_t *bs, int umve_idx)
     } else {
         lbac_encode_bin(0, lbac, lbac->h.umve_step_idx, bs);
         for (idx = 1; idx < UMVE_REFINE_STEP - 1; idx++) {
-            sbac_encode_bin_ep(ref_step == idx ? 1 : 0, lbac, bs);
+            lbac_encode_bin_ep(ref_step == idx ? 1 : 0, lbac, bs);
 
             if (ref_step == idx) {
                 break;
             }
         }
     }
-    sbac_encode_bins_msb(direction, 2, lbac, lbac->h.umve_dir_idx, bs);
+    lbac_encode_bins_msb(direction, 2, lbac, lbac->h.umve_dir_idx, bs);
 }
 
 void lbac_enc_skip_idx(lbac_t *lbac, bs_t *bs, com_pic_header_t *pichdr, int skip_idx, int num_hmvp_cands)
@@ -1530,7 +1560,7 @@ void lbac_enc_skip_idx(lbac_t *lbac, bs_t *bs, com_pic_header_t *pichdr, int ski
     if (pichdr->slice_type == SLICE_P && skip_idx > 0) { // for P slice, change 3, 4, ..., 13 to 1, 2, ..., 11
         skip_idx -= 2;
     }
-    sbac_write_truncate_unary_sym(skip_idx, LBAC_CTX_SKIP_IDX, max_skip_num, lbac, lbac->h.skip_idx_ctx, bs);
+    lbac_write_truncate_unary_sym(skip_idx, LBAC_CTX_SKIP_IDX, max_skip_num, lbac, lbac->h.skip_idx_ctx, bs);
 }
 
 void lbac_enc_direct_flag(lbac_t *lbac, bs_t *bs, core_t *core, int direct_flag)
@@ -1552,17 +1582,17 @@ static int lbac_enc_run(u32 sym, lbac_t *lbac, lbac_ctx_model_t *model, bs_t *bs
     int exp_golomb_order = 0;
 
     if (sym < 16) {
-        sbac_write_truncate_unary_sym(sym, 2, 17, lbac, model, bs);
+        lbac_write_truncate_unary_sym(sym, 2, 17, lbac, model, bs);
     } else {
         sym -= 16;
-        sbac_write_truncate_unary_sym(16, 2, 17, lbac, model, bs);
+        lbac_write_truncate_unary_sym(16, 2, 17, lbac, model, bs);
 
         while ((int)sym >= (1 << exp_golomb_order)) {
             sym = sym - (1 << exp_golomb_order);
             exp_golomb_order++;
         }
-        sbac_write_unary_sym_ep(exp_golomb_order, lbac, bs);
-        sbac_encode_bins_ep_msb(sym, exp_golomb_order, lbac, bs);
+        lbac_write_unary_sym_ep(exp_golomb_order, lbac, bs);
+        lbac_encode_bins_ep_msb(sym, exp_golomb_order, lbac, bs);
     }
     return COM_OK;
 }
@@ -1591,30 +1621,30 @@ static int lbac_enc_level(u32 sym, lbac_t *lbac, lbac_ctx_model_t *model, bs_t *
     int exp_golomb_order = 0;
 
     if (sym < 8) {
-        sbac_write_truncate_unary_sym(sym, 2, 9, lbac, model, bs);
+        lbac_write_truncate_unary_sym(sym, 2, 9, lbac, model, bs);
     } else {
         sym -= 8;
-        sbac_write_truncate_unary_sym(8, 2, 9, lbac, model, bs);
+        lbac_write_truncate_unary_sym(8, 2, 9, lbac, model, bs);
 
         while ((int)sym >= (1 << exp_golomb_order)) {
             sym = sym - (1 << exp_golomb_order);
             exp_golomb_order++;
         }
-        sbac_write_unary_sym_ep(exp_golomb_order, lbac, bs);
-        sbac_encode_bins_ep_msb(sym, exp_golomb_order, lbac, bs);
+        lbac_write_unary_sym_ep(exp_golomb_order, lbac, bs);
+        lbac_encode_bins_ep_msb(sym, exp_golomb_order, lbac, bs);
     }
     return COM_OK;
 }
 
 void lbac_enc_run_length_cc(lbac_t *lbac, bs_t *bs, s16 *coef, int log2_w, int log2_h, int num_sig, int ch_type)
 {
-    com_lbac_all_ctx_t *sbac_ctx = &lbac->h;
+    com_lbac_all_ctx_t *lbac_ctx = &lbac->h;
     const u16 *scanp = com_tbl_scan[log2_w - 1][log2_h - 1];
-    lbac_ctx_model_t *ctx_last1    = sbac_ctx->last1    + (ch_type == Y_C ? 0 : LBAC_CTX_LAST1);
-    lbac_ctx_model_t *ctx_last2    = sbac_ctx->last2    + (ch_type == Y_C ? 0 : LBAC_CTX_LAST2);
-    lbac_ctx_model_t *ctx_run      = sbac_ctx->run      + (ch_type == Y_C ? 0 : 12);
-    lbac_ctx_model_t *ctx_run_rdoq = sbac_ctx->run_rdoq + (ch_type == Y_C ? 0 : 12);
-    lbac_ctx_model_t *ctx_level    = sbac_ctx->level    + (ch_type == Y_C ? 0 : 12);
+    lbac_ctx_model_t *ctx_last1    = lbac_ctx->last1    + (ch_type == Y_C ? 0 : LBAC_CTX_LAST1);
+    lbac_ctx_model_t *ctx_last2    = lbac_ctx->last2    + (ch_type == Y_C ? 0 : LBAC_CTX_LAST2);
+    lbac_ctx_model_t *ctx_run      = lbac_ctx->run      + (ch_type == Y_C ? 0 : 12);
+    lbac_ctx_model_t *ctx_run_rdoq = lbac_ctx->run_rdoq + (ch_type == Y_C ? 0 : 12);
+    lbac_ctx_model_t *ctx_level    = lbac_ctx->level    + (ch_type == Y_C ? 0 : 12);
     u32 num_coeff = 1 << (log2_w + log2_h);
     u32 run = 0;
     u32 prev_level = 6;
@@ -1634,7 +1664,7 @@ void lbac_enc_run_length_cc(lbac_t *lbac, bs_t *bs, s16 *coef, int log2_w, int l
             lbac_enc_level(level - 1, lbac, &ctx_level[t0], bs);
 
             /* Sign coding */
-            sbac_encode_bin_ep(coef_cur <= 0, lbac, bs);
+            lbac_encode_bin_ep(coef_cur <= 0, lbac, bs);
             if (scan_pos == num_coeff - 1) {
                 assert(num_sig == 1);
                 break;
@@ -1657,263 +1687,264 @@ void lbac_enc_run_length_cc(lbac_t *lbac, bs_t *bs, s16 *coef, int log2_w, int l
 
 void lbac_enc_run_length_cc_rdo(lbac_t *lbac, s16 *coef, int log2_w, int log2_h, int num_sig, int ch_type)
 {
-    com_lbac_all_ctx_t *sbac_ctx = &lbac->h;
-    lbac_ctx_model_t *ctx_last1    = sbac_ctx->last1    + (ch_type == Y_C ? 0 : LBAC_CTX_LAST1);
-    lbac_ctx_model_t *ctx_last2    = sbac_ctx->last2    + (ch_type == Y_C ? 0 : LBAC_CTX_LAST2);
-    lbac_ctx_model_t *ctx_run      = sbac_ctx->run      + (ch_type == Y_C ? 0 : 12);
-    lbac_ctx_model_t *ctx_run_rdoq = sbac_ctx->run_rdoq + (ch_type == Y_C ? 0 : 12);
-    lbac_ctx_model_t *ctx_level    = sbac_ctx->level    + (ch_type == Y_C ? 0 : 12);
+    com_lbac_all_ctx_t *lbac_ctx = &lbac->h;
+    lbac_ctx_model_t *ctx_last1    = lbac_ctx->last1    + (ch_type == Y_C ? 0 : LBAC_CTX_LAST1);
+    lbac_ctx_model_t *ctx_last2    = lbac_ctx->last2    + (ch_type == Y_C ? 0 : LBAC_CTX_LAST2);
+    lbac_ctx_model_t *ctx_run      = lbac_ctx->run      + (ch_type == Y_C ? 0 : 12);
+    lbac_ctx_model_t *ctx_run_rdoq = lbac_ctx->run_rdoq + (ch_type == Y_C ? 0 : 12);
+    lbac_ctx_model_t *ctx_level    = lbac_ctx->level    + (ch_type == Y_C ? 0 : 12);
     u32 num_coeff = 1 << (log2_w + log2_h);
     u32 run = 0;
     u32 t0 = 10;
     int bitcounter = 0;
     int range = lbac->range;
     const u16 *scanp = com_tbl_scan[log2_w - 1][log2_h - 1];
+    tab_s16 *switch_tab_plps[2] = { tbl_plps_ext, tbl_plps };
+    u32 scan_pos = 0;
+    s16 coef_cur;
+    int last_nz_pos = -1;
 
-    for (u32 scan_pos = 0; scan_pos < num_coeff; scan_pos++) {
-        s16 coef_cur = coef[scanp[scan_pos]];
+    do {
+        while (!(coef_cur = coef[scanp[scan_pos]])) {
+            scan_pos++;
+        }
+        run = scan_pos - last_nz_pos - 1;
+        last_nz_pos = scan_pos;
 
-        if (coef_cur) {
-            /* Run coding */
-            int sym = COM_MIN(run, 16);
-            lbac_ctx_model_t *model_base = ctx_run + t0;
-            lbac_ctx_model_t *model = model_base;
-            u32 ctx_idx = 0;
+        /* Run coding */
+        int sym = COM_MIN(run, 16);
+        lbac_ctx_model_t *model = ctx_run + t0;
 
-            { /* first bin of Run */
-                u16 cmps = (*model) & 1;
-                u32 rMPS = range - (((*model) & PROB_MASK) >> (LG_PMPS_SHIFTNO + 1));
-                int s_flag = rMPS < QUAR_HALF_PROB;
-                rMPS |= 0x100;
-
-                if (!sym == cmps) { // MPS
-                    bitcounter += s_flag;
-                    range = rMPS;
-                    *model = tbl_plps[*model];
-                } else {
-                    u32 rLPS = (range << s_flag) - rMPS;
-                    int shift = get_shift(rLPS);
-                    range = rLPS << shift;
-                    bitcounter += shift + s_flag;
-                    *model = tbl_plps_ext[*model];
-                }
-            }
-            if (sym--) { 
-                lbac_ctx_model_t m = model_base[1];
-                ctx_idx++;
-
-                if ((m & 1) == 0 && sym > 0) { // MPS == '0'
-                    ctx_idx += sym;
-
-                    do { // MPS
-                        u32 rMPS = range - ((m & PROB_MASK) >> (LG_PMPS_SHIFTNO + 1));
-                        range = rMPS | 0x100;
-                        bitcounter += rMPS < QUAR_HALF_PROB;
-                        m = tbl_plps[m];
-                    } while (sym-- > 1);
-
-                    if (ctx_idx < 16) { // sym == 0
-                        u32 rMPS = range - ((m & PROB_MASK) >> (LG_PMPS_SHIFTNO + 1));
-                        int s_flag = rMPS < QUAR_HALF_PROB;
-                        u32 rLPS = (range << s_flag) - (rMPS | 0x100);
-                        int shift = get_shift(rLPS);
-                        range = rLPS << shift;
-                        bitcounter += shift + s_flag;
-                        m = tbl_plps_ext[m];
-                    }
-                } else {
-                    do {
-                        u32 rMPS = range - ((m & PROB_MASK) >> (LG_PMPS_SHIFTNO + 1));
-                        int s_flag = rMPS < QUAR_HALF_PROB;
-                        rMPS |= 0x100;
-
-                        if (!sym == (m & 1)) { // MPS
-                            bitcounter += s_flag;
-                            range = rMPS;
-                            m = tbl_plps[m];
-                        } else {
-                            u32 rLPS = (range << s_flag) - rMPS;
-                            int shift = get_shift(rLPS);
-                            range = rLPS << shift;
-                            bitcounter += shift + s_flag;
-                            m = tbl_plps_ext[m];
-                        }
-                    } while (++ctx_idx < 16 && sym--);
-                }
-
-                model_base[1] = m;
-            }
-
-            if (run >= 16) {
-                int exp_golomb_order = 1;
-                sym = run - 17;
-
-                while ((int)sym >= 0) {
-                    sym = sym - (1 << exp_golomb_order);
-                    exp_golomb_order++;
-                }
-                bitcounter += (exp_golomb_order << 1) - 1;
-            }
-
-            sym = run;
-            model = ctx_run_rdoq + t0;
-            *model = (!sym == ((*model) & 1) ? tbl_plps : tbl_plps_ext)[*model];
-
-            if (sym--) {
-                model = ctx_run_rdoq + t0 + 1;
-                do {
-                    *model = (!sym == ((*model) & 1) ? tbl_plps : tbl_plps_ext)[*model];
-                } while (sym--);
-            }
-
-            /* Level coding */
-            u32 level = COM_ABS16(coef_cur);
-            u32 t0_bakup = t0;
-            t0 = (COM_MIN(level - 1, 5)) << 1;
-            ctx_idx = 0;
-            sym = COM_MIN(level - 1, 8);
-            model_base = &ctx_level[t0_bakup];
-            model = model_base;
-
-            { /* first bin of Level */
-                u16 cmps = (*model) & 1;
-                u32 rLPS = ((*model) & PROB_MASK) >> (LG_PMPS_SHIFTNO + 1);
-                u32 rMPS = range - rLPS;
-                int s_flag = rMPS < QUAR_HALF_PROB;
-                rMPS |= 0x100;
-
-                if (!sym == cmps) { // MPS
-                    bitcounter += s_flag;
-                    range = rMPS;
-                    *model = tbl_plps[*model];
-                }
-                else {
-                    rLPS = (range << s_flag) - rMPS;
-                    int shift = get_shift(rLPS);
-                    range = rLPS << shift;
-                    bitcounter += shift + s_flag;
-                    *model = tbl_plps_ext[*model];
-                }
-            }
-            if (sym--) {
-                lbac_ctx_model_t m = model_base[1];
-                ctx_idx++;
-
-                if ((m & 1) == 0 && sym > 0) { // MPS == '0'
-                    ctx_idx += sym;
-
-                    do { // MPS
-                        u32 rMPS = range - ((m & PROB_MASK) >> (LG_PMPS_SHIFTNO + 1));
-                        range = rMPS | 0x100;
-                        bitcounter += rMPS < QUAR_HALF_PROB;
-                        m = tbl_plps[m];
-                    } while (sym-- > 1);
-
-                    if (ctx_idx < 8) { // sym == 0
-                        u32 rMPS = range - ((m & PROB_MASK) >> (LG_PMPS_SHIFTNO + 1));
-                        int s_flag = rMPS < QUAR_HALF_PROB;
-                        u32 rLPS = (range << s_flag) - (rMPS | 0x100);
-                        int shift = get_shift(rLPS);
-                        range = rLPS << shift;
-                        bitcounter += shift + s_flag;
-                        m = tbl_plps_ext[m];
-                    }
-                } else {
-                    do {
-                        u32 rMPS = range - ((m & PROB_MASK) >> (LG_PMPS_SHIFTNO + 1));
-                        int s_flag = rMPS < QUAR_HALF_PROB;
-                        rMPS |= 0x100;
-
-                        if (!sym == (m & 1)) { // MPS
-                            bitcounter += s_flag;
-                            range = rMPS;
-                            m = tbl_plps[m];
-                        } else {
-                            u32 rLPS = (range << s_flag) - rMPS;
-                            int shift = get_shift(rLPS);
-                            range = rLPS << shift;
-                            bitcounter += shift + s_flag;
-                            m = tbl_plps_ext[m];
-                        }
-                    } while (++ctx_idx < 8 && sym--);
-                }
-
-                model_base[1] = m;
-            }
-
-            if (level >= 9) {
-                int exp_golomb_order = 1;
-                sym = level - 10;
-
-                while ((int)sym >= 0) {
-                    sym = sym - (1 << exp_golomb_order);
-                    exp_golomb_order++;
-                }
-                bitcounter += (exp_golomb_order << 1) - 1;
-            }
-
-            /* Sign coding */
-            bitcounter++;
-            
-            if (scan_pos == num_coeff - 1) {
-                assert(num_sig == 1);
-                break;
-            }
-            run = 0;
-            num_sig--;
-
-            /* Last flag coding */
-            int last_flag = (num_sig == 0) ? 1 : 0;
-            lbac_ctx_model_t *model1 = &ctx_last1[t0_bakup >> 1];
-            lbac_ctx_model_t *model2 = &ctx_last2[uavs3e_get_log2(scan_pos + 1)];
-            u16 prob_lps;
-            u16 prob_lps1 = ((*model1) & PROB_MASK) >> 1;
-            u16 prob_lps2 = ((*model2) & PROB_MASK) >> 1;
-            u16 cmps;
-            u16 cmps1 = (*model1) & 1;
-            u16 cmps2 = (*model2) & 1;
-            u32 rLPS;
-            u32 rMPS;
-            int s_flag;
-
-            if (cmps1 == cmps2) {
-                cmps = cmps1;
-                prob_lps = (prob_lps1 + prob_lps2) >> 1;
-            } else {
-                if (prob_lps1 < prob_lps2) {
-                    cmps = cmps1;
-                    prob_lps = (256 << LG_PMPS_SHIFTNO) - 1 - ((prob_lps2 - prob_lps1) >> 1);
-                } else {
-                    cmps = cmps2;
-                    prob_lps = (256 << LG_PMPS_SHIFTNO) - 1 - ((prob_lps1 - prob_lps2) >> 1);
-                }
-            }
-
-            rLPS = prob_lps >> LG_PMPS_SHIFTNO;
-
-            rMPS = range - rLPS;
-            s_flag = rMPS < QUAR_HALF_PROB;
+        { /* first bin of Run */
+            u32 rMPS = range - (((*model) & PROB_MASK) >> (LG_PMPS_SHIFTNO + 1));
+            int s_flag = rMPS < QUAR_HALF_PROB;
             rMPS |= 0x100;
 
-            if (last_flag == cmps) { // MPS
+            if (!sym == ((*model) & 1)) { // MPS
                 bitcounter += s_flag;
                 range = rMPS;
+                *model = tbl_plps[*model];
             } else {
+                u32 rLPS = (range << s_flag) - rMPS;
+                int shift = get_shift(rLPS);
+                range = rLPS << shift;
+                bitcounter += shift + s_flag;
+                *model = tbl_plps_ext[*model];
+            }
+        }
+
+        u32 ctx_idx = 0;
+
+        if (sym--) { 
+            lbac_ctx_model_t m = model[1];
+            ctx_idx++;
+
+            if ((m & 1) == 0 && sym > 0) { // MPS == '0'
+                ctx_idx += sym;
+
+                do { // MPS
+                    u32 rMPS = range - ((m & PROB_MASK) >> (LG_PMPS_SHIFTNO + 1));
+                    range = rMPS | 0x100;
+                    bitcounter += rMPS < QUAR_HALF_PROB;
+                    m = tbl_plps[m];
+                } while (sym-- > 1);
+
+                if (ctx_idx < 16) { // sym == 0
+                    u32 rMPS = range - ((m & PROB_MASK) >> (LG_PMPS_SHIFTNO + 1));
+                    int s_flag = rMPS < QUAR_HALF_PROB;
+                    u32 rLPS = (range << s_flag) - (rMPS | 0x100);
+                    int shift = get_shift(rLPS);
+                    range = rLPS << shift;
+                    bitcounter += shift + s_flag;
+                    m = tbl_plps_ext[m];
+                }
+            } else {
+                do {
+                    u32 rMPS = range - ((m & PROB_MASK) >> (LG_PMPS_SHIFTNO + 1));
+                    int s_flag = rMPS < QUAR_HALF_PROB;
+                    rMPS |= 0x100;
+
+                    if (!sym == (m & 1)) { // MPS
+                        bitcounter += s_flag;
+                        range = rMPS;
+                        m = tbl_plps[m];
+                    } else {
+                        u32 rLPS = (range << s_flag) - rMPS;
+                        int shift = get_shift(rLPS);
+                        range = rLPS << shift;
+                        bitcounter += shift + s_flag;
+                        m = tbl_plps_ext[m];
+                    }
+                } while (++ctx_idx < 16 && sym--);
+            }
+            model[1] = m;
+        }
+
+        if (run >= 16) {
+            int exp_golomb_order = 1;
+            sym = run - 17;
+
+            while ((int)sym >= 0) {
+                sym = sym - (1 << exp_golomb_order);
+                exp_golomb_order++;
+            }
+            bitcounter += (exp_golomb_order << 1) - 1;
+        }
+
+        sym = run;
+        model = ctx_run_rdoq + t0;
+        *model = switch_tab_plps[!sym == ((*model) & 1)][*model];
+
+        if (sym--) {
+            model++;
+            do {
+                *model = switch_tab_plps[!sym == ((*model) & 1)][*model];
+            } while (sym--);
+        }
+
+        /* Level coding */
+        u32 level = COM_ABS16(coef_cur);
+        model = &ctx_level[t0];
+
+        sym = COM_MIN(level - 1, 8);
+
+        { /* first bin of Level */
+            u32 rLPS = ((*model) & PROB_MASK) >> (LG_PMPS_SHIFTNO + 1);
+            u32 rMPS = range - rLPS;
+            int s_flag = rMPS < QUAR_HALF_PROB;
+            rMPS |= 0x100;
+
+            if (!sym == ((*model) & 1)) { // MPS
+                bitcounter += s_flag;
+                range = rMPS;
+                *model = tbl_plps[*model];
+            }
+            else {
                 rLPS = (range << s_flag) - rMPS;
                 int shift = get_shift(rLPS);
                 range = rLPS << shift;
                 bitcounter += shift + s_flag;
+                *model = tbl_plps_ext[*model];
             }
-            *model1 = (last_flag != cmps1 ? tbl_plps_ext : tbl_plps)[*model1];
-            *model2 = (last_flag != cmps2 ? tbl_plps_ext : tbl_plps)[*model2];
-            
-            if (last_flag) {
-                break;
-            }
-        } else {
-            run++;
         }
-    }
+
+        ctx_idx = 0;
+
+        if (sym--) {
+            lbac_ctx_model_t m = model[1];
+            ctx_idx++;
+
+            if ((m & 1) == 0 && sym) { // MPS == '0'
+                ctx_idx += sym;
+
+                do { // MPS
+                    u32 rMPS = range - ((m & PROB_MASK) >> (LG_PMPS_SHIFTNO + 1));
+                    range = rMPS | 0x100;
+                    bitcounter += rMPS < QUAR_HALF_PROB;
+                    m = tbl_plps[m];
+                } while (sym-- > 1);
+
+                if (ctx_idx < 8) { // sym == 0
+                    u32 rMPS = range - ((m & PROB_MASK) >> (LG_PMPS_SHIFTNO + 1));
+                    int s_flag = rMPS < QUAR_HALF_PROB;
+                    u32 rLPS = (range << s_flag) - (rMPS | 0x100);
+                    int shift = get_shift(rLPS);
+                    range = rLPS << shift;
+                    bitcounter += shift + s_flag;
+                    m = tbl_plps_ext[m];
+                }
+            } else {
+                do {
+                    u32 rMPS = range - ((m & PROB_MASK) >> (LG_PMPS_SHIFTNO + 1));
+                    int s_flag = rMPS < QUAR_HALF_PROB;
+                    rMPS |= 0x100;
+
+                    if (!sym == (m & 1)) { // MPS
+                        bitcounter += s_flag;
+                        range = rMPS;
+                        m = tbl_plps[m];
+                    } else {
+                        u32 rLPS = (range << s_flag) - rMPS;
+                        int shift = get_shift(rLPS);
+                        range = rLPS << shift;
+                        bitcounter += shift + s_flag;
+                        m = tbl_plps_ext[m];
+                    }
+                } while (++ctx_idx < 8 && sym--);
+            }
+
+            model[1] = m;
+        }
+
+        if (level >= 9) {
+            int exp_golomb_order = 1;
+            sym = level - 10;
+
+            while ((int)sym >= 0) {
+                sym = sym - (1 << exp_golomb_order);
+                exp_golomb_order++;
+            }
+            bitcounter += (exp_golomb_order << 1) - 1;
+        }
+
+        /* Sign coding */
+        bitcounter++;
+        
+        if (scan_pos == num_coeff - 1) {
+            assert(num_sig == 1);
+            break;
+        }
+        run = 0;
+        num_sig--;
+
+        /* Last flag coding */
+        lbac_ctx_model_t *model1 = &ctx_last1[t0 >> 1];
+        lbac_ctx_model_t *model2 = &ctx_last2[uavs3e_get_log2(scan_pos + 1)];
+        u16 prob_lps;
+        u16 prob_lps1 = ((*model1) & PROB_MASK) >> 1;
+        u16 prob_lps2 = ((*model2) & PROB_MASK) >> 1;
+        u16 cmps1 = (*model1) & 1;
+        u16 cmps2 = (*model2) & 1;
+        u16 cmps;
+
+        t0 = (COM_MIN(level - 1, 5)) << 1;
+
+        if (cmps1 == cmps2) {
+            cmps = cmps1;
+            prob_lps = (prob_lps1 + prob_lps2) >> 1;
+        } else {
+            if (prob_lps1 < prob_lps2) {
+                cmps = cmps1;
+                prob_lps = (256 << LG_PMPS_SHIFTNO) - 1 - ((prob_lps2 - prob_lps1) >> 1);
+            } else {
+                cmps = cmps2;
+                prob_lps = (256 << LG_PMPS_SHIFTNO) - 1 - ((prob_lps1 - prob_lps2) >> 1);
+            }
+        }
+
+        u32 rLPS = prob_lps >> LG_PMPS_SHIFTNO;
+        u32 rMPS = range - rLPS;
+        int s_flag = rMPS < QUAR_HALF_PROB;
+        int last_flag = !num_sig;
+
+        rMPS |= 0x100;
+
+        if (last_flag == cmps) { // MPS
+            bitcounter += s_flag;
+            range = rMPS;
+        } else {
+            rLPS = (range << s_flag) - rMPS;
+            int shift = get_shift(rLPS);
+            range = rLPS << shift;
+            bitcounter += shift + s_flag;
+        }
+        *model1 = switch_tab_plps[last_flag == cmps1][*model1];
+        *model2 = switch_tab_plps[last_flag == cmps2][*model2];
+
+        scan_pos++;
+
+    } while (num_sig);
+
     lbac->range = range;
     lbac->bitcounter += bitcounter;
 }
@@ -1933,18 +1964,18 @@ void lbac_enc_xcoef(lbac_t *lbac, bs_t *bs, s16 *coef, int log2_w, int log2_h, i
 
 int lbac_enc_cbf_uv(lbac_t *lbac, bs_t *bs, int num_nz[MAX_NUM_TB][N_C])
 {
-    com_lbac_all_ctx_t *sbac_ctx = &lbac->h;
+    com_lbac_all_ctx_t *lbac_ctx = &lbac->h;
     assert(num_nz[TBUV0][Y_C] == 0);
 
-    lbac_encode_bin(!!num_nz[TBUV0][U_C], lbac, sbac_ctx->cbf + 1, bs);
-    lbac_encode_bin(!!num_nz[TBUV0][V_C], lbac, sbac_ctx->cbf + 2, bs);
+    lbac_encode_bin(!!num_nz[TBUV0][U_C], lbac, lbac_ctx->cbf + 1, bs);
+    lbac_encode_bin(!!num_nz[TBUV0][V_C], lbac, lbac_ctx->cbf + 2, bs);
 
     return COM_OK;
 }
 
 int lbac_enc_cbf(lbac_t *lbac, bs_t *bs, core_t *core, int tb_avaliable, int pb_part_size, int tb_part_size, int num_nz[MAX_NUM_TB][N_C], u8 pred_mode, s8 ipm[MAX_NUM_PB][2], u8 tree_status)
 {
-    com_lbac_all_ctx_t *sbac_ctx = &lbac->h;
+    com_lbac_all_ctx_t *lbac_ctx = &lbac->h;
     int ctp_zero_flag = !is_cu_nz(num_nz);
 
     /* code allcbf */
@@ -1954,10 +1985,10 @@ int lbac_enc_cbf(lbac_t *lbac, bs_t *bs, core_t *core, int tb_avaliable, int pb_
         } else {
             if (tree_status == TREE_LC) {
                 if (core->cu_width_log2 > 6 || core->cu_height_log2 > 6) {
-                    lbac_encode_bin(1, lbac, sbac_ctx->ctp_zero_flag + 1, bs);
+                    lbac_encode_bin(1, lbac, lbac_ctx->ctp_zero_flag + 1, bs);
                     assert(ctp_zero_flag == 1);
                 } else {
-                    lbac_encode_bin(ctp_zero_flag, lbac, sbac_ctx->ctp_zero_flag, bs);
+                    lbac_encode_bin(ctp_zero_flag, lbac, lbac_ctx->ctp_zero_flag, bs);
                 }
                 if (ctp_zero_flag) {
                     for (int i = 0; i < MAX_NUM_TB; i++) {
@@ -1969,13 +2000,13 @@ int lbac_enc_cbf(lbac_t *lbac, bs_t *bs, core_t *core, int tb_avaliable, int pb_
             }
         }
         if (tb_avaliable) {
-            lbac_encode_bin(tb_part_size != SIZE_2Nx2N, lbac, sbac_ctx->tb_split, bs);
+            lbac_encode_bin(tb_part_size != SIZE_2Nx2N, lbac, lbac_ctx->tb_split, bs);
         } else {
             assert(tb_part_size == SIZE_2Nx2N);
         }
         if (tree_status == TREE_LC) {
-            lbac_encode_bin(!!num_nz[TBUV0][U_C], lbac, sbac_ctx->cbf + 1, bs);
-            lbac_encode_bin(!!num_nz[TBUV0][V_C], lbac, sbac_ctx->cbf + 2, bs);
+            lbac_encode_bin(!!num_nz[TBUV0][U_C], lbac, lbac_ctx->cbf + 1, bs);
+            lbac_encode_bin(!!num_nz[TBUV0][V_C], lbac, lbac_ctx->cbf + 2, bs);
         } else {
             assert(tree_status == TREE_L);
         }
@@ -1984,7 +2015,7 @@ int lbac_enc_cbf(lbac_t *lbac, bs_t *bs, core_t *core, int tb_avaliable, int pb_
         } else {
             int i, part_num = get_part_num(tb_part_size);
             for (i = 0; i < part_num; i++) {
-                lbac_encode_bin(!!num_nz[i][Y_C], lbac, sbac_ctx->cbf, bs);
+                lbac_encode_bin(!!num_nz[i][Y_C], lbac, lbac_ctx->cbf, bs);
             }
         }
     } else {
@@ -1993,13 +2024,13 @@ int lbac_enc_cbf(lbac_t *lbac, bs_t *bs, core_t *core, int tb_avaliable, int pb_
             assert(tb_part_size == get_tb_part_size_by_pb(pb_part_size, pred_mode));
 
             for (i = 0; i < part_num; i++) {
-                lbac_encode_bin(!!num_nz[i][Y_C], lbac, sbac_ctx->cbf, bs);
+                lbac_encode_bin(!!num_nz[i][Y_C], lbac, lbac_ctx->cbf, bs);
             }
         }
         if (tree_status == TREE_LC) {
             if (!(ipm[PB0][0] == IPD_IPCM && ipm[PB0][1] == IPD_DM_C)) {
-                lbac_encode_bin(!!num_nz[TBUV0][U_C], lbac, sbac_ctx->cbf + 1, bs);
-                lbac_encode_bin(!!num_nz[TBUV0][V_C], lbac, sbac_ctx->cbf + 2, bs);
+                lbac_encode_bin(!!num_nz[TBUV0][U_C], lbac, lbac_ctx->cbf + 1, bs);
+                lbac_encode_bin(!!num_nz[TBUV0][V_C], lbac, lbac_ctx->cbf + 2, bs);
             }
         } else {
             assert(tree_status == TREE_L);
@@ -2093,7 +2124,7 @@ int lbac_enc_intra_dir(lbac_t *lbac, bs_t *bs, u8 ipm, u8 mpm[2])
         lbac_encode_bin(ipm_code + 2, lbac, lbac->h.intra_dir + 6, bs);
     } else {
         lbac_encode_bin(0, lbac, lbac->h.intra_dir, bs);
-        sbac_encode_bins_msb(ipm_code, 5, lbac, lbac->h.intra_dir + 1, bs);
+        lbac_encode_bins_msb(ipm_code, 5, lbac, lbac->h.intra_dir + 1, bs);
     }
     return COM_OK;
 }
@@ -2114,7 +2145,7 @@ int lbac_enc_intra_dir_c(lbac_t *lbac, bs_t *bs, u8 ipm, u8 ipm_l, u8 tscpm_enab
             }
         }
         u8 symbol = (chk_bypass && ipm > ipm_l) ? ipm - 2 : ipm - 1;
-        sbac_write_truncate_unary_sym(symbol, 1, IPD_CHROMA_CNT - 1, lbac, lbac->h.intra_dir + 8, bs);
+        lbac_write_truncate_unary_sym(symbol, 1, IPD_CHROMA_CNT - 1, lbac, lbac->h.intra_dir + 8, bs);
     }
     return COM_OK;
 }
@@ -2151,7 +2182,7 @@ void lbac_enc_inter_dir(lbac_t *lbac, bs_t *bs, core_t *core, s8 refi[REFP_NUM],
 int lbac_enc_refi(lbac_t *lbac, bs_t *bs, int num_refp, int refi)
 {
     if (num_refp > 1) {
-        sbac_write_truncate_unary_sym(refi, 3, num_refp, lbac, lbac->h.refi, bs);
+        lbac_write_truncate_unary_sym(refi, 3, num_refp, lbac, lbac->h.refi, bs);
     }
     return COM_OK;
 }
@@ -2159,9 +2190,9 @@ int lbac_enc_refi(lbac_t *lbac, bs_t *bs, int num_refp, int refi)
 int lbac_enc_mvr_idx(lbac_t *lbac, bs_t *bs, u8 mvr_idx, BOOL is_affine_mode)
 {
     if (is_affine_mode) {
-        sbac_write_truncate_unary_sym(mvr_idx, LBAC_CTX_AFFINE_MVR_IDX, MAX_NUM_AFFINE_MVR, lbac, lbac->h.affine_mvr_idx, bs);
+        lbac_write_truncate_unary_sym(mvr_idx, LBAC_CTX_AFFINE_MVR_IDX, MAX_NUM_AFFINE_MVR, lbac, lbac->h.affine_mvr_idx, bs);
     } else {
-        sbac_write_truncate_unary_sym(mvr_idx, LBAC_CTX_MVR_IDX, MAX_NUM_MVR, lbac, lbac->h.mvr_idx, bs);
+        lbac_write_truncate_unary_sym(mvr_idx, LBAC_CTX_MVR_IDX, MAX_NUM_MVR, lbac, lbac->h.mvr_idx, bs);
     }
     return COM_OK;
 }
@@ -2201,15 +2232,15 @@ static int lbac_enc_abs_mvd(u32 sym, lbac_t *lbac, lbac_ctx_model_t *model, bs_t
         lbac_encode_bin(1, lbac, model + 1, bs);
         lbac_encode_bin(1, lbac, model + 2, bs);
 
-        sbac_encode_bin_ep(offset, lbac, bs);
+        lbac_encode_bin_ep(offset, lbac, bs);
         sym = (sym - offset) >> 1;
 
         while ((int)sym >= (1 << exp_golomb_order)) {
             sym = sym - (1 << exp_golomb_order);
             exp_golomb_order++;
         }
-        sbac_write_unary_sym_ep(exp_golomb_order, lbac, bs);
-        sbac_encode_bins_ep_msb(sym, exp_golomb_order, lbac, bs);
+        lbac_write_unary_sym_ep(exp_golomb_order, lbac, bs);
+        lbac_encode_bins_ep_msb(sym, exp_golomb_order, lbac, bs);
     }
 
     return COM_OK;
@@ -2217,25 +2248,25 @@ static int lbac_enc_abs_mvd(u32 sym, lbac_t *lbac, lbac_ctx_model_t *model, bs_t
 
 int lbac_enc_mvd(lbac_t *lbac, bs_t *bs, s16 mvd[MV_D])
 {
-    com_lbac_all_ctx_t *sbac_ctx = &lbac->h;
+    com_lbac_all_ctx_t *lbac_ctx = &lbac->h;
 
     if (mvd[MV_X] == 0) {
-        lbac_enc_abs_mvd(0, lbac, sbac_ctx->mvd[0], bs);
+        lbac_enc_abs_mvd(0, lbac, lbac_ctx->mvd[0], bs);
     } else if (mvd[MV_X] < 0) {
-        lbac_enc_abs_mvd(-mvd[MV_X], lbac, sbac_ctx->mvd[0], bs);
-        sbac_encode_bin_ep(1, lbac, bs);
+        lbac_enc_abs_mvd(-mvd[MV_X], lbac, lbac_ctx->mvd[0], bs);
+        lbac_encode_bin_ep(1, lbac, bs);
     } else {
-        lbac_enc_abs_mvd(mvd[MV_X], lbac, sbac_ctx->mvd[0], bs);
-        sbac_encode_bin_ep(0, lbac, bs);
+        lbac_enc_abs_mvd(mvd[MV_X], lbac, lbac_ctx->mvd[0], bs);
+        lbac_encode_bin_ep(0, lbac, bs);
     }
     if (mvd[MV_Y] == 0) {
-        lbac_enc_abs_mvd(0, lbac, sbac_ctx->mvd[1], bs);
+        lbac_enc_abs_mvd(0, lbac, lbac_ctx->mvd[1], bs);
     } else if (mvd[MV_Y] < 0) {
-        lbac_enc_abs_mvd(-mvd[MV_Y], lbac, sbac_ctx->mvd[1], bs);
-        sbac_encode_bin_ep(1, lbac, bs);
+        lbac_enc_abs_mvd(-mvd[MV_Y], lbac, lbac_ctx->mvd[1], bs);
+        lbac_encode_bin_ep(1, lbac, bs);
     } else {
-        lbac_enc_abs_mvd(mvd[MV_Y], lbac, sbac_ctx->mvd[1], bs);
-        sbac_encode_bin_ep(0, lbac, bs);
+        lbac_enc_abs_mvd(mvd[MV_Y], lbac, lbac_ctx->mvd[1], bs);
+        lbac_encode_bin_ep(0, lbac, bs);
     }
     return COM_OK;
 }
@@ -2703,10 +2734,10 @@ void lbac_enc_sao_mode(lbac_t *lbac, bs_t *bs, com_sao_param_t *saoBlkParam)
         lbac_encode_bin(1, lbac, lbac->h.sao_mode, bs);
     } else if (saoBlkParam->typeIdc == SAO_TYPE_BO) {
         lbac_encode_bin(0, lbac, lbac->h.sao_mode, bs);
-        sbac_encode_bin_ep(1, lbac, bs);
+        lbac_encode_bin_ep(1, lbac, bs);
     } else {
         lbac_encode_bin(0, lbac, lbac->h.sao_mode, bs);
-        sbac_encode_bin_ep(0, lbac, bs);
+        lbac_encode_bin_ep(0, lbac, bs);
     }
     
 }
@@ -2726,7 +2757,7 @@ static void sao_one_offset(int value1, int offset_type, lbac_t *lbac, bs_t *bs)
         if (offset_type == SAO_CLASS_BO) {
             lbac_encode_bin(1, lbac, lbac->h.sao_offset, bs);
         } else {
-            sbac_encode_bin_ep(1, lbac, bs);
+            lbac_encode_bin_ep(1, lbac, bs);
         }
     } else {
         int temp = act_sym;
@@ -2735,15 +2766,15 @@ static void sao_one_offset(int value1, int offset_type, lbac_t *lbac, bs_t *bs)
             if (offset_type == SAO_CLASS_BO && temp == act_sym) {
                 lbac_encode_bin(0, lbac, lbac->h.sao_offset, bs);
             } else {
-                sbac_encode_bin_ep(0, lbac, bs);
+                lbac_encode_bin_ep(0, lbac, bs);
             }
             temp--;
         }
         if (act_sym < tbl_sao_bound_clip[offset_type][2]) {
-            sbac_encode_bin_ep(1, lbac, bs);
+            lbac_encode_bin_ep(1, lbac, bs);
         }
         if (offset_type == SAO_CLASS_BO) {
-            sbac_encode_bin_ep(value1 < 0, lbac, bs);
+            lbac_encode_bin_ep(value1 < 0, lbac, bs);
         }
     }
 }
@@ -2773,17 +2804,17 @@ static void sao_band_and_type(int value1, int value2, lbac_t *lbac, bs_t *bs)
 
         while (1) {
             if ((unsigned int)temp >= (unsigned int)(1 << exp_golomb_order)) {
-                sbac_encode_bin_ep(0, lbac, bs);
+                lbac_encode_bin_ep(0, lbac, bs);
                 temp = temp - (1 << exp_golomb_order);
                 exp_golomb_order++;
             } else {
                 if (exp_golomb_order == 4) {
                     exp_golomb_order = 0;
                 } else {
-                    sbac_encode_bin_ep(1, lbac, bs);
+                    lbac_encode_bin_ep(1, lbac, bs);
                 }
                 while (exp_golomb_order--) {   //next binary part
-                    sbac_encode_bin_ep((unsigned char)((temp >> exp_golomb_order) & 1), lbac, bs);
+                    lbac_encode_bin_ep((unsigned char)((temp >> exp_golomb_order) & 1), lbac, bs);
                 }
                 break;
             }
@@ -2792,7 +2823,7 @@ static void sao_band_and_type(int value1, int value2, lbac_t *lbac, bs_t *bs)
         int length = value2 ? NUM_SAO_BO_CLASSES_LOG2 : NUM_SAO_EO_TYPES_LOG2;
 
         for (int i = 0; i < length; i++) {
-            sbac_encode_bin_ep(value1 & 1, lbac, bs);
+            lbac_encode_bin_ep(value1 & 1, lbac, bs);
             value1 >>= 1;
         }
     }
@@ -2869,7 +2900,7 @@ void lbac_enc_alf_flag(lbac_t *lbac, bs_t *bs, int iflag)
 
 void lbac_enc_lcu_delta_qp(lbac_t *lbac, bs_t *bs, int val, int last_dqp)
 {
-    com_lbac_all_ctx_t *sbac_ctx = &lbac->h;
+    com_lbac_all_ctx_t *lbac_ctx = &lbac->h;
     int act_sym;
     int act_ctx = ((last_dqp != 0) ? 1 : 0);
 
@@ -2880,20 +2911,20 @@ void lbac_enc_lcu_delta_qp(lbac_t *lbac, bs_t *bs, int val, int last_dqp)
     }
 
     if (act_sym == 0) {
-        lbac_encode_bin(1, lbac, sbac_ctx->lcu_qp_delta + act_ctx, bs);
+        lbac_encode_bin(1, lbac, lbac_ctx->lcu_qp_delta + act_ctx, bs);
     } else {
-        lbac_encode_bin(0, lbac, sbac_ctx->lcu_qp_delta + act_ctx, bs);
+        lbac_encode_bin(0, lbac, lbac_ctx->lcu_qp_delta + act_ctx, bs);
         act_ctx = 2;
         if (act_sym == 1) {
-            lbac_encode_bin(1, lbac, sbac_ctx->lcu_qp_delta + act_ctx, bs);
+            lbac_encode_bin(1, lbac, lbac_ctx->lcu_qp_delta + act_ctx, bs);
         } else {
-            lbac_encode_bin(0, lbac, sbac_ctx->lcu_qp_delta + act_ctx, bs);
+            lbac_encode_bin(0, lbac, lbac_ctx->lcu_qp_delta + act_ctx, bs);
             act_ctx++;
             while (act_sym > 2) {
-                lbac_encode_bin(0, lbac, sbac_ctx->lcu_qp_delta + act_ctx, bs);
+                lbac_encode_bin(0, lbac, lbac_ctx->lcu_qp_delta + act_ctx, bs);
                 act_sym--;
             }
-            lbac_encode_bin(1, lbac, sbac_ctx->lcu_qp_delta + act_ctx, bs);
+            lbac_encode_bin(1, lbac, lbac_ctx->lcu_qp_delta + act_ctx, bs);
         }
     }
 }

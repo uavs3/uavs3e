@@ -1,17 +1,36 @@
 /**************************************************************************************
- * Copyright (C) 2018-2019 uavs3e project
+ * Copyright (c) 2018-2020 ["Peking University Shenzhen Graduate School",
+ *   "Peng Cheng Laboratory", and "Guangdong Bohua UHD Innovation Corporation"]
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the Open-Intelligence Open Source License V1.1.
+ * All rights reserved.
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * Open-Intelligence Open Source License V1.1 for more details.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ * 3. All advertising materials mentioning features or use of this software
+ *    must display the following acknowledgement:
+ *    This product includes the software uAVS3d developed by
+ *    Peking University Shenzhen Graduate School, Peng Cheng Laboratory
+ *    and Guangdong Bohua UHD Innovation Corporation.
+ * 4. Neither the name of the organizations (Peking University Shenzhen Graduate School,
+ *    Peng Cheng Laboratory and Guangdong Bohua UHD Innovation Corporation) nor the
+ *    names of its contributors may be used to endorse or promote products
+ *    derived from this software without specific prior written permission.
  *
- * You should have received a copy of the Open-Intelligence Open Source License V1.1
- * along with this program; if not, you can download it on:
- * http://www.aitisa.org.cn/uploadfile/2018/0910/20180910031548314.pdf
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS ''AS IS'' AND ANY
+ * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+ * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDERS BE LIABLE FOR ANY
+ * DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * For more information, contact us at rgwang@pkusz.edu.cn.
  **************************************************************************************/
@@ -173,15 +192,15 @@ int enc_delete_cu_data(enc_cu_t *cu_data)
     return COM_OK;
 }
 
-u32 calc_satd_16b(int pu_w, int pu_h, pel *src1, pel *src2, int s_src1, int s_src2, int bit_depth)
+u32 calc_satd_intra(int pu_w, int pu_h, pel *src1, pel *src2, int s_src1, int s_src2, int bit_depth)
 {
-    u32 cost = 0;
     int num_seg_in_pu_w = 1, num_seg_in_pu_h = 1;
     int subblk_w_log2 = com_tbl_log2[pu_w];
     int subblk_h_log2 = com_tbl_log2[pu_h];
-    pel *src1_seg, *src2_seg;
-    pel *s1 = (pel *)src1;
-    pel *s2 = (pel *)src2;
+
+    if (subblk_w_log2 != -1 && subblk_h_log2 != -1) {
+        return com_had(pu_w, pu_h, src1, s_src1, src2, s_src2, bit_depth);
+    }
 
     if (subblk_w_log2 == -1) {
         num_seg_in_pu_w = 3;
@@ -191,16 +210,77 @@ u32 calc_satd_16b(int pu_w, int pu_h, pel *src1, pel *src2, int s_src1, int s_sr
         num_seg_in_pu_h = 3;
         subblk_h_log2 = (pu_h == 48) ? 4 : (pu_h == 24 ? 3 : 2);
     }
-    if (num_seg_in_pu_w == 1 && num_seg_in_pu_h == 1) {
-        cost += block_pel_satd(subblk_w_log2, subblk_h_log2, s1, s2, s_src1, s_src2, bit_depth);
-        return cost;
-    }
+
+    u32 cost = 0;
+
     for (int j = 0; j < num_seg_in_pu_h; j++) {
         for (int i = 0; i < num_seg_in_pu_w; i++) {
-            src1_seg = s1 + (1 << subblk_w_log2) * i + (1 << subblk_h_log2) * j * s_src1;
-            src2_seg = s2 + (1 << subblk_w_log2) * i + (1 << subblk_h_log2) * j * s_src2;
-            cost += block_pel_satd(subblk_w_log2, subblk_h_log2, src1_seg, src2_seg, s_src1, s_src2, bit_depth);
+            pel *src1_seg = src1 + (1 << subblk_w_log2) * i + (1 << subblk_h_log2) * j * s_src1;
+            pel *src2_seg = src2 + (1 << subblk_w_log2) * i + (1 << subblk_h_log2) * j * s_src2;
+            cost += com_had(1 << subblk_w_log2, 1 << subblk_h_log2, src1_seg, s_src1, src2_seg, s_src2, bit_depth);
         }
     }
     return cost;
+}
+
+void uavs3e_find_ssim(com_img_t *org_img, com_img_t *rec_img, double ssim[3], int bit_depth)
+{
+    int impix;
+    double maxSignal = (double)((1 << 8) - 1) * (double)((1 << 8) - 1);
+    pel *rec, *recu, *recv;
+    int i_rec, i_rec_uv;
+    pel *org, *orgu, *orgv;
+    int i_org, i_org_uv;
+    int width  = org_img->width [0];
+    int height = org_img->height[0];
+    float ssim_all;
+    int pixel_cnt;
+    int uv_shift = 1;
+
+    impix = width * height;
+
+    i_rec    = rec_img->stride[0];
+    i_rec_uv = rec_img->stride[1];
+    i_org    = org_img->stride[0];
+    i_org_uv = org_img->stride[1];
+
+    rec  = rec_img->planes[0];
+    recu = rec_img->planes[1];
+    recv = rec_img->planes[2];
+
+    org  = org_img->planes[0];
+    orgu = org_img->planes[1];
+    orgv = org_img->planes[2];
+
+    ssim_all = com_ssim_img_plane(org + 2, i_org, rec + 2, i_rec, width - 2, height, &pixel_cnt, bit_depth);
+    ssim[0] = ssim_all / pixel_cnt;
+
+    ssim_all = com_ssim_img_plane(orgu + 2, i_org_uv, recu + 2, i_rec_uv, (width >> uv_shift) - 2, height >> uv_shift, &pixel_cnt, bit_depth);
+    ssim[1] = ssim_all / pixel_cnt;
+
+    ssim_all = com_ssim_img_plane(orgv + 2, i_org_uv, recv + 2, i_rec_uv, (width >> uv_shift) - 2, height >> uv_shift, &pixel_cnt, bit_depth);
+    ssim[2] = ssim_all / pixel_cnt;
+}
+
+void uavs3e_find_psnr(com_img_t *org, com_img_t *rec, double psnr[3], int bit_depth)
+{
+    double sum[3], mse[3];
+    pel *o, *r;
+    int i, j, k;
+    int peak_val = (bit_depth == 8) ? 255 : 1023;
+    for (i = 0; i < org->num_planes; i++) {
+        o = (pel *)org->planes[i];
+        r = (pel *)rec->planes[i];
+        sum[i] = 0;
+        for (j = 0; j < org->height[i]; j++) {
+            for (k = 0; k < org->width[i]; k++) {
+                sum[i] += (o[k] - r[k]) * (o[k] - r[k]);
+            }
+            o = (pel *)((unsigned char *)o + org->stride[i]);
+            r = (pel *)((unsigned char *)r + rec->stride[i]);
+        }
+        mse[i] = sum[i] / (org->width[i] * org->height[i]);
+        // psnr[i] = (mse[i] == 0.0) ? 100. : fabs(10 * log10(((255 * 255 * 16) / mse[i])));
+        psnr[i] = (mse[i] == 0.0) ? 100. : fabs(10 * log10(((peak_val * peak_val) / mse[i])));
+    }
 }

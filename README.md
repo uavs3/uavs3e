@@ -1,4 +1,4 @@
-﻿# uavs3e
+# uavs3e
  uavs3e is an opensource avs3 encoder, supports AVS3-P2 baseline profile. <br>
  features:
  1) AVS3-P2 baseline profile.
@@ -8,7 +8,7 @@
 
 # license
   Copyright reserved by “Peking University Shenzhen Graduate School”, “Peng Cheng Laboratory”, and “Guangdong Bohua UHD Innovation Corporation” <br><br>
-  This program is a free software. You can redistribute it and/or modify it under the terms of the Open-Intelligence Open Source License V1.1. (http://www.aitisa.org.cn/uploadfile/2018/0910/20180910031548314.pdf) <br>
+  This program is a free software. You can redistribute it and/or modify it under the terms of the BSD 4-clause license. <br>
   For more details, please view the file "COPYING" in the project.
   
 # compile
@@ -29,13 +29,11 @@ Prerequisites:
   2. CMake (https://cmake.org) version 2.8 or higher
   
 Build:
-  1. ./version.sh
-  2. mkdir build/linux
-  3. cd build/linux && cmake ../..
-  4. make && make install
+  1. mkdir build/linux
+  2. cd build/linux && cmake ../..
+  3. make && make install
 
-  to build shared library, edit src/CMakeLists.txt: <br>
-  add_library(uavs3e SHARED ${DIR_UAVS3E_SRC} ${DIR_X86_256_SRC} ${DIR_X86_SRC})
+  to build shared library, set BUILD_SHARED_LIBS=1 please.
 
 # Run tests
 ## window/linux
