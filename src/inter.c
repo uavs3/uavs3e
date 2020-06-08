@@ -1698,11 +1698,15 @@ void analyze_inter_cu(core_t *core, lbac_t *lbac_best)
 
     memset(pi->hpel_satd, 0, sizeof(pi->hpel_satd));
     memset(pi->qpel_satd, 0, sizeof(pi->qpel_satd));
-    ////Method1
-    int next_pre = 0;
-    if (bst_info->cu_mode == MODE_SKIP && bst_info->mv[REFP_0][MV_X] == 0 && bst_info->mv[REFP_0][MV_Y] == 0 && bst_info->mv[REFP_1][MV_X] == 0 && bst_info->mv[REFP_1][MV_Y] == 0) {
+    ////
+    int next_pre = 1;
+    //Method1
+    /*if (bst_info->cu_mode == MODE_SKIP && bst_info->mv[REFP_0][MV_X] == 0 && bst_info->mv[REFP_0][MV_Y] == 0 && bst_info->mv[REFP_1][MV_X] == 0 && bst_info->mv[REFP_1][MV_Y] == 0) {
         next_pre = 0;
-    }
+    }*/
+    // history skip
+    if (history->visit && history->cu_mode == MODE_SKIP)
+        next_pre = 0;
     if (next_pre) {
         ////
         for (cur_info->hmvp_flag = 0; cur_info->hmvp_flag < num_iter_mvp; cur_info->hmvp_flag++) {
@@ -1756,7 +1760,8 @@ void analyze_inter_cu(core_t *core, lbac_t *lbac_best)
                 }
             }
         }
-    ////Method1
+    ////
+    //Method1 & history skip
     }
     ////
     if (allow_affine && cu_width >= AFF_SIZE && cu_height >= AFF_SIZE) {
@@ -1780,6 +1785,7 @@ void analyze_inter_cu(core_t *core, lbac_t *lbac_best)
     if (!history->visit) {
         history->affine_flag_history = bst_info->affine_flag;
         history->mvr_idx_history     = bst_info->mvr_idx;
+        history->cu_mode             = bst_info->cu_mode;
 
         if (bst_info->hmvp_flag) {
             history->mvr_hmvp_idx_history = bst_info->mvr_idx;

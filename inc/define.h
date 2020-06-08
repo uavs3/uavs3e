@@ -187,6 +187,7 @@ typedef struct uavs3e_enc_history_t {
     int    split;
     int    split_visit;
     double split_cost[NUM_SPLIT_MODE];
+    int    cu_mode;
     int    mvr_idx_history;
     int    affine_flag_history;
     int    mvr_hmvp_idx_history;
