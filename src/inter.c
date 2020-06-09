@@ -1701,12 +1701,12 @@ void analyze_inter_cu(core_t *core, lbac_t *lbac_best)
     ////
     int next_pre = 1;
     //Method1
-    /*if (bst_info->cu_mode == MODE_SKIP && bst_info->mv[REFP_0][MV_X] == 0 && bst_info->mv[REFP_0][MV_Y] == 0 && bst_info->mv[REFP_1][MV_X] == 0 && bst_info->mv[REFP_1][MV_Y] == 0) {
+    if (bst_info->cu_mode == MODE_SKIP && bst_info->mv[REFP_0][MV_X] == 0 && bst_info->mv[REFP_0][MV_Y] == 0 && bst_info->mv[REFP_1][MV_X] == 0 && bst_info->mv[REFP_1][MV_Y] == 0) {
         next_pre = 0;
-    }*/
+    }
     // history skip
-    if (history->visit && history->cu_mode == MODE_SKIP)
-        next_pre = 0;
+    /*if (history->visit && history->cu_mode == MODE_SKIP)
+        next_pre = 0;*/
     if (next_pre) {
         ////
         for (cur_info->hmvp_flag = 0; cur_info->hmvp_flag < num_iter_mvp; cur_info->hmvp_flag++) {
