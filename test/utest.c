@@ -1176,7 +1176,7 @@ int main(int argc, const char **argv)
     image_free(tmp_img);
 
     // getchar();
-    //getchar();
+    // getchar();
 
     return 0;
 }
