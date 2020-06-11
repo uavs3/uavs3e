@@ -1700,10 +1700,6 @@ void analyze_inter_cu(core_t *core, lbac_t *lbac_best)
     memset(pi->qpel_satd, 0, sizeof(pi->qpel_satd));
     ////
     int next_pre = 1;
-    //Method1
-    /*if (bst_info->cu_mode == MODE_SKIP && bst_info->mv[REFP_0][MV_X] == 0 && bst_info->mv[REFP_0][MV_Y] == 0 && bst_info->mv[REFP_1][MV_X] == 0 && bst_info->mv[REFP_1][MV_Y] == 0) {
-        next_pre = 0;
-    }*/
     // history skip
     if (history->visit && history->cu_mode == MODE_SKIP)
         next_pre = 0;
