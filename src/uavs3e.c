@@ -672,10 +672,16 @@ int enc_pic_finish(enc_ctrl_t *h, pic_thd_param_t *pic_thd, enc_stat_t *stat)
     com_img_release(imgb_c);
 
     for (i = 0; i < REFP_NUM; i++) {
-        if (pic_thd->top_pic[i]) {
-            com_img_release(pic_thd->top_pic[i]->img);
+        com_pic_t *toppic = pic_thd->top_pic[i];
+
+        if (toppic) {
+            com_img_release(toppic->img);
+            if (toppic->subpel && 1 == com_img_getref(toppic->img)) {
+                toppic->subpel->b_used = 0;
+            }
         }
         stat->refpic_num[i] = pic_thd->num_refp[i];
+
         for (j = 0; j < stat->refpic_num[i]; j++) {
             com_pic_t *refpic = pic_thd->refp[j][i].pic;
             stat->refpic[i][j] = refpic->ptr;
