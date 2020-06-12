@@ -676,7 +676,7 @@ int enc_pic_finish(enc_ctrl_t *h, pic_thd_param_t *pic_thd, enc_stat_t *stat)
 
         if (toppic) {
             com_img_release(toppic->img);
-            if (toppic->subpel && 1 == com_img_getref(toppic->img)) {
+            if (!toppic->b_ref &&toppic->subpel && 1 == com_img_getref(toppic->img)) {
                 toppic->subpel->b_used = 0;
             }
         }
