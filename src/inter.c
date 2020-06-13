@@ -1698,54 +1698,61 @@ void analyze_inter_cu(core_t *core, lbac_t *lbac_best)
 
     memset(pi->hpel_satd, 0, sizeof(pi->hpel_satd));
     memset(pi->qpel_satd, 0, sizeof(pi->qpel_satd));
+    int next_pre = 1;
+    // history skip
+    if (history->visit && history->cu_mode == MODE_SKIP)
+        next_pre = 0;
 
-    for (cur_info->hmvp_flag = 0; cur_info->hmvp_flag < num_iter_mvp; cur_info->hmvp_flag++) {
-        if (cur_info->hmvp_flag) {
-            num_amvr = 0;
-            if (info->sqh.emvr_enable) { 
-                if ((bst_info->cu_mode == MODE_SKIP && core->skip_mvps_check == 0) || (bst_info->cu_mode != MODE_SKIP)) {
-                    num_amvr = COM_MIN(num_hmvp_inter, core->cnt_hmvp_cands);
-                }
-            }
-        }
-        for (cur_info->mvr_idx = 0; cur_info->mvr_idx < num_amvr; cur_info->mvr_idx++) {
-            double cost_L0L1[2] = { MAX_D_COST, MAX_D_COST };
-            s8 refi_L0L1[2] = { REFI_INVALID, REFI_INVALID };
-            s16 mv_L0L1[REFP_NUM][MV_D];
-            pi->curr_mvr = cur_info->mvr_idx;
-
+    if (next_pre) {
+        for (cur_info->hmvp_flag = 0; cur_info->hmvp_flag < num_iter_mvp; cur_info->hmvp_flag++) {
             if (cur_info->hmvp_flag) {
-                if (is_same_with_tr(core, core->motion_cands[core->cnt_hmvp_cands - 1 - cur_info->mvr_idx])) {
-                    continue;
-                }
-                if (bst_info->cu_mode == MODE_SKIP && core->skip_emvr_mode[cur_info->mvr_idx]) {
-                    continue;
-                }
-            }
-
-            init_pb_part(cur_info);
-            init_tb_part(cur_info);
-            get_part_info(info->i_scu, core->cu_scu_x << 2, core->cu_scu_y << 2, cu_width, cu_height, cur_info->pb_part, &cur_info->pb_info);
-            get_part_info(info->i_scu, core->cu_scu_x << 2, core->cu_scu_y << 2, cu_width, cu_height, cur_info->tb_part, &cur_info->tb_info);
-            analyze_uni_pred(core, lbac_best, cost_L0L1, mv_L0L1, refi_L0L1);
-
-            if (core->slice_type == SLICE_B && cu_width *cu_height >= 64) {
-                analyze_bi(core, lbac_best, mv_L0L1, refi_L0L1, cost_L0L1);
-
-                if (info->sqh.smvd_enable && core->ptr - core->refp[0][REFP_0].ptr == core->refp[0][REFP_1].ptr - core->ptr && !cur_info->hmvp_flag) {
-                    analyze_smvd(core, lbac_best);
+                num_amvr = 0;
+                if (info->sqh.emvr_enable) {
+                    if ((bst_info->cu_mode == MODE_SKIP && core->skip_mvps_check == 0) || (bst_info->cu_mode != MODE_SKIP)) {
+                        num_amvr = COM_MIN(num_hmvp_inter, core->cnt_hmvp_cands);
+                    }
                 }
             }
+            for (cur_info->mvr_idx = 0; cur_info->mvr_idx < num_amvr; cur_info->mvr_idx++) {
+                double cost_L0L1[2] = { MAX_D_COST, MAX_D_COST };
+                s8 refi_L0L1[2] = { REFI_INVALID, REFI_INVALID };
+                s16 mv_L0L1[REFP_NUM][MV_D];
+                pi->curr_mvr = cur_info->mvr_idx;
 
-            if (cur_info->hmvp_flag) {
-                if (cur_info->mvr_idx > 1 && (bst_info->cu_mode == MODE_SKIP)) {
+                if (cur_info->hmvp_flag) {
+                    if (is_same_with_tr(core, core->motion_cands[core->cnt_hmvp_cands - 1 - cur_info->mvr_idx])) {
+                        continue;
+                    }
+                    if (bst_info->cu_mode == MODE_SKIP && core->skip_emvr_mode[cur_info->mvr_idx]) {
+                        continue;
+                    }
+                }
+
+                init_pb_part(cur_info);
+                init_tb_part(cur_info);
+                get_part_info(info->i_scu, core->cu_scu_x << 2, core->cu_scu_y << 2, cu_width, cu_height, cur_info->pb_part, &cur_info->pb_info);
+                get_part_info(info->i_scu, core->cu_scu_x << 2, core->cu_scu_y << 2, cu_width, cu_height, cur_info->tb_part, &cur_info->tb_info);
+                analyze_uni_pred(core, lbac_best, cost_L0L1, mv_L0L1, refi_L0L1);
+
+                if (core->slice_type == SLICE_B && cu_width * cu_height >= 64) {
+                    analyze_bi(core, lbac_best, mv_L0L1, refi_L0L1, cost_L0L1);
+
+                    if (info->sqh.smvd_enable && core->ptr - core->refp[0][REFP_0].ptr == core->refp[0][REFP_1].ptr - core->ptr && !cur_info->hmvp_flag && !(history->visit && history->smvd_history == 0)) {
+                        analyze_smvd(core, lbac_best);
+                    }
+                }
+
+                if (cur_info->hmvp_flag) {
+                    if (cur_info->mvr_idx > 1 && (bst_info->cu_mode == MODE_SKIP)) {
+                        break;
+                    }
+                }
+                else if (cur_info->mvr_idx && ((bst_info->cu_mode == MODE_SKIP || bst_info->cu_mode == MODE_DIR))) {
                     break;
                 }
-            } else if (cur_info->mvr_idx && ((bst_info->cu_mode == MODE_SKIP || bst_info->cu_mode == MODE_DIR))) {
-                break;
-            }
-            if (cur_info->mvr_idx > 1 && M32(bst_info->mvd[REFP_0]) == 0 && M32(bst_info->mvd[REFP_1]) == 0) {
-                break;
+                if (cur_info->mvr_idx > 1 && M32(bst_info->mvd[REFP_0]) == 0 && M32(bst_info->mvd[REFP_1]) == 0) {
+                    break;
+                }
             }
         }
     }
@@ -1770,6 +1777,8 @@ void analyze_inter_cu(core_t *core, lbac_t *lbac_best)
     if (!history->visit) {
         history->affine_flag_history = bst_info->affine_flag;
         history->mvr_idx_history     = bst_info->mvr_idx;
+        history->smvd_history = bst_info->smvd_flag;
+        history->cu_mode = bst_info->cu_mode;
 
         if (bst_info->hmvp_flag) {
             history->mvr_hmvp_idx_history = bst_info->mvr_idx;

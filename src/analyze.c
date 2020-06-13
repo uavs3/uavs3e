@@ -1171,7 +1171,7 @@ static double mode_coding_tree(core_t *core, lbac_t *lbac_cur, int x0, int y0, i
             split_allow[i] = 0;
         }
     }
-
+    double nscost = MAX_D_COST;
     if (!boundary) {
         double cost_temp = 0.0;
 
@@ -1210,6 +1210,7 @@ static double mode_coding_tree(core_t *core, lbac_t *lbac_cur, int x0, int y0, i
             history->split_cost[NO_SPLIT] = cost_temp;
             best_curr_cost = cost_temp;
         }
+        nscost = cost_temp;
     }
 #if ENC_ECU_ADAPTIVE
     if (cost_best < MAX_D_COST && cud >= (core->ptr % 2 ? ENC_ECU_DEPTH - 1 : ENC_ECU_DEPTH)
@@ -1338,6 +1339,10 @@ static double mode_coding_tree(core_t *core, lbac_t *lbac_cur, int x0, int y0, i
 
                         bit_cnt = lbac_get_bits(&lbac_split) - bit_cnt;
                         cost_temp += RATE_TO_COST_LAMBDA(core->lambda[0], bit_cnt);
+                        //RDcostNS * a + lambda * (SplitBits + b) > RDcostNS
+                        if (nscost * 0.9 + cost_temp + RATE_TO_COST_LAMBDA(core->lambda[0], 1) > nscost) {
+                            continue;
+                        }
                     }
 
                     lbac_t lbac_tree_c;
