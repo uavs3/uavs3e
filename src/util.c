@@ -239,10 +239,10 @@ void uavs3e_find_ssim(com_img_t *org_img, com_img_t *rec_img, double ssim[3], in
 
     impix = width * height;
 
-    i_rec    = rec_img->stride[0];
-    i_rec_uv = rec_img->stride[1];
-    i_org    = org_img->stride[0];
-    i_org_uv = org_img->stride[1];
+    i_rec    = STRIDE_IMGB2PIC(rec_img->stride[0]);
+    i_rec_uv = STRIDE_IMGB2PIC(rec_img->stride[1]);
+    i_org    = STRIDE_IMGB2PIC(org_img->stride[0]);
+    i_org_uv = STRIDE_IMGB2PIC(org_img->stride[1]);
 
     rec  = rec_img->planes[0];
     recu = rec_img->planes[1];

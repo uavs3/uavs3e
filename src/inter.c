@@ -826,7 +826,7 @@ static void analyze_uni_pred(core_t *core, lbac_t *lbac_best, double *cost_L0L1,
 
     pi->i_org   = core->pic_org->stride_luma;
     pi->org     = core->pic_org->y + y * pi->i_org + x;
-    pi->fast_me = core->param->speed_level;
+    pi->fast_me = SPEED_LEVEL(1, core->param->speed_level); 
 
     cur_info->cu_mode = MODE_INTER;
 
