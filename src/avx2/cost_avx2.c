@@ -1238,18 +1238,20 @@ u32 uavs3e_get_sad_128_avx2(pel *p_org, int i_org, pel *p_pred, int i_pred, int 
     __m256i o0, o1, o2, o3;
     __m256i p0, p1, p2, p3;
     __m256i t0, t1, t2, t3;
-    int i;
-    for (i = 0; i < 16; i++) {
+
+    for (int i = 0; i < 16; i++) {
         sum[i] = zero;
     }
+
+    height >>= 1;
 
     while (height--) {
         CAL_SAD_W32_10BIT(0, sum[0], sum[1], sum[2], sum[3]);
         CAL_SAD_W32_10BIT(1, sum[4], sum[5], sum[6], sum[7]);
         CAL_SAD_W32_10BIT(2, sum[8], sum[9], sum[10], sum[11]);
         CAL_SAD_W32_10BIT(3, sum[12], sum[13], sum[14], sum[15]);
-        p_org += i_org;
-        p_pred += i_pred;
+        p_org  += i_org  << 1;
+        p_pred += i_pred << 1;
     }
     CAL_SAD_SUM_10BIT(sum[0], sum[1]);
     CAL_SAD_SUM_10BIT(sum[2], sum[3]);

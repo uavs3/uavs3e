@@ -1049,7 +1049,7 @@ void *enc_pic_thread(enc_pic_t *ep, pic_thd_param_t *p)
         pichdr->pic_alf_on = NULL;
     }
 
-    pic_rec->picture_qp_real   = (p->total_qp * 1.0 / info->f_lcu) - info->qp_offset_bit_depth;
+    pic_rec->picture_qp_real   = (p->total_qp * 1.0 / info->f_lcu);
     pic_rec->picture_qp        = pic_org->picture_qp;
     pic_rec->picture_satd      = pic_org->picture_satd;
     pic_rec->layer_id          = pic_org->layer_id;
