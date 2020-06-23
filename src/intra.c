@@ -225,7 +225,7 @@ static int make_ipred_list(core_t *core, int pb_width, int pb_height, int cu_wid
 	double rmd_cand_cost[10];
 	u64    rmd_cand_satd[10];
 
-    if (SPEED_LEVEL(1, core->param->speed_level)) {
+    if (core->info->intra_rmd) {
         int       ipm_check_map[IPD_CNT] = { 0 };
         const int rmd_range_4[10] = { 0,1,2,6,10,14,18,22,26,30 };
         const int num_cand_4_in = 10;

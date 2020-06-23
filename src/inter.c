@@ -826,7 +826,7 @@ static void analyze_uni_pred(core_t *core, lbac_t *lbac_best, double *cost_L0L1,
 
     pi->i_org   = core->pic_org->stride_luma;
     pi->org     = core->pic_org->y + y * pi->i_org + x;
-    pi->fast_me = SPEED_LEVEL(1, core->param->speed_level); 
+    pi->adaptive_raster_range = core->info->me_adaptive_raster_range;
 
     cur_info->cu_mode = MODE_INTER;
 
@@ -920,7 +920,7 @@ static void analyze_bi(core_t *core, lbac_t *lbac_best, s16 mv_L0L1[REFP_NUM][MV
         ALIGNED_32(pel org_bi[MAX_CU_DIM]);
         pi->i_org = cu_width;
         pi->org = org_bi;
-        pi->fast_me = 0;
+        pi->adaptive_raster_range = 0;
 
         com_mc_cu(x, y, info->pic_width, info->pic_height, cu_width, cu_height, refi, cur_info->mv, core->refp, pred, cu_width, CHANNEL_L, bit_depth);
         create_bi_org(org, pred[0], pic_org->stride_luma, cu_width, cu_height, org_bi, cu_width, info->bit_depth_internal);

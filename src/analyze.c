@@ -1165,6 +1165,16 @@ static double mode_coding_tree(core_t *core, lbac_t *lbac_cur, int x0, int y0, i
         }
         // ******** 2. fast algorithm to reduce modes **********
         check_run_split(core, cu_width_log2, cu_height_log2, cup, split_allow);
+
+		//********* x. CUs with large size are not allowed to use EQT **********
+		if (core->info->skip_large_cu_EQT == 1) {  //all intra
+			if ((cu_width == 64) || (cu_width == 32 && cu_height == 64)) { // EQT-V is not allowed if max cu size is 64
+				split_allow[SPLIT_EQT_VER] = 0;
+			}
+			if ((cu_height == 64) || (cu_width == 64 && cu_height == 32)) { // EQT-H is not allowed if max cu size is 64
+				split_allow[SPLIT_EQT_HOR] = 0;
+			}
+		}
     } else {
         split_allow[0] = 1;
         for (int i = 1; i < NUM_SPLIT_MODE; i++) {

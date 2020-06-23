@@ -444,8 +444,14 @@ typedef struct uavs3e_com_info_t {
     int                     gop_size;
 
     /* global table for ME */
-    u8  *tab_mvbits;
+    u8                     *tab_mvbits;
 
+    /**********************************************************************************/
+    /*                    Switch for Fast algorithms                                  */
+    /**********************************************************************************/
+	int						skip_large_cu_EQT; // EQT is not allowed if max cu size is 64 
+    int                     me_adaptive_raster_range; 
+    int                     intra_rmd;
 } com_info_t;
 
 #endif /* _COM_H_ */

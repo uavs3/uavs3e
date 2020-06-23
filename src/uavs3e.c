@@ -1307,6 +1307,13 @@ void *uavs3e_create(enc_cfg_t *cfg, int *err)
     rdoq_init_err_scale(h->cfg.bit_depth_internal);
     rdoq_init_prob_2_bits();
 
+    /***************************************************************************/
+    /*              Set Switchs for Fast algorithm                             */
+    /***************************************************************************/
+    info->skip_large_cu_EQT = (h->cfg.i_period == 1) ? SPEED_LEVEL(1, h->cfg.speed_level) : 0;
+    info->me_adaptive_raster_range = SPEED_LEVEL(1, h->cfg.speed_level);
+    info->intra_rmd = SPEED_LEVEL(1, h->cfg.speed_level);
+
     return h;
 }
 

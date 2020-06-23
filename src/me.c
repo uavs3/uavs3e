@@ -72,7 +72,7 @@ static void get_raster_range(inter_search_t *pi, int lidx, int refi, s16 center[
     int range_x = range_xy;
     int range_y = range_xy;
 
-    if (mvr && pi->fast_me) {
+    if (mvr && pi->adaptive_raster_range) {
         range_x = COM_ABS(pi->mv_ipel[lidx][refi][0] - center[0]) * 4;
         range_y = COM_ABS(pi->mv_ipel[lidx][refi][1] - center[1]) * 2;
         range_x = COM_MAX(range_x, max_sr >> 2);

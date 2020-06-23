@@ -133,7 +133,7 @@ typedef struct uavs3e_enc_inter_data_t {
     u8  *tab_mvbits;
     int  tab_mvbits_offset;
 
-    int fast_me;
+    int adaptive_raster_range;
 } inter_search_t;
 
 typedef struct uavs3e_lbac_t {
