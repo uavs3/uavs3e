@@ -260,7 +260,7 @@ double loka_estimate_coding_cost(inter_search_t *pi, com_img_t *img_org, com_img
                 energy += uavs3e_funs_handle.cost_var[UNITC_WIDX](orgv, i_org_c);
                 energy >>= (bit_depth - 8) * 2;
 
-                var[x / UNIT_SIZE] = (float)(0.8 * log2((double)max(energy, 1)));
+                var[x / UNIT_SIZE] = (float)(0.8 * log2((double)COM_MAX(energy, 1)));
                 total_var += var[x / UNIT_SIZE];
             }
         }        

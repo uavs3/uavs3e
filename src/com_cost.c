@@ -888,7 +888,7 @@ float com_ssim_img_plane(pel *pix1, int stride1, pel *pix2, int stride2, int wid
                 uavs3e_funs_handle.ssim_4x4x2_core(&pix1[4 * (x + z * stride1)], stride1, &pix2[4 * (x + z * stride2)], stride2, &sum0[x]);
         }
         for (x = 0; x < width - 1; x += 4)
-            ssim += uavs3e_funs_handle.ssim_end4(sum0 + x, sum1 + x, min(4, width - x - 1), ssim_c1, ssim_c2);
+            ssim += uavs3e_funs_handle.ssim_end4(sum0 + x, sum1 + x, COM_MIN(4, width - x - 1), ssim_c1, ssim_c2);
     }
     *cnt = (height - 1) * (width - 1);
     return ssim;
