@@ -84,7 +84,11 @@ void enc_bits_intra_pu(core_t *core, lbac_t *lbac, s32 slice_type, s16 coef[N_C]
     }
 	int cu_width_log2 = core->cu_width_log2;
 	int cu_height_log2 = core->cu_height_log2;
+#if DT_INTRA_BOUNDARY_FILTER_OFF
 	if (info->sqh.ipf_enable_flag && (cu_width_log2 < MAX_CU_LOG2) && (cu_height_log2 < MAX_CU_LOG2) && cur_info->pb_part == SIZE_2Nx2N && core->tree_status != TREE_C)
+#else
+	if (info->sqh.ipf_enable_flag && (cu_width_log2 < MAX_CU_LOG2) && (cu_height_log2 < MAX_CU_LOG2) && core->tree_status != TREE_C)
+#endif
 	{
 		lbac_enc_ipf_flag(lbac, NULL, cur_info->ipf_flag);
 	}
