@@ -1306,6 +1306,7 @@ static double mode_coding_tree(core_t *core, lbac_t *lbac_cur, int x0, int y0, i
         max_cost = COM_MIN(cost_best, max_cost);
 
         com_split_get_split_rdo_order(cu_width, cu_height, split_mode_order);
+
         for (int split_mode_num = 1; split_mode_num < NUM_SPLIT_MODE; ++split_mode_num) {
             split_mode_t split_mode = split_mode_order[split_mode_num];
             int is_mode_EQT = com_split_is_EQT(split_mode);
@@ -1359,8 +1360,14 @@ static double mode_coding_tree(core_t *core, lbac_t *lbac_cur, int x0, int y0, i
 
                         bit_cnt = lbac_get_bits(&lbac_split) - bit_cnt;
                         cost_temp += RATE_TO_COST_LAMBDA(core->lambda[0], bit_cnt);
+
                         //RDcostNS * a + lambda * (SplitBits + b) > RDcostNS
-                        if (nscost * 0.9 + cost_temp + RATE_TO_COST_LAMBDA(core->lambda[0], 1) > nscost) {
+                        double a = 0.9, b = 1.0;
+
+                        if (info->skip_split_L1) {
+                            a = 0.8, b = 10.0;
+                        }
+                        if (nscost * a + cost_temp + RATE_TO_COST_LAMBDA(core->lambda[0], b) > nscost) {
                             continue;
                         }
                     }

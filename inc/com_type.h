@@ -452,6 +452,7 @@ typedef struct uavs3e_com_info_t {
 	int						skip_large_cu_EQT; // EQT is not allowed if max cu size is 64 
     int                     me_adaptive_raster_range; 
     int                     intra_rmd;
+    int                     skip_split_L1;
 } com_info_t;
 
 #endif /* _COM_H_ */
