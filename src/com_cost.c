@@ -859,6 +859,30 @@ static float ssim_end4(int sum0[5][4], int sum1[5][4], int width, float ssim_c1,
     return ssim;
 }
 
+static void sobel_cost(pel *pix, int i_pel, int width, int height, int *cost_ver, int *cost_hor)
+{
+    int ver = 0, hor = 0;
+    
+    pel *p_u = pix - i_pel;
+    pel *p_c = p_u + i_pel;
+    pel *p_d = p_c + i_pel;
+
+    for (int i = 0; i < height; i++) {
+        for (int j = 0; j < width; j++) {
+            int a = abs(p_u[j + 1] + (p_c[j + 1] << 1) + p_d[j + 1] -(p_u[j - 1] + (p_c[j - 1] << 1) + p_d[j - 1])); // ver edge 
+            int b = abs(p_u[j - 1] + (p_u[j    ] << 1) + p_u[j + 1] -(p_d[j - 1] + (p_d[j    ] << 1) + p_d[j + 1])); // hor edge
+
+            ver += COM_MIN(a, 255);
+            hor += COM_MIN(b, 255);
+        }
+        p_u += i_pel;
+        p_c += i_pel;
+        p_d += i_pel;
+    }
+    *cost_ver = ver;
+    *cost_hor = hor;
+}
+
 float com_ssim_img_plane(pel *pix1, int stride1, pel *pix2, int stride2, int width, int height, int *cnt, int bit_depth)
 {
 #define MAX_PIC_WIDTH (8192*2)
@@ -940,4 +964,6 @@ void uavs3e_funs_init_cost_c()
 
     uavs3e_funs_handle.ssim_4x4x2_core = ssim_4x4x2_core;
     uavs3e_funs_handle.ssim_end4 = ssim_end4;
+
+    uavs3e_funs_handle.sobel_cost = sobel_cost;
 }

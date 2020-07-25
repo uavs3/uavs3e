@@ -1177,12 +1177,48 @@ static double mode_coding_tree(core_t *core, lbac_t *lbac_cur, int x0, int y0, i
         check_run_split(core, cu_width_log2, cu_height_log2, cup, split_allow);
 
 		//********* x. CUs with large size are not allowed to use EQT **********
-		if (core->info->skip_large_cu_EQT == 1) {  //all intra
+		if (core->info->ai_skip_large_cu_eqt == 1) {  //all intra
 			if ((cu_width == 64) || (cu_width == 32 && cu_height == 64)) { // EQT-V is not allowed if max cu size is 64
 				split_allow[SPLIT_EQT_VER] = 0;
 			}
 			if ((cu_height == 64) || (cu_width == 64 && cu_height == 32)) { // EQT-H is not allowed if max cu size is 64
 				split_allow[SPLIT_EQT_HOR] = 0;
+			}
+		}
+
+		//********* x. Sobel operator detect CU texture **********
+		if (core->info->ai_split_dir_decision == 1) {
+            int min_size = info->ai_split_dir_decision_L1 ? 32 : 64;
+
+			if ((!boundary) && (cu_width >= min_size && cu_height >= min_size) && (cu_width < 128 && cu_height < 128)) {
+				com_pic_t *pic_org = core->pic_org;
+                int x = x0, y = y0, w = cu_width, h = cu_height;
+                int ver, hor;
+
+                if (x == 0) {
+                    x = 1;
+                    w -= 1;
+                }
+                if (y == 0) {
+                    y = 1;
+                    h -= 1;
+                }
+                if (x + w == pic_org->width_luma) {
+                    w -= 1;
+                }
+                if (y + h == pic_org->height_luma) {
+                    h -= 1;
+                }
+                uavs3e_funs_handle.sobel_cost(pic_org->y + y * pic_org->stride_luma + x, pic_org->stride_luma, w, h, &ver, &hor);
+
+				if (ver > 1.04 * hor) {
+					split_allow[SPLIT_BI_HOR ] = 0;
+					split_allow[SPLIT_EQT_HOR] = 0;
+				}
+				if (hor > 1.04 * ver) {
+					split_allow[SPLIT_BI_VER ] = 0;
+					split_allow[SPLIT_EQT_VER] = 0;
+				}
 			}
 		}
     } else {

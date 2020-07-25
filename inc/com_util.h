@@ -336,6 +336,7 @@ typedef struct uavs3e_funs_handle_t {
     int(*quant_rdoq)(s16 *coef, int num, int q_value, int q_bits, s32 err_scale, int precision_bits, u32* abs_coef, s16* abs_level, s64 *uncoded_err);
     int(*quant_check)(s16 *coef, int num, int threshold);
 
+    void(*sobel_cost)(pel *pix, int i_pel, int width, int height, int *cost_ver, int *cost_hor);
 
 } funs_handle_t;
 
