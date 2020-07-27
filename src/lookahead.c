@@ -386,6 +386,7 @@ void loka_slicetype_decision(enc_ctrl_t *h)
             }
             if (cur_ip_idx == 0) {
                 add_input_node(h, h->img_rlist[cur_ip_idx].img, 1, FRM_DEPTH_0, SLICE_I);
+                update_last_ip(h, h->img_rlist[cur_ip_idx].img, SLICE_I);
                 shift_reorder_list(h, cur_ip_idx);
                 return;
             }
