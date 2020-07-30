@@ -67,7 +67,7 @@ static void create_bi_org(pel *org, pel *pred, int s_o, int cu_width, int cu_hei
     }
 }
 
-static void make_cand_list(core_t *core, int *mode_list, double *cost_list, int num_cands_woUMVE, int num_cands_all, int num_rdo, s16 pmv_skip_cand[MAX_SKIP_NUM][REFP_NUM][MV_D],  s8 refi_skip_cand[MAX_SKIP_NUM][REFP_NUM])
+static int make_cand_list(core_t *core, int *mode_list, double *cost_list, int num_cands_woUMVE, int num_cands_all, int num_rdo, s16 pmv_skip_cand[MAX_SKIP_NUM][REFP_NUM][MV_D],  s8 refi_skip_cand[MAX_SKIP_NUM][REFP_NUM])
 {
     com_info_t *info     =  core->info;
     com_mode_t *cur_info = &core->mod_info_curr;
@@ -129,6 +129,21 @@ static void make_cand_list(core_t *core, int *mode_list, double *cost_list, int 
             cost_list[num_rdo - shift] = cost;
         }
     }
+
+    if (core->info->skip_adaptive_num_rdo) {
+        double threshold = 1.08;
+        if (core->info->skip_adaptive_num_rdo_L1) {
+            threshold = 1.05;
+        }
+        for (int i = num_rdo - 1; i > 0; i--) {
+            if (cost_list[i] > cost_list[0] * threshold) {
+                num_rdo--;
+            } else {
+                break;
+            }
+        }
+    }
+    return num_rdo;
 }
 
 static void check_best_mode(core_t *core, lbac_t *lbac_best, lbac_t *lbac, const double cost_curr, pel(*pred)[MAX_CU_DIM])
@@ -677,7 +692,7 @@ static void analyze_direct_skip(core_t *core, lbac_t *lbac_best)
     num_rdo = num_cands_woUMVE;
     assert(num_rdo <= COM_MIN(MAX_INTER_SKIP_RDO, TRADITIONAL_SKIP_NUM + info->sqh.num_of_hmvp));
 
-    make_cand_list(core, mode_list, cost_list, num_cands_woUMVE, num_cands_all, num_rdo, pmv_cands, refi_cands);
+    num_rdo = make_cand_list(core, mode_list, cost_list, num_cands_woUMVE, num_cands_all, num_rdo, pmv_cands, refi_cands);
 
     memset(core->skip_emvr_mode, 0, sizeof(core->skip_emvr_mode));
 

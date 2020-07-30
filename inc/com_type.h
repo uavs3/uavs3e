@@ -455,6 +455,8 @@ typedef struct uavs3e_com_info_t {
     int                     me_adaptive_raster_range; 
     int                     intra_rmd;
     int                     skip_split_L1;
+    int                     skip_adaptive_num_rdo;
+    int                     skip_adaptive_num_rdo_L1;
 } com_info_t;
 
 #endif /* _COM_H_ */
