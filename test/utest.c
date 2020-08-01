@@ -43,7 +43,7 @@
 #include <stdarg.h>
 
 #ifdef _WIN32
-#include <IO.H>
+#include <io.h>
 #endif
 #include "uavs3e.h"
 #include "config.h"
