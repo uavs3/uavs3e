@@ -480,6 +480,31 @@ void analyze_intra_cu(core_t *core, lbac_t *lbac_best)
                 if (pred_cnt == 0) {
                     return;
                 }
+				int ipm_map[IPD_CNT];
+				int need_add[2] = { 0,0 };
+				int add_num = 0;
+				memset(ipm_map, 0, IPD_CNT * sizeof(int));
+
+				for (int ipm_idx = 0; ipm_idx < pred_cnt; ipm_idx++) {
+					ipm_map[ipred_list[ipm_idx]] = 1;
+				}
+				for (int mpm_idx = 0; mpm_idx < 2; mpm_idx++) {
+					int cur_mpm = cur_info->mpm[pb_part_idx][mpm_idx];
+					if (ipm_map[cur_mpm] == 0 && cur_mpm != IPD_IPCM) {
+						assert(cur_mpm >= 0 && cur_mpm < IPD_CNT);
+						need_add[mpm_idx] = 1;
+						ipm_map[cur_mpm] = 1;
+					}
+				}
+				add_num = need_add[0] + need_add[1];
+				pred_cnt -= add_num;
+
+				if (need_add[0] == 1) {
+					ipred_list[pred_cnt++] = cur_info->mpm[pb_part_idx][0];
+				}
+				if (need_add[1] == 1) {
+					ipred_list[pred_cnt++] = cur_info->mpm[pb_part_idx][1];
+				}
                 for (int j = 0; j < pred_cnt; j++) { /* Y */
                     s32 dist_t = 0;
                     cur_info->ipm[pb_part_idx][0] = (s8)ipred_list[j];
