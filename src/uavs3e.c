@@ -1320,8 +1320,8 @@ void *uavs3e_create(enc_cfg_t *cfg, int *err)
     info->intra_rmd                = SPEED_LEVEL(1, h->cfg.speed_level);
     info->skip_split_L1            = SPEED_LEVEL(1, h->cfg.speed_level);
 
-    info->skip_adaptive_num_rdo    = SPEED_LEVEL(1, h->cfg.speed_level);
-    info->skip_adaptive_num_rdo_L1 = SPEED_LEVEL(2, h->cfg.speed_level);
+    info->skip_adaptive_num_rdo    = SPEED_LEVEL(2, h->cfg.speed_level);
+    info->skip_adaptive_num_rdo_L1 = SPEED_LEVEL(3, h->cfg.speed_level);
 
     return h;
 }
