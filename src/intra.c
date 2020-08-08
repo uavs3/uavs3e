@@ -173,27 +173,23 @@ static double intra_pu_rdcost(core_t *core, lbac_t *lbac, pel rec[N_C][MAX_CU_DI
 static void com_update_cand_list(const int ipm, u64 cost_satd, double cost, int ipred_list_len, int *rmd_ipred_list, u64 *rmd_cand_satd, double *rmd_cand_cost)
 {
 	int shift = 0;
-    double *pcand = rmd_cand_cost + ipred_list_len - 1;
+    int *plist = rmd_ipred_list + ipred_list_len - 1;
 
-	while (shift < ipred_list_len && cost < *pcand--) {
+    rmd_cand_satd[ipm] = cost_satd;
+    rmd_cand_cost[ipm] = cost;
+
+	while (shift < ipred_list_len && (*plist < 0 || cost < rmd_cand_cost[*plist])) {
+        plist--;
 		shift++;
 	}
 	if (shift--) {
         rmd_ipred_list += ipred_list_len - 1;
-        rmd_cand_satd  += ipred_list_len - 1;
-        rmd_cand_cost  += ipred_list_len - 1;
 
 		while (shift--) {
 			*rmd_ipred_list = rmd_ipred_list[-1];
-            *rmd_cand_satd  = rmd_cand_satd [-1];
-            *rmd_cand_cost  = rmd_cand_cost [-1];
             rmd_ipred_list--;
-            rmd_cand_satd --;
-            rmd_cand_cost --;
 		}
 		*rmd_ipred_list = ipm;
-		*rmd_cand_satd  = cost_satd;
-		*rmd_cand_cost  = cost;
 	}
 }
 
@@ -222,8 +218,14 @@ static int make_ipred_list(core_t *core, int pb_width, int pb_height, int cu_wid
 	int ipd_rdo_cnt = (pb_width >= pb_height * 4 || pb_height >= pb_width * 4) ? IPD_RDO_CNT - 1 : IPD_RDO_CNT;
     com_mode_t *cur_info = &core->mod_info_curr;
 
-	double rmd_cand_cost[10];
-	u64    rmd_cand_satd[10];
+    double rmd_cand_cost[IPD_CNT];
+    u64    rmd_cand_satd[IPD_CNT];
+
+    for (int i = 0; i < IPD_CNT; i++) {
+        ipred_list   [i] = -1;
+        rmd_cand_satd[i] = COM_UINT64_MAX;
+        rmd_cand_cost[i] = MAX_D_COST;
+    }
 
     if (core->info->intra_rmd) {
         int       ipm_check_map[IPD_CNT] = { 0 };
@@ -232,16 +234,10 @@ static int make_ipred_list(core_t *core, int pb_width, int pb_height, int cu_wid
         const int num_cand_4_out = 7;
 
         for (int i = 0; i < num_cand_4_in; i++) {
-            ipred_list[i] = IPD_DC;
-            rmd_cand_satd[i] = COM_UINT64_MAX;
-            rmd_cand_cost[i] = MAX_D_COST;
             ipm_check_map[rmd_range_4[i]] = 1;
         }
-	    for (int i = 0; i < num_cand_4_in; i++) {
+	    for (int i = (skip_ipd ? 3 : 0); i < num_cand_4_in; i++) {
             int mode = rmd_range_4[i];
-		    if (skip_ipd == 1 && (mode == IPD_PLN || mode == IPD_BI || mode == IPD_DC)) {
-			    continue;
-		    }
 		    check_one_mode(core, org, s_org, mode, i + 1, ipred_list, rmd_cand_satd, rmd_cand_cost, part_idx, pb_width, pb_height, avail_cu);
 	    }
 
@@ -304,19 +300,51 @@ static int make_ipred_list(core_t *core, int pb_width, int pb_height, int cu_wid
 		    }
 	    }
     } else {
-        for (int i = 0; i < ipd_rdo_cnt; i++) {
-            rmd_cand_satd[i] = COM_UINT64_MAX;
-            rmd_cand_cost[i] = MAX_D_COST;
-        }
-        for (int i = 0; i < IPD_CNT; i++) {
-            if (skip_ipd == 1 && (i == IPD_PLN || i == IPD_BI || i == IPD_DC)) {
-                continue;
-            }
+        for (int i = (skip_ipd ? 3 : 0); i < IPD_CNT; i++) {
             check_one_mode(core, org, s_org, i, ipd_rdo_cnt, ipred_list, rmd_cand_satd, rmd_cand_cost, part_idx, pb_width, pb_height, avail_cu);
         }
     }
+
+    int need_add[2] = { 0,0 };
+    u8 *mpm = cur_info->mpm[part_idx];
+
+    for (int mpm_idx = 0; mpm_idx < 2; mpm_idx++) {
+        int cur_mpm = mpm[mpm_idx];
+        if (cur_mpm != IPD_IPCM && (!(skip_ipd == 1 && (cur_mpm == IPD_PLN || cur_mpm == IPD_BI || cur_mpm == IPD_DC)))) {
+            need_add[mpm_idx] = 1;
+        }
+    }
+    for (int ipm_idx = 0; ipm_idx < ipd_rdo_cnt; ipm_idx++) {
+        int mode = ipred_list[ipm_idx];
+
+        if (need_add[0] && mode == mpm[0]) {
+            need_add[0] = 0;
+        } 
+        if (need_add[1] && mode == mpm[1]) {
+            need_add[1] = 0;
+        }
+    }
+
+    if (need_add[0] + need_add[1] == 2) {
+        if (rmd_cand_cost[mpm[0]] <= rmd_cand_cost[mpm[1]]) {
+            ipred_list[ipd_rdo_cnt - 2] = mpm[0];
+            ipred_list[ipd_rdo_cnt - 1] = mpm[1];
+        } else {
+            ipred_list[ipd_rdo_cnt - 1] = mpm[0];
+            ipred_list[ipd_rdo_cnt - 2] = mpm[1];
+        }
+    } else if (need_add[0] + need_add[1]) {
+        int add_idx = need_add[0] == 1 ? 0 : 1;
+        int exist_idx = 1 - add_idx;
+
+        if (ipred_list[ipd_rdo_cnt - 1] == mpm[exist_idx]) {
+            ipred_list[ipd_rdo_cnt - 2] = ipred_list[ipd_rdo_cnt - 1];
+        }
+        ipred_list[ipd_rdo_cnt - 1] = mpm[add_idx];
+    }
+
 	for (int i = ipd_rdo_cnt - 1; i >= 0; i--) {
-		if (rmd_cand_satd[i] > core->inter_satd *(1.1)) {
+		if (rmd_cand_satd[ipred_list[i]] > core->inter_satd *(1.1)) {
             ipd_rdo_cnt--;
 		} else {
 			break;
