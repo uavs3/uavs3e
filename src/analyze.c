@@ -1187,10 +1187,18 @@ static double mode_coding_tree(core_t *core, lbac_t *lbac_cur, int x0, int y0, i
 		}
 
 		//********* x. Sobel operator detect CU texture **********
-		if (core->info->ai_split_dir_decision == 1) {
-            int min_size = info->ai_split_dir_decision_L1 ? 32 : 64;
+		if (core->info->ai_split_dir_decision == 1 && (!boundary) && cu_width < 128 && cu_height < 128) {
+            int check_sobel_cost = 1;
+            int min_size = info->ai_split_dir_decision_P2 ? 16 : (info->ai_split_dir_decision_P1 ? 32 : 64);
 
-			if ((!boundary) && (cu_width >= min_size && cu_height >= min_size) && (cu_width < 128 && cu_height < 128)) {
+            if (cu_width < min_size || cu_height < min_size) {
+                check_sobel_cost = 0;
+            }
+            if (info->ai_split_dir_decision_P2 && cu_width * cu_height <= 256) {
+                check_sobel_cost = 0;
+            }
+
+			if (check_sobel_cost) {
 				com_pic_t *pic_org = core->pic_org;
                 int x = x0, y = y0, w = cu_width, h = cu_height;
                 int ver, hor;
@@ -1400,7 +1408,7 @@ static double mode_coding_tree(core_t *core, lbac_t *lbac_cur, int x0, int y0, i
                         //RDcostNS * a + lambda * (SplitBits + b) > RDcostNS
                         double a = 0.9, b = 1.0;
 
-                        if (info->skip_split_L1) {
+                        if (info->skip_split_P1) {
                             a = 0.8, b = 10.0;
                         }
                         if (nscost * a + cost_temp + RATE_TO_COST_LAMBDA(core->lambda[0], b) > nscost) {

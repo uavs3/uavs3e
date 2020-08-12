@@ -132,7 +132,7 @@ static int make_cand_list(core_t *core, int *mode_list, double *cost_list, int n
 
     if (core->info->skip_adaptive_num_rdo) {
         double threshold = 1.08;
-        if (core->info->skip_adaptive_num_rdo_L1) {
+        if (core->info->skip_adaptive_num_rdo_P1) {
             threshold = 1.05;
         }
         for (int i = num_rdo - 1; i > 0; i--) {
