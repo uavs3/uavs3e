@@ -433,8 +433,10 @@ static int com_img_release(com_img_t *img)
 {
     if (--img->refcnt == 0) {
         com_img_free(img);
+        return 0;
+    } else {
+        return img->refcnt;
     }
-    return img->refcnt;
 }
 
 #endif /* _COM_UTIL_H_ */
