@@ -458,6 +458,8 @@ typedef struct uavs3e_com_info_t {
     int                     skip_split_P1;
     int                     skip_adaptive_num_rdo;
     int                     skip_adaptive_num_rdo_P1;
+    int                     inter_adaptive_num_rdo;
+    int                     inter_uni_same_ref;
 } com_info_t;
 
 #endif /* _COM_H_ */

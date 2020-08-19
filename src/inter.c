@@ -827,7 +827,7 @@ static void analyze_affine_merge(core_t *core, lbac_t *lbac_best)
     }
 }
 
-static void analyze_uni_pred(core_t *core, lbac_t *lbac_best, double *cost_L0L1, s16 mv_L0L1[REFP_NUM][MV_D], s8 *refi_L0L1)
+static void analyze_uni_pred(core_t *core, lbac_t *lbac_best, s16 mv_L0L1[REFP_NUM][MV_D], s8 *refi_L0L1, s8 *lidx_ref)
 {
     com_mode_t *cur_info = &core->mod_info_curr;
     inter_search_t *pi  = &core->pinter;
@@ -839,6 +839,11 @@ static void analyze_uni_pred(core_t *core, lbac_t *lbac_best, double *cost_L0L1,
     int cu_height        = 1 << cu_height_log2;
     s8 best_refi = 0;
 
+    u64 mecost_l0[MAX_NUM_ACTIVE_REF_FRAME] = {COM_UINT64_MAX, COM_UINT64_MAX, COM_UINT64_MAX, COM_UINT64_MAX};
+    double rdo_cost_L0L1[2] = {MAX_D_COST, MAX_D_COST};
+    u64   me_cost_L0L1[2] = {COM_UINT64_MAX, COM_UINT64_MAX};
+    int rdo_flag[2] = {1, 1};
+
     pi->i_org   = core->pic_org->stride_luma;
     pi->org     = core->pic_org->y + y * pi->i_org + x;
     pi->adaptive_raster_range = core->info->me_adaptive_raster_range;
@@ -847,20 +852,48 @@ static void analyze_uni_pred(core_t *core, lbac_t *lbac_best, double *cost_L0L1,
 
     for (int lidx = 0; lidx <= ((core->slice_type == SLICE_P) ? PRED_L0 : PRED_L1); lidx++) {
         u64 best_mecost = COM_UINT64_MAX;
-
+        
         init_inter_data(core);
         pi->num_refp = (u8)core->num_refp[lidx];
 
         for (int refi_cur = 0; refi_cur < pi->num_refp; refi_cur++) {
             s16 *mvp = pi->mvp_scale[lidx][refi_cur];
             s16 *mv  = pi->mv_scale [lidx][refi_cur];
+            u64 mecost;
 
             com_derive_mvp(core->info, core->ptr, core->cu_scup_in_pic, lidx, refi_cur, cur_info->hmvp_flag, core->cnt_hmvp_cands,
                            core->motion_cands, core->map, core->refp, cur_info->mvr_idx, cu_width, cu_height, mvp);
+            
+            if(core->info->inter_uni_same_ref && lidx){ // skip ME if ref and mvp in L1 are same as that in L0
+                int check_refi = 0;
+                int check_num = core->num_refp[0];
+
+                for (check_refi = 0; check_refi < check_num; check_refi++) {
+                    if (core->refp[refi_cur][lidx].ptr == core->refp[check_refi][0].ptr && M32(mvp) == M32(pi->mvp_scale[0][check_refi])) {
+                        mecost = mecost_l0[check_refi];
+                        CP32(mv, pi->mv_scale[0][check_refi]);
+                        if (cur_info->mvr_idx < MAX_NUM_AFFINE_MVR) {
+                            pi->best_mv_uni[lidx][refi_cur][MV_X] = mv[MV_X];
+                            pi->best_mv_uni[lidx][refi_cur][MV_Y] = mv[MV_Y];
+                        }
+                        if (mecost < best_mecost) {
+                            best_mecost = mecost;
+                            best_refi = refi_cur;
+                        }
+                        break;
+                    }
+                }
+                if (check_refi < check_num) {
+                    continue;
+                }
+            }
 
             pi->ref_pic = core->refp[refi_cur][lidx].pic;
-            u64 mecost = me_search_tz(pi, x, y, cu_width, cu_height, core->info->pic_width, core->info->pic_height, refi_cur, lidx, mvp, mv, 0);
+            mecost = me_search_tz(pi, x, y, cu_width, cu_height, core->info->pic_width, core->info->pic_height, refi_cur, lidx, mvp, mv, 0);
 
+            if (lidx == 0) {
+                mecost_l0[refi_cur] = mecost;
+            }
             if (mecost < best_mecost) {
                 best_mecost = mecost;
                 best_refi = refi_cur;
@@ -868,6 +901,19 @@ static void analyze_uni_pred(core_t *core, lbac_t *lbac_best, double *cost_L0L1,
             if (cur_info->mvr_idx < MAX_NUM_AFFINE_MVR) {
                 pi->best_mv_uni[lidx][refi_cur][MV_X] = mv[MV_X];
                 pi->best_mv_uni[lidx][refi_cur][MV_Y] = mv[MV_Y];
+            }
+        }
+        
+        refi_L0L1[lidx] = best_refi;
+        me_cost_L0L1[lidx] = best_mecost;
+        
+        if(core->info->inter_uni_same_ref && lidx){ // skip RDO if ref and mv in L1 are same as that in L0
+            if ((core->refp[refi_L0L1[0]][0].ptr == core->refp[refi_L0L1[1]][1].ptr) && M32(pi->mv_scale[0][refi_L0L1[0]]) == M32(pi->mv_scale[1][refi_L0L1[1]])){
+                CP32(mv_L0L1[1], mv_L0L1[0]);
+                pi->mot_bits[1] = pi->mot_bits[0];
+                rdo_cost_L0L1[1] = rdo_cost_L0L1[0];
+                rdo_flag[1] = rdo_flag[0];
+                continue;
             }
         }
 
@@ -884,13 +930,29 @@ static void analyze_uni_pred(core_t *core, lbac_t *lbac_best, double *cost_L0L1,
         mvd[MV_Y] = mv[MV_Y] - mvp[MV_Y];
 
         pi->mot_bits[lidx] = get_mv_bits(pi, mvd[MV_X], mvd[MV_Y], pi->num_refp, best_refi, cur_info->mvr_idx);
+        
+        if(core->info->inter_adaptive_num_rdo){
+            if (pi->curr_mvr < 2 && me_cost_L0L1[lidx] > core->inter_satd * 1.1) {
+                rdo_flag [lidx] = 0;
+                continue;
+            }
+        }
 
-        refi_L0L1[lidx] = best_refi;
-        cost_L0L1[lidx] = inter_rdcost(core, lbac_best, 0, 1, NULL, NULL);
+        rdo_cost_L0L1[lidx] = inter_rdcost(core, lbac_best, 0, 1, NULL, NULL);
+        if (rdo_cost_L0L1[lidx] == core->cost_best && pi->curr_mvr < 2){
+            core->inter_satd = me_cost_L0L1[lidx];
+        }
+    }
+    if (rdo_flag[0] == 1 && rdo_flag[1] == 1){ 
+        *lidx_ref = rdo_cost_L0L1[0] > rdo_cost_L0L1[1] ? REFP_1 : REFP_0;
+    } else if (rdo_flag[0] == 0 && rdo_flag[1] == 0){
+        *lidx_ref = me_cost_L0L1[0] > me_cost_L0L1[1] ? REFP_1 : REFP_0;
+    } else {
+        *lidx_ref = rdo_flag[0] ? REFP_0 : REFP_1;
     }
 }
 
-static void analyze_bi(core_t *core, lbac_t *lbac_best, s16 mv_L0L1[REFP_NUM][MV_D], const s8 *refi_L0L1, const double *cost_L0L1)
+static void analyze_bi(core_t *core, lbac_t *lbac_best, s16 mv_L0L1[REFP_NUM][MV_D], const s8 *refi_L0L1, s8 lidx_ref)
 {
     com_pic_t *pic_org   = core->pic_org;
     com_info_t *info     = core->info;
@@ -905,18 +967,11 @@ static void analyze_bi(core_t *core, lbac_t *lbac_best, s16 mv_L0L1[REFP_NUM][MV
 
     int bit_depth   = info->bit_depth_internal;
     u64 best_mecost = COM_UINT64_MAX;
-    s8  lidx_ref, lidx_cnd;
 
     cur_info->cu_mode = MODE_INTER;
     init_inter_data(core);
 
-    if (cost_L0L1[PRED_L0] <= cost_L0L1[PRED_L1]) {
-        lidx_ref = REFP_0;
-        lidx_cnd = REFP_1;
-    } else {
-        lidx_ref = REFP_1;
-        lidx_cnd = REFP_0;
-    }
+    s8 lidx_cnd = (lidx_ref == REFP_0) ? REFP_1 : REFP_0;
 
     s8 t0 = (lidx_ref == REFP_0) ? refi_L0L1[lidx_ref] : REFI_INVALID;
     s8 t1 = (lidx_ref == REFP_1) ? refi_L0L1[lidx_ref] : REFI_INVALID;
@@ -969,12 +1024,21 @@ static void analyze_bi(core_t *core, lbac_t *lbac_best, s16 mv_L0L1[REFP_NUM][MV
             break;
         }
     }
+    if(core->info->inter_adaptive_num_rdo){
+        if (pi->curr_mvr < 2 && best_mecost > core->inter_satd * 1.1) {
+            return;
+        }
+    }
+
     cur_info->mvd[REFP_0][MV_X] = cur_info->mv[REFP_0][MV_X] - pi->mvp_scale[REFP_0][cur_info->refi[REFP_0]][MV_X];
     cur_info->mvd[REFP_0][MV_Y] = cur_info->mv[REFP_0][MV_Y] - pi->mvp_scale[REFP_0][cur_info->refi[REFP_0]][MV_Y];
     cur_info->mvd[REFP_1][MV_X] = cur_info->mv[REFP_1][MV_X] - pi->mvp_scale[REFP_1][cur_info->refi[REFP_1]][MV_X];
     cur_info->mvd[REFP_1][MV_Y] = cur_info->mv[REFP_1][MV_Y] - pi->mvp_scale[REFP_1][cur_info->refi[REFP_1]][MV_Y];
 
-    inter_rdcost(core, lbac_best, 0, 1, NULL, NULL);
+    double cost_best = inter_rdcost(core, lbac_best, 0, 1, NULL, NULL);
+    if (cost_best == core->cost_best && pi->curr_mvr < 2){
+        core->inter_satd = best_mecost;
+    }
 }
 
 static u32 smvd_refine(core_t *core, int x, int y, int log2_cuw, int log2_cuh, s16 mv[REFP_NUM][MV_D], s16 mvp[REFP_NUM][MV_D], s8 refi[REFP_NUM], s32 lidx_cur, s32 lidx_tar, u32 mecost, s32 search_pattern, s32 search_round, s32 search_shift)
@@ -1141,6 +1205,12 @@ static void analyze_smvd(core_t *core, lbac_t *lbac_best)
     mecost = smvd_refine(core, x, y, log2_cuw, log2_cuh, mv, mvp, cur_info->refi, 0, 1, mecost, 2, 8, cur_info->mvr_idx);
     mecost = smvd_refine(core, x, y, log2_cuw, log2_cuh, mv, mvp, cur_info->refi, 0, 1, mecost, 0, 1, cur_info->mvr_idx);
 
+    if(core->info->inter_adaptive_num_rdo){
+        if (pi->curr_mvr < 2 && mecost > core->inter_satd * 1.1) {
+            return;
+        }
+    }
+
     CP32(cur_info->mv[REFP_0], mv[REFP_0]);
     CP32(cur_info->mv[REFP_1], mv[REFP_1]);
 
@@ -1152,7 +1222,10 @@ static void analyze_smvd(core_t *core, lbac_t *lbac_best)
     cur_info->mvd[REFP_1][MV_X] = COM_CLIP3(COM_INT16_MIN, COM_INT16_MAX, -cur_info->mvd[REFP_0][MV_X]);
     cur_info->mvd[REFP_1][MV_Y] = COM_CLIP3(COM_INT16_MIN, COM_INT16_MAX, -cur_info->mvd[REFP_0][MV_Y]);
 
-    inter_rdcost(core, lbac_best, 0, 1, NULL, NULL);
+    double cost_best = inter_rdcost(core, lbac_best, 0, 1, NULL, NULL);
+    if (cost_best == core->cost_best && pi->curr_mvr < 2){
+        core->inter_satd = mecost;
+    }
 }
 
 static void solve_equal(double(*equal_coeff)[5], int order, double *affine_para)
@@ -1393,7 +1466,7 @@ static void mv_clip(int x, int y, int pic_w, int pic_h, int w, int h, s8 refi[RE
     }
 }
 
-static void analyze_affine_uni(core_t *core, lbac_t *lbac_best, CPMV aff_mv_L0L1[REFP_NUM][VER_NUM][MV_D], s8 *refi_L0L1, double *cost_L0L1)
+static void analyze_affine_uni(core_t *core, lbac_t *lbac_best, CPMV aff_mv_L0L1[REFP_NUM][VER_NUM][MV_D], s8 *refi_L0L1, s8 *lidx_ref)
 {
     com_info_t *info     =  core->info;
     com_map_t *map       =  core->map;
@@ -1415,8 +1488,14 @@ static void analyze_affine_uni(core_t *core, lbac_t *lbac_best, CPMV aff_mv_L0L1
     int sub_w            = 4;
     int sub_h            = 4;
 
+    u64 mecost_l0[MAX_NUM_ACTIVE_REF_FRAME] = { COM_UINT64_MAX, COM_UINT64_MAX, COM_UINT64_MAX, COM_UINT64_MAX };
+    int mebits_l0[MAX_NUM_ACTIVE_REF_FRAME];
     u64 mecost, best_mecost;
     int mebits, best_bits;
+
+    double rdo_cost_L0L1[2] = {MAX_D_COST, MAX_D_COST};
+    u64   satd_cost_L0L1[2] = {COM_UINT64_MAX, COM_UINT64_MAX};
+    int rdo_flag[2] = {1, 1};
 
     if (core->pichdr->affine_subblk_size_idx > 0) {
         sub_w = 8;
@@ -1450,6 +1529,33 @@ static void analyze_affine_uni(core_t *core, lbac_t *lbac_best, CPMV aff_mv_L0L1
             affine_mvp = pi->affine_mvp_scale[lidx][refi_cur];
             com_get_affine_mvp_scaling(core->ptr, core->cu_scup_in_pic, lidx, refi_cur, map->map_mv, map->map_refi, core->refp,
                                         core->cu_width, core->cu_height, info->i_scu, affine_mvp, map->map_scu, map->map_pos, cur_info->mvr_idx);
+            
+            if(core->info->inter_uni_same_ref && lidx){ // skip ME if ref and mvp in L1 are same as that in L0
+                int check_refi = 0;
+                int check_num = core->num_refp[0];
+
+                for (check_refi = 0; check_refi < check_num; check_refi++) {
+                    if (core->refp[refi_cur][1].ptr == core->refp[check_refi][0].ptr &&
+                        M64(affine_mvp[0]) == M64(pi->affine_mvp_scale[0][check_refi][0]) &&
+                        M64(affine_mvp[1]) == M64(pi->affine_mvp_scale[0][check_refi][1])) {
+                        mecost = mecost_l0[check_refi];
+                        mebits = mebits_l0[check_refi];
+
+                        CP128(pi->affine_mv_scale[1][refi_cur], pi->affine_mv_scale[0][check_refi]);
+
+                        if (mecost < best_mecost) {
+                            best_mecost = mecost;
+                            best_bits = mebits;
+                            refi_bst = refi_cur;
+                        }
+                        break;
+                    }
+                }
+                if (check_refi < check_num) {
+                    continue;
+                }
+            }
+
             s8  refi_t[REFP_NUM];
             com_pic_t *refp = core->refp[refi_cur][lidx].pic;
             ALIGNED_32(pel pred[MAX_CU_DIM]);
@@ -1505,10 +1611,28 @@ static void analyze_affine_uni(core_t *core, lbac_t *lbac_best, CPMV aff_mv_L0L1
 
             CP128(pi->affine_mv_scale[lidx][refi_cur], affine_mv);
 
+            if (lidx == 0) {
+                mecost_l0[refi_cur] = mecost;
+                mebits_l0[refi_cur] = mebits;
+            }
             if (mecost < best_mecost) {
                 best_mecost = mecost;
                 best_bits = mebits;
                 refi_bst = refi_cur;
+            }
+        }
+        refi_L0L1[lidx] = refi_bst;
+        satd_cost_L0L1[lidx] = best_mecost;
+
+        if(core->info->inter_uni_same_ref && lidx){ // skip RDO if ref and mv in L1 are same as that in L0
+            if (core->refp[refi_L0L1[0]][0].ptr == core->refp[refi_bst][1].ptr && 
+                M64(pi->affine_mv_scale[0][refi_L0L1[0]][0]) == M64(pi->affine_mv_scale[1][refi_bst][0]) &&
+                M64(pi->affine_mv_scale[0][refi_L0L1[0]][1]) == M64(pi->affine_mv_scale[1][refi_bst][1])){
+                pi->mot_bits[1] = pi->mot_bits[0];
+                rdo_cost_L0L1[1] = rdo_cost_L0L1[0];
+                rdo_flag[1] = rdo_flag[0];
+                memcpy(aff_mv_L0L1[lidx], aff_mv_L0L1[0], 2 * MV_D * sizeof(CPMV));
+                continue;
             }
         }
 
@@ -1517,7 +1641,6 @@ static void analyze_affine_uni(core_t *core, lbac_t *lbac_best, CPMV aff_mv_L0L1
         affine_mvp = pi->affine_mvp_scale[lidx][refi_bst];
         refi[REFP_0] = (lidx == 0) ? refi_bst : REFI_INVALID;
         refi[REFP_1] = (lidx == 1) ? refi_bst : REFI_INVALID;
-        refi_L0L1[lidx] = refi_bst;
 
         for (int vertex = 0; vertex < 2; vertex++) {
             affine_mvd[vertex][MV_X] = affine_mv[vertex][MV_X] - affine_mvp[vertex][MV_X];
@@ -1532,13 +1655,30 @@ static void analyze_affine_uni(core_t *core, lbac_t *lbac_best, CPMV aff_mv_L0L1
 
         memcpy(aff_mv_L0L1[lidx], affine_mv, 2 * MV_D * sizeof(CPMV));
 
-        if (com_get_affine_memory_access(affine_mv, cu_width, cu_height) <= mem) {
-            cost_L0L1[lidx] = inter_rdcost(core, lbac_best, 0, 1, NULL, NULL);
+        if(core->info->inter_adaptive_num_rdo){
+            if(satd_cost_L0L1[lidx] > core->inter_satd * 1.1){
+                rdo_flag [lidx] = 0;
+                continue;
+            }
         }
+
+        if (com_get_affine_memory_access(affine_mv, cu_width, cu_height) <= mem) {
+            rdo_cost_L0L1[lidx] = inter_rdcost(core, lbac_best, 0, 1, NULL, NULL);
+        }
+        if(rdo_cost_L0L1[lidx] == core->cost_best){
+            core->inter_satd = satd_cost_L0L1[lidx];
+        }
+    }
+    if (rdo_flag[0] == 1 && rdo_flag[1] == 1){ 
+        *lidx_ref = rdo_cost_L0L1[0] > rdo_cost_L0L1[1] ? REFP_1 : REFP_0;
+    } else if (rdo_flag[0] == 0 && rdo_flag[1] == 0){
+        *lidx_ref = satd_cost_L0L1[0] > satd_cost_L0L1[1] ? REFP_1 : REFP_0;
+    } else {
+        *lidx_ref = rdo_flag[0] ? REFP_0 : REFP_1;
     }
 }
 
-static void analyze_affine_bi(core_t *core, lbac_t *lbac_best, CPMV aff_mv_L0L1[REFP_NUM][VER_NUM][MV_D], const s8 *refi_L0L1, const double *cost_L0L1)
+static void analyze_affine_bi(core_t *core, lbac_t *lbac_best, CPMV aff_mv_L0L1[REFP_NUM][VER_NUM][MV_D], const s8 *refi_L0L1, s8 lidx_ref)
 {
     com_info_t *info       =  core->info;
     com_mode_t *cur_info   = &core->mod_info_curr;
@@ -1558,7 +1698,6 @@ static void analyze_affine_bi(core_t *core, lbac_t *lbac_best, CPMV aff_mv_L0L1[
 
     ALIGNED_32(pel org_bi[MAX_CU_DIM]);
     s8  refi[REFP_NUM] = { REFI_INVALID, REFI_INVALID };
-    s8  lidx_ref, lidx_cnd;
 
     init_pb_part(cur_info);
     init_tb_part(cur_info);
@@ -1567,13 +1706,8 @@ static void analyze_affine_bi(core_t *core, lbac_t *lbac_best, CPMV aff_mv_L0L1[
     cur_info->cu_mode = MODE_INTER;
     init_inter_data(core);
 
-    if (cost_L0L1[REFP_0] <= cost_L0L1[REFP_1]) {
-        lidx_ref = REFP_0;
-        lidx_cnd = REFP_1;
-    } else {
-        lidx_ref = REFP_1;
-        lidx_cnd = REFP_0;
-    }
+    s8 lidx_cnd = (lidx_ref == REFP_0) ? REFP_1 : REFP_0;
+
     cur_info->refi[REFP_0] = refi_L0L1[REFP_0];
     cur_info->refi[REFP_1] = refi_L0L1[REFP_1];
     CP128(cur_info->affine_mv[lidx_ref], aff_mv_L0L1[lidx_ref]);
@@ -1641,7 +1775,16 @@ static void analyze_affine_bi(core_t *core, lbac_t *lbac_best, CPMV aff_mv_L0L1[
             return;
         }
     }
-    inter_rdcost(core, lbac_best, 0, 1, NULL, NULL);
+    if(core->info->inter_adaptive_num_rdo){
+        if(best_mecost > core->inter_satd * 1.1){
+            return;
+        }
+    }
+
+    double cost_best = inter_rdcost(core, lbac_best, 0, 1, NULL, NULL);
+    if(cost_best == core->cost_best){
+        core->inter_satd = best_mecost;
+    }
 }
 
 static int is_same_with_tr(core_t *core, com_motion_t hmvp_motion)
@@ -1708,7 +1851,13 @@ void analyze_inter_cu(core_t *core, lbac_t *lbac_best)
         allow_affine = 0;
     }
     if (cu_width *cu_height >= 64) {
+	    com_pic_t *pic_org   =  core->pic_org;
+        int x                =  core->cu_pix_x;
+        int y                =  core->cu_pix_y;
         analyze_direct_skip(core, lbac_best);
+        core->inter_satd = com_had(cu_width, cu_height, pic_org->y + (y * pic_org->stride_luma) + x, pic_org->stride_luma, bst_info->pred[Y_C], cu_width, bit_depth);
+    } else {
+        core->inter_satd = COM_UINT64_MAX;
     }
 
     memset(pi->hpel_satd, 0, sizeof(pi->hpel_satd));
@@ -1729,7 +1878,7 @@ void analyze_inter_cu(core_t *core, lbac_t *lbac_best)
                 }
             }
             for (cur_info->mvr_idx = 0; cur_info->mvr_idx < num_amvr; cur_info->mvr_idx++) {
-                double cost_L0L1[2] = { MAX_D_COST, MAX_D_COST };
+                s8 lidx_ref;
                 s8 refi_L0L1[2] = { REFI_INVALID, REFI_INVALID };
                 s16 mv_L0L1[REFP_NUM][MV_D];
                 pi->curr_mvr = cur_info->mvr_idx;
@@ -1747,10 +1896,10 @@ void analyze_inter_cu(core_t *core, lbac_t *lbac_best)
                 init_tb_part(cur_info);
                 get_part_info(info->i_scu, core->cu_scu_x << 2, core->cu_scu_y << 2, cu_width, cu_height, cur_info->pb_part, &cur_info->pb_info);
                 get_part_info(info->i_scu, core->cu_scu_x << 2, core->cu_scu_y << 2, cu_width, cu_height, cur_info->tb_part, &cur_info->tb_info);
-                analyze_uni_pred(core, lbac_best, cost_L0L1, mv_L0L1, refi_L0L1);
+                analyze_uni_pred(core, lbac_best, mv_L0L1, refi_L0L1, &lidx_ref);
 
                 if (core->slice_type == SLICE_B && cu_width * cu_height >= 64) {
-                    analyze_bi(core, lbac_best, mv_L0L1, refi_L0L1, cost_L0L1);
+                    analyze_bi(core, lbac_best, mv_L0L1, refi_L0L1, lidx_ref);
 
                     if (info->sqh.smvd_enable && core->ptr - core->refp[0][REFP_0].ptr == core->refp[0][REFP_1].ptr - core->ptr && !cur_info->hmvp_flag && !(history->visit && history->smvd_history == 0)) {
                         analyze_smvd(core, lbac_best);
@@ -1775,16 +1924,16 @@ void analyze_inter_cu(core_t *core, lbac_t *lbac_best)
         analyze_affine_merge(core, lbac_best);
 
         if (!(bst_info->cu_mode == MODE_SKIP && !bst_info->affine_flag)) { 
-            double cost_L0L1[2] = { MAX_D_COST,   MAX_D_COST   };
+            s8 lidx_ref;
             s8     refi_L0L1[2] = { REFI_INVALID, REFI_INVALID };
             CPMV   aff_mv_L0L1[REFP_NUM][VER_NUM][MV_D];
             int num_affine_amvr = info->sqh.amvr_enable ? MAX_NUM_AFFINE_MVR : 1;
 
             for (cur_info->mvr_idx = 0; cur_info->mvr_idx < num_affine_amvr; cur_info->mvr_idx++) {
                 pi->curr_mvr = cur_info->mvr_idx;
-                analyze_affine_uni(core, lbac_best, aff_mv_L0L1, refi_L0L1, cost_L0L1);
+                analyze_affine_uni(core, lbac_best, aff_mv_L0L1, refi_L0L1, &lidx_ref);
                 if (core->slice_type == SLICE_B) {
-                    analyze_affine_bi(core, lbac_best, aff_mv_L0L1, refi_L0L1, cost_L0L1);
+                    analyze_affine_bi(core, lbac_best, aff_mv_L0L1, refi_L0L1, lidx_ref);
                 }
             }
         }
