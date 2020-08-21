@@ -15,8 +15,8 @@ set_source_files_properties(${DIR_X86_SRC} PROPERTIES COMPILE_FLAGS "${CMAKE_C_F
 set_source_files_properties(${DIR_X86_256_SRC} PROPERTIES COMPILE_FLAGS "${CMAKE_C_FLAGS} -fPIC -std=c99 -O3 -mavx2")
 
 # get version
-set (CONFIG_DIR ..)
-execute_process(COMMAND sh version.sh ..)
+set (CONFIG_DIR ${CMAKE_CURRENT_SOURCE_DIR}/..)
+execute_process(COMMAND sh ${CONFIG_DIR}/version.sh ${CONFIG_DIR})
 
 function(extract_version_string version_file version_string_out)
   file(STRINGS "${version_file}" uavs3e_version REGEX "VERSION_STR")
@@ -72,7 +72,7 @@ if(CMAKE_USE_PTHREADS_INIT)
 target_link_libraries(${LIBNAME} pthread)
 endif()
 
-install(TARGETS uavs3e LIBRARY DESTINATION /usr/lib ARCHIVE DESTINATION /usr/lib)
-install(FILES ../inc/uavs3e.h DESTINATION /usr/include/uavs3e/)
-install(FILES ../inc/com_api.h DESTINATION /usr/include/uavs3e/)
+install(TARGETS uavs3e LIBRARY DESTINATION ${CMAKE_INSTALL_LIB_DIR} ARCHIVE DESTINATION ${CMAKE_INSTALL_LIB_DIR})
+install(FILES ../inc/uavs3e.h DESTINATION ${CMAKE_INSTALL_INCLUDE_DIR}/uavs3e/)
+install(FILES ../inc/com_api.h DESTINATION ${CMAKE_INSTALL_INCLUDE_DIR}/uavs3e/)
 install(FILES ${CONFIG_DIR}/${LIBNAME}.pc DESTINATION ${CMAKE_INSTALL_PKGCONFIG_DIR})
