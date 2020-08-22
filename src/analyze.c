@@ -866,7 +866,7 @@ static void clear_map_scu(core_t *core, int x, int y, int cu_width, int cu_heigh
     }
 }
 
-static double mode_coding_unit(core_t *core, lbac_t *lbac_best, int x, int y, int cu_width_log2, int cu_height_log2, int cud, enc_cu_t *cu_data)
+static double mode_coding_unit(core_t *core, lbac_t *lbac_best, int x, int y, int cu_width_log2, int cu_height_log2, int cud, enc_cu_t *cu_data, int texture_dir)
 {
     com_info_t *info     = core->info;
     com_mode_t *bst_info = &core->mod_info_best;
@@ -923,7 +923,7 @@ static double mode_coding_unit(core_t *core, lbac_t *lbac_best, int x, int y, in
 
             for (int ipf_flag = 0; ipf_flag < ipf_passes_num; ++ipf_flag) {
                 cur_info->ipf_flag = ipf_flag;
-                analyze_intra_cu(core, lbac_best);
+                analyze_intra_cu(core, lbac_best, texture_dir);
 
                 if (core->cost_best < cost_best) {
                     cost_best = core->cost_best;
@@ -1140,6 +1140,7 @@ static double mode_coding_tree(core_t *core, lbac_t *lbac_cur, int x0, int y0, i
     s8 best_split_mode     = NO_SPLIT;
     u8 best_cons_pred_mode = NO_MODE_CONS;
     int next_split         = 1; //early termination flag
+	int texture_dir      = 0;
 
     int split_allow[SPLIT_QUAD + 1];
     com_motion_t motion_cands_curr[ALLOWED_HMVP_NUM];
@@ -1220,10 +1221,12 @@ static double mode_coding_tree(core_t *core, lbac_t *lbac_cur, int x0, int y0, i
                 uavs3e_funs_handle.sobel_cost(pic_org->y + y * pic_org->stride_luma + x, pic_org->stride_luma, w, h, &ver, &hor);
 
 				if (ver > 1.04 * hor) {
+					texture_dir =  1;
 					split_allow[SPLIT_BI_HOR ] = 0;
 					split_allow[SPLIT_EQT_HOR] = 0;
 				}
 				if (hor > 1.04 * ver) {
+					texture_dir = -1;
 					split_allow[SPLIT_BI_VER ] = 0;
 					split_allow[SPLIT_EQT_VER] = 0;
 				}
@@ -1256,7 +1259,7 @@ static double mode_coding_tree(core_t *core, lbac_t *lbac_cur, int x0, int y0, i
             }
             core->tree_status = tree_status;
             core->cons_pred_mode = cons_pred_mode;
-            cost_temp += mode_coding_unit(core, lbac_cur, x0, y0, cu_width_log2, cu_height_log2, cud, cu_data_tmp);
+            cost_temp += mode_coding_unit(core, lbac_cur, x0, y0, cu_width_log2, cu_height_log2, cud, cu_data_tmp, texture_dir);
 
             copy_cu_data(cu_data_bst, cu_data_tmp, 0, 0, cu_width_log2, cu_height_log2, cu_width_log2, cud, tree_status);
 
@@ -1448,7 +1451,7 @@ static double mode_coding_tree(core_t *core, lbac_t *lbac_cur, int x0, int y0, i
                         core->tree_status = TREE_C;
                         core->cons_pred_mode = NO_MODE_CONS;
                         lbac_copy(&core->lbac_bakup, &lbac_tree_c);
-                        cost_temp += mode_coding_unit(core, NULL, x0, y0, cu_width_log2, cu_height_log2, cud, cu_data_tmp);
+                        cost_temp += mode_coding_unit(core, NULL, x0, y0, cu_width_log2, cu_height_log2, cud, cu_data_tmp, 0);
                         core->tree_status = TREE_LC;
                     }
                     if (cost_temp < best_cons_cost) {

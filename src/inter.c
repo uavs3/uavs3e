@@ -1862,12 +1862,8 @@ void analyze_inter_cu(core_t *core, lbac_t *lbac_best)
 
     memset(pi->hpel_satd, 0, sizeof(pi->hpel_satd));
     memset(pi->qpel_satd, 0, sizeof(pi->qpel_satd));
-    int next_pre = 1;
-    // history skip
-    if (history->visit && history->cu_mode == MODE_SKIP)
-        next_pre = 0;
 
-    if (next_pre) {
+    if (!history->visit || history->cu_mode != MODE_SKIP) {
         for (cur_info->hmvp_flag = 0; cur_info->hmvp_flag < num_iter_mvp; cur_info->hmvp_flag++) {
             if (cur_info->hmvp_flag) {
                 num_amvr = 0;

@@ -64,7 +64,7 @@ void inter_search_init(inter_search_t *pi, com_info_t *info, int is_padding);
 int  inter_search_create(u8 **pptab, com_info_t *info);
 void inter_search_free(u8 *tab_mvbits, int tab_mvbits_offset);
 
-void analyze_intra_cu(core_t *core, lbac_t *lbac_best_ret);
+void analyze_intra_cu(core_t *core, lbac_t *lbac_best_ret, int texture_dir);
 
 int enc_tq_itdq_yuv_nnz(core_t *core, lbac_t *lbac, com_mode_t *cur_mode, s16 coef[N_C][MAX_CU_DIM], s16 resi[N_C][MAX_CU_DIM], pel pred[N_C][MAX_CU_DIM], pel rec[N_C][MAX_CU_DIM], s8 refi[REFP_NUM], s16 mv[REFP_NUM][MV_D]);
 

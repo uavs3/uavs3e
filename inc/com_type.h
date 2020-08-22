@@ -453,6 +453,8 @@ typedef struct uavs3e_com_info_t {
 	int                     ai_split_dir_decision;
     int                     ai_split_dir_decision_P1;
     int                     ai_split_dir_decision_P2;
+    int                     ai_pred_dir_decision;
+
     int                     me_adaptive_raster_range; 
     int                     intra_rmd;
     int                     skip_split_P1;
