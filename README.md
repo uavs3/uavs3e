@@ -61,6 +61,7 @@ This program is originally developed by the team of Prof.Ronggang Wang (rgwang@p
   * Tong Wu, Peking University Shenzhen Graduate School. 
   * Shiyi Liu, Peking University Shenzhen Graduate School. 
   * Jiayu Yang, Peking University Shenzhen Graduate School. 
+  * Chunhui Yang, Peking University Shenzhen Graduate School. 
   * Jin Lin, Harbin Institute of Technology, Shenzhen.
   * Guisen Xu, Peking University Shenzhen Graduate School. 
   * Xufeng Li, Peking University Shenzhen Graduate School. 
