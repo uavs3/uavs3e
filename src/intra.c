@@ -509,11 +509,11 @@ void analyze_intra_cu(core_t *core, lbac_t *lbac_best, int texture_dir)
                     return;
                 }
                 for (int j = 0; j < pred_cnt; j++) { /* Y */
-                    if (info->ai_pred_dir_decision && j != 0 && texture_dir) {
-                        if (ipred_list[j] >= IPD_DIA_L && ipred_list[j] <= IPD_DIA_R) {
+                    if (info->ai_pred_dir_decision && j != 0) {
+                        if (texture_dir ==  1 && ipred_list[j] >= IPD_DIA_L && ipred_list[j] <= IPD_DIA_R) {
                             continue;
                         }
-                        if (ipred_list[j] >= IPD_DIA_R && ipred_list[j] <= IPD_DIA_U) {
+                        if (texture_dir == -1 && ipred_list[j] >= IPD_DIA_R && ipred_list[j] <= IPD_DIA_U) {
                             continue;
                         }
                     }
