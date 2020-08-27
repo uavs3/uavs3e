@@ -85,6 +85,7 @@ typedef struct uavs3e_analyze_node_t {
     com_img_t *img;      /* original picture store     */
     double sc_ratio;
     int    insert_idr;
+    int    is_scenecut;
 } analyze_node_t;
 
 /*****************************************************************************
@@ -489,6 +490,7 @@ typedef struct uavs3e_enc_ctrl_t {
     /*** global table for ME ***/
     u8  *tab_mvbits;
     int  tab_mvbits_offset;
+    int  SceneTransition;
 
 } enc_ctrl_t;
 

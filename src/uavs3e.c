@@ -1217,16 +1217,24 @@ static void enc_push_frm(enc_ctrl_t *h, com_img_t *img, int insert_idr)
         add_input_node(h, img, 1, FRM_DEPTH_0, SLICE_I);
         h->lastI_ptr = img->ptr;
         h->img_lastIP = img;
+        if (h->cfg.scenecut_histogram) {
+            calculate_histogram(&h->pinter, img, h->info.bit_depth_internal);;
+            h->img_lastIP->sc_ratio = 0;
+        }
         com_img_addref(img);
         return;
-    } 
+    }
 
     com_img_t *last_img = h->img_rsize ? h->img_rlist[h->img_rsize - 1].img : h->img_lastIP;
     int bit_depth = h->info.bit_depth_internal;
 
-    h->img_rlist[h->img_rsize].img        = img;
+    h->img_rlist[h->img_rsize].img = img;
     h->img_rlist[h->img_rsize].insert_idr = insert_idr;
-    h->img_rlist[h->img_rsize].sc_ratio   = loka_get_sc_ratio(&h->pinter, img, last_img, bit_depth);
+    if (h->cfg.scenecut_histogram) {
+        calculate_histogram(&h->pinter, img, bit_depth);
+    }
+    h->img_rlist[h->img_rsize].sc_ratio = loka_get_sc_ratio(&h->pinter, img, last_img, bit_depth);
+    h->img_rlist[h->img_rsize].img->sc_ratio = h->img_rlist[h->img_rsize].sc_ratio;
     h->img_rsize++;
 
     if (h->img_rsize < h->cfg.lookahead) {
@@ -1559,6 +1567,7 @@ void uavs3e_load_default_cfg(enc_cfg_t *cfg)
     cfg->max_b_frames        =  15;
     cfg->close_gop           =   0;
     cfg->scenecut            =   0;
+    cfg->scenecut_histogram  =   0;
     cfg->adaptive_gop        =   0;
     cfg->lookahead           =  40;
 

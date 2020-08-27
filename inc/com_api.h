@@ -87,6 +87,9 @@ extern "C"
  *****************************************************************************/
 
 #define MAX_PLANES 3
+#define HISBLOCK_NUM 64
+#define MAX_NUM_PARTITIONS 1024
+#define HISBLOCK_SIZE 8
 
 typedef struct uavs3e_com_img_t com_img_t;
 
@@ -104,6 +107,8 @@ struct uavs3e_com_img_t {
 
     /* life cycle management */
     int        refcnt;
+    int        histo_data[HISBLOCK_NUM*MAX_NUM_PARTITIONS];
+    double     sc_ratio;
 };
 
 #ifdef __cplusplus
