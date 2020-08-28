@@ -949,8 +949,8 @@ static void check_run_split(core_t *core, int cu_width_log2, int cu_height_log2,
     int run_list[NUM_SPLIT_MODE];
     enc_history_t *history = &core->history_data[cu_width_log2 - 2][cu_height_log2 - 2][cup];
 
-    if (history->split_visit) {
-        if (history->nosplit < 1 && history->split >= 1) {
+    if (history->visit_split) {
+        if (history->split) {
             run_list[0] = 0;
             for (i = 1; i < NUM_SPLIT_MODE; i++) {
                 if (history->split_cost[i] < min_cost && split_allow[i]) {
@@ -1269,23 +1269,23 @@ static double mode_coding_tree(core_t *core, lbac_t *lbac_cur, int x0, int y0, i
             cost_best = cost_temp;
             best_split_mode = NO_SPLIT;
             best_cons_pred_mode = cons_pred_mode;
-            history->visit = 1;
+            history->visit_mode_decision = 1;
         } else {
             cost_temp = MAX_D_COST;
         }
-        if (!history->split_visit) {
+        if (!history->visit_split) {
             history->split_cost[NO_SPLIT] = cost_temp;
             best_curr_cost = cost_temp;
         }
         nscost = cost_temp;
     }
-#if ENC_ECU_ADAPTIVE
-    if (cost_best < MAX_D_COST && cud >= (core->ptr % 2 ? ENC_ECU_DEPTH - 1 : ENC_ECU_DEPTH)
-#else
-    if (cost_best < MAX_D_COST && cud >= ENC_ECU_DEPTH
-#endif
-        && bst_info->cu_mode == MODE_SKIP) {
-        next_split = 0;
+ 
+    if (cost_best < MAX_D_COST && bst_info->cu_mode == MODE_SKIP) {
+        int enc_ecu_depth = (core->pic_org->layer_id == FRM_DEPTH_5 ? 3 : 4);
+
+        if (cud >= enc_ecu_depth) {
+            next_split = 0;
+        }
     }
 
     if (cost_best < MAX_D_COST) {
@@ -1295,54 +1295,6 @@ static double mode_coding_tree(core_t *core, lbac_t *lbac_cur, int x0, int y0, i
                 if (core->dist_cu_best < core->lambda[0] * bits_inc_by_split) {
                     next_split = 0;
                 }
-            }
-        } else if (next_split && 0) {
-            double qstep = pow(2, core->lcu_qp_y / 8.0);
-            double T = 0;
-
-            if (cu_width * cu_height == 32) {
-                T = 0.3746 * qstep * qstep + 41.059 * qstep - 312.26;
-                T *= 2;
-            } else if (cu_width * cu_height == 64) {
-                if (cu_width == cu_height) {
-                    T = 0.5508 * qstep * qstep + 19.486 * qstep + 65.381;
-                } else {
-                    T = 0.432 * qstep * qstep + 24.619 * qstep - 59.853;
-                }
-                T *= 1.8;
-            } else if (cu_width * cu_height == 128) {
-                if (cu_width == 4 || cu_height == 4) {
-                    T = 0.138 * qstep * qstep + 52.016 * qstep - 260.29;
-                } else {
-                    T = 0.2759 * qstep * qstep + 63.053 * qstep - 255.7;
-                }
-                T *= 1.6;
-            } else if (cu_width * cu_height == 256) {
-                if (cu_width == cu_height) {
-                    T = 0.2627 * qstep * qstep + 111.01 * qstep - 473.56;
-                } else {
-                    T = 0.0785 * qstep * qstep + 106.78 * qstep - 456.72;
-                }
-                T *= 1.4;
-            } else if (cu_width * cu_height == 512) {
-                if (cu_width == 8 || cu_height == 8) {
-                    T = 0.4271 * qstep * qstep + 124.08 * qstep + 199.36;
-                } else {
-                    T = 0.2652 * qstep * qstep + 117.49 * qstep + 178.75;
-                }
-                T *= 1.2;
-            } else if (cu_width * cu_height == 1024) {
-                if (cu_width == cu_height) {
-                    T = 0.6111 * qstep * qstep + 204.52 * qstep + 806;
-                } else {
-                    T = 0.5071 * qstep * qstep + 187.66 * qstep + 1104.4;
-                }
-                T *= 1.1;
-            } else if (cu_width * cu_height == 2048) {
-                T = 1.3384 * qstep * qstep + 397.56 * qstep + 8830.1;
-            }
-            if (cost_best < T * 2) {
-                next_split = 0;
             }
         }
     }
@@ -1475,11 +1427,11 @@ static double mode_coding_tree(core_t *core, lbac_t *lbac_cur, int x0, int y0, i
                         }
                     }
                 }
-                if (!history->split_visit) {
+                if (!history->visit_split) {
                     history->split_cost[split_mode] = best_cons_cost;
                 }
             }
-            if (!history->split_visit && num_split_tried > 0) {
+            if (!history->visit_split && num_split_tried > 0) {
                 if ((best_curr_cost *(1.10)) < best_split_cost) {
                     break;
                 }
@@ -1506,11 +1458,11 @@ static double mode_coding_tree(core_t *core, lbac_t *lbac_cur, int x0, int y0, i
 
     if (num_split_to_try > 0) {
         if (best_split_mode == NO_SPLIT) {
-            history->nosplit += 1;
+            history->split = 0;
         } else {
-            history->split += 1;
+            history->split = 1;
         }
-        history->split_visit = 1;
+        history->visit_split = 1;
     }
     update_map_scu(core, x0, y0, 1 << cu_width_log2, 1 << cu_height_log2);
 
@@ -1585,7 +1537,6 @@ int enc_mode_analyze_lcu(core_t *core, const lbac_t *lbac)
     return COM_OK;
 }
 
-#if TR_EARLY_TERMINATE
 int est_pred_info_bits(core_t *core)
 {
     com_mode_t *mod_cur = &core->mod_info_curr;
@@ -1600,10 +1551,8 @@ int est_pred_info_bits(core_t *core)
     else {
         bits_pred = 2;
     }
-
     return bits_pred + bits_residual;
 }
-#endif
 
 int enc_tq_itdq_yuv_nnz(core_t *core, lbac_t *lbac, com_mode_t *cur_mode, s16 coef[N_C][MAX_CU_DIM], s16 resi[N_C][MAX_CU_DIM], pel pred[N_C][MAX_CU_DIM], pel rec[N_C][MAX_CU_DIM], s8 refi[REFP_NUM], s16 mv[REFP_NUM][MV_D])
 {
@@ -1619,9 +1568,7 @@ int enc_tq_itdq_yuv_nnz(core_t *core, lbac_t *lbac, com_mode_t *cur_mode, s16 co
             cur_mode->num_nz[TB0][i] = 0;
             continue;
         }
-#if TR_SAVE_LOAD
         if (core->best_tb_part_hist == 255 || core->best_tb_part_hist == SIZE_2Nx2N || i != Y_C) {
-#endif
             int plane_width_log2  = cu_width_log2  - (i != Y_C);
             int plane_height_log2 = cu_height_log2 - (i != Y_C);
             int qp = (i == Y_C ? core->lcu_qp_y : (i == U_C ? core->lcu_qp_u : core->lcu_qp_v));
@@ -1633,22 +1580,17 @@ int enc_tq_itdq_yuv_nnz(core_t *core, lbac_t *lbac, com_mode_t *cur_mode, s16 co
                 com_invqt(cur_mode, i, 0, coef[i], resi_it, core->wq, plane_width_log2, plane_height_log2, qp, bit_depth, 0, 0);
                 uavs3e_funs_handle.recon[plane_width_log2 - MIN_CU_LOG2](resi_it, pred[i], 1 << plane_width_log2, 1 << plane_width_log2, 1 << plane_height_log2, rec[i], 1 << plane_width_log2, cur_mode->num_nz[TB0][i], bit_depth);
             }
-#if TR_SAVE_LOAD
         } else {
             cur_mode->num_nz[TB0][i] = 0; //no need to try 2Nx2N transform
         }
-#endif
     }
 
     int try_sub_block_transform = core->tree_status != TREE_C && is_tb_avaliable(core->info, cu_width_log2, cu_height_log2, cur_mode->pb_part, MODE_INTER);
 
     if (try_sub_block_transform) { //fast algorithm
-#if TR_SAVE_LOAD
         if (core->best_tb_part_hist == SIZE_2Nx2N) {
             try_sub_block_transform = 0;
         }
-#endif
-#if TR_EARLY_TERMINATE
         if (try_sub_block_transform && core->best_tb_part_hist == 255) {
             com_mode_t *mod_curr = &core->mod_info_curr;
             int bits_est = est_pred_info_bits(core);
@@ -1658,7 +1600,6 @@ int enc_tq_itdq_yuv_nnz(core_t *core, lbac_t *lbac, com_mode_t *cur_mode, s16 co
                 try_sub_block_transform = 0;
             }
         }
-#endif
     }
     if (try_sub_block_transform) {
         ALIGNED_32(s16 coef_NxN[MAX_CU_DIM]);

@@ -50,16 +50,8 @@
 #define THRESHOLD_MVPS_CHECK               1.1
 #define NUM_SL_INTER                       10
 #define NUM_SL_INTRA                       8
-#define INC_QT_DEPTH(qtd, smode)           (smode == SPLIT_QUAD? (qtd + 1) : qtd)
+#define INC_QT_DEPTH(qtd, smode)           (smode == SPLIT_QUAD? (qtd  + 1) : qtd )
 #define INC_BET_DEPTH(betd, smode)         (smode != SPLIT_QUAD? (betd + 1) : betd)
-
-//fast algorithm (common)
-#define TR_SAVE_LOAD                       1  // fast algorithm for PBT
-#define TR_EARLY_TERMINATE                 1  // fast algorithm for PBT
-#define DT_INTRA_FAST_BY_RD                1  // fast algorithm: early skip based on RD cost comparison
-#define DT_SAVE_LOAD                       1  // fast algorithm: save & load best part_size
-#define ENC_ECU_DEPTH                      4 // for early CU termination
-#define ENC_ECU_ADAPTIVE                   1 // for early CU termination
 
 #define MAX_SUBGOP_SIZE        32
 #define MAX_REORDER_BUF        (MAX_SUBGOP_SIZE + 1)
@@ -182,25 +174,26 @@ typedef struct uavs3e_enc_cu_t {
 } enc_cu_t;
 
 typedef struct uavs3e_enc_history_t {
-    int    visit;
-    int    nosplit;
+    /* split history */
+    int    visit_split;
     int    split;
-    int    split_visit;
     double split_cost[NUM_SPLIT_MODE];
+
+    /* mode decision history */
+    int    visit_mode_decision;
+
     int    mvr_idx_history;
     int    affine_flag_history;
     int    mvr_hmvp_idx_history;
     int    smvd_history;
     int    cu_mode;
-#if TR_SAVE_LOAD
+
     u8     num_inter_pred;
     u16    inter_pred_dist[NUM_SL_INTER];
     u8     inter_tb_part[NUM_SL_INTER];  // luma TB part size for inter prediction block
-#endif
-#if DT_SAVE_LOAD
+
     u8     best_part_size_intra[2];
     u8     num_intra_history;
-#endif
 } enc_history_t;
 
 typedef struct uavs3e_enc_alf_corr_t {
@@ -348,12 +341,8 @@ typedef struct uavs3e_core_t {
     u64            dist_cu;
     u64            dist_cu_best; //dist of the best intra mode (note: only updated in intra coding now)
     u8             skip_mvps_check;
-#if TR_SAVE_LOAD
     u8             best_tb_part_hist;
-#endif
-#if TR_EARLY_TERMINATE
     s64            dist_pred_luma;
-#endif
     u8             skip_emvr_mode[5];
 } core_t;
 

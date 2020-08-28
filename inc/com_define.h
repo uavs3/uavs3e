@@ -101,6 +101,8 @@
 #define FRM_DEPTH_1                   1
 #define FRM_DEPTH_2                   2
 #define FRM_DEPTH_3                   3
+#define FRM_DEPTH_4                   4
+#define FRM_DEPTH_5                   5
 
 /* rpl structure */
 #define MAX_RPLS  16

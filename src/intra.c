@@ -397,9 +397,7 @@ void analyze_intra_cu(core_t *core, lbac_t *lbac_best, int texture_dir)
         { IPD_INVALID, IPD_INVALID, IPD_INVALID }, { IPD_INVALID, IPD_INVALID, IPD_INVALID }
     };
 
-#if DT_SAVE_LOAD
     enc_history_t *pData = &core->history_data[cu_width_log2 - 2][cu_height_log2 - 2][core->cu_scup_in_lcu];
-#endif
     ALIGNED_32(pel rec[N_C][MAX_CU_DIM]);
     lbac_t lbac_temp;
     lbac_t *lbac = &lbac_temp;
@@ -436,10 +434,10 @@ void analyze_intra_cu(core_t *core, lbac_t *lbac_best, int texture_dir)
         }
 
         cost_best = MAX_D_COST;
-#if DT_INTRA_FAST_BY_RD
+
         u8 try_non_2NxhN = 1, try_non_hNx2N = 1;
         double cost_2Nx2N = MAX_D_COST, cost_hNx2N = MAX_D_COST, cost_2NxhN = MAX_D_COST;
-#endif
+
         for (int part_size_idx = 0; part_size_idx < num_allowed_part_size; part_size_idx++) {
             part_size_t pb_part_size = allowed_part_size[part_size_idx];
             part_size_t tb_part_size = get_tb_part_size_by_pb(pb_part_size, MODE_INTRA);
@@ -453,17 +451,13 @@ void analyze_intra_cu(core_t *core, lbac_t *lbac_best, int texture_dir)
             cost_temp = 0;
             memset(num_nz_y_pb_part, 0, MAX_NUM_TB * sizeof(int));
 
-#if DT_INTRA_FAST_BY_RD
             if (((pb_part_size == SIZE_2NxnU || pb_part_size == SIZE_2NxnD) && !try_non_2NxhN) || 
                 ((pb_part_size == SIZE_nLx2N || pb_part_size == SIZE_nRx2N) && !try_non_hNx2N)) {
                 continue;
             }
-#endif
-#if DT_SAVE_LOAD
             if (pb_part_size != SIZE_2Nx2N && pData->num_intra_history > 1 && pData->best_part_size_intra[0] == SIZE_2Nx2N && pData->best_part_size_intra[1] == SIZE_2Nx2N) {
                 break;
             }
-#endif
 
             for (int pb_part_idx = 0; pb_part_idx < cur_info->pb_info.num_sub_part /*&& cost_temp <= core->cost_best*/; pb_part_idx++) {
                 int pb_x = cur_info->pb_info.sub_x[pb_part_idx];
@@ -578,8 +572,6 @@ void analyze_intra_cu(core_t *core, lbac_t *lbac_best, int texture_dir)
                 cost_temp += delta_dist;
                 best_dist_y_pb_part[PB0] += (s32)delta_dist; 
             }
-
-#if DT_INTRA_FAST_BY_RD
             if (pb_part_size == SIZE_2Nx2N) {
                 cost_2Nx2N = cost_temp;
             } else if (pb_part_size == SIZE_2NxhN) {
@@ -603,7 +595,6 @@ void analyze_intra_cu(core_t *core, lbac_t *lbac_best, int texture_dir)
                     try_non_2NxhN = 0;
                 }
             }
-#endif
             //save best pu type
             if (cost_temp < cost_best) {
                 cost_best = cost_temp;
@@ -740,10 +731,7 @@ void analyze_intra_cu(core_t *core, lbac_t *lbac_best, int texture_dir)
             lbac_copy(lbac_best, lbac);
         }
     }
-
-#if DT_SAVE_LOAD
     if (pData->num_intra_history < 2 && cur_info->ipf_flag == 0 && core->tree_status != TREE_C) {
         pData->best_part_size_intra[pData->num_intra_history++] = core->best_pb_part_intra;
     }
-#endif
 }

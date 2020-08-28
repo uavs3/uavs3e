@@ -187,7 +187,6 @@ static void check_best_mode(core_t *core, lbac_t *lbac_best, lbac_t *lbac, const
     }
 }
 
-#if TR_SAVE_LOAD
 static u8 search_inter_tr_info(core_t *core, u16 cu_ssd)
 {
     enc_history_t *p_data = &core->history_data[core->cu_width_log2 - 2][core->cu_height_log2 - 2][core->cu_scup_in_lcu];
@@ -211,7 +210,6 @@ static void save_inter_tr_info(core_t *core, u16 cu_ssd, u8 tb_part_size)
     p_data->inter_tb_part  [p_data->num_inter_pred] = tb_part_size;
     p_data->num_inter_pred++;
 }
-#endif
 
 static double inter_rdcost(core_t *core, lbac_t *lbac_best_ret, int bForceAllZero, int need_mc, s64 dist_input[2][N_C], s64 *dist_pred_input)
 {
@@ -305,10 +303,8 @@ static double inter_rdcost(core_t *core, lbac_t *lbac_best_ret, int bForceAllZer
     if (!bForceAllZero) {
         ALIGNED_32(s16 resi_t[N_C][MAX_CU_DIM]);
 
-#if TR_EARLY_TERMINATE
         core->dist_pred_luma = dist_pred[Y_C];
-#endif
-#if TR_SAVE_LOAD 
+
         u16 cu_ssd_u16 = 0;
         core->best_tb_part_hist = 255;
         if (info->sqh.pbt_enable && core->tree_status != TREE_L &&
@@ -320,7 +316,7 @@ static double inter_rdcost(core_t *core, lbac_t *lbac_best_ret, int bForceAllZer
             cu_ssd_u16 = (u16)(cu_ssd_s64 + (s64)(1 << (shift_val - 1))) >> shift_val;
             core->best_tb_part_hist = search_inter_tr_info(core, cu_ssd_u16);
         }
-#endif
+
         cu_pel_sub(core->tree_status, x, y, cu_width_log2, cu_height_log2, core->pic_org, pred, resi_t);
 
         if (enc_tq_itdq_yuv_nnz(core, lbac, cur_info, coef, resi_t, pred, rec, refi, mv)) {
@@ -442,11 +438,9 @@ static double inter_rdcost(core_t *core, lbac_t *lbac_best_ret, int bForceAllZer
                 }
             }
         }
-#if TR_SAVE_LOAD 
         if (core->best_tb_part_hist == 255 && core->tree_status != TREE_L && cur_info->pb_part == SIZE_2Nx2N) {
             save_inter_tr_info(core, cu_ssd_u16, (u8)cur_info->tb_part);
         }
-#endif
     }
 
     check_best_mode(core, lbac_best_ret, &lbac_best, cost_best, pred);
@@ -1834,20 +1828,20 @@ void analyze_inter_cu(core_t *core, lbac_t *lbac_best)
     int num_amvr = MAX_NUM_MVR;
     int allow_affine = info->sqh.affine_enable;
 
-    if (history->visit && info->sqh.emvr_enable) { 
+    if (history->visit_mode_decision && info->sqh.emvr_enable) { 
         num_hmvp_inter = history->mvr_hmvp_idx_history + 1;
         if (num_hmvp_inter > MAX_NUM_MVR) {
             num_hmvp_inter = MAX_NUM_MVR;
         }
     }
     if (info->sqh.amvr_enable) {
-        if (history->visit) {
+        if (history->visit_mode_decision) {
             num_amvr = COM_MIN(MAX_NUM_MVR, history->mvr_idx_history + 1);
         }
     } else {
         num_amvr = 1;
     }
-    if (history->visit && history->affine_flag_history == 0) {
+    if (history->visit_mode_decision && history->affine_flag_history == 0) {
         allow_affine = 0;
     }
     if (cu_width *cu_height >= 64) {
@@ -1863,7 +1857,7 @@ void analyze_inter_cu(core_t *core, lbac_t *lbac_best)
     memset(pi->hpel_satd, 0, sizeof(pi->hpel_satd));
     memset(pi->qpel_satd, 0, sizeof(pi->qpel_satd));
 
-    if (!history->visit || history->cu_mode != MODE_SKIP) {
+    if (!history->visit_mode_decision || history->cu_mode != MODE_SKIP) {
         for (cur_info->hmvp_flag = 0; cur_info->hmvp_flag < num_iter_mvp; cur_info->hmvp_flag++) {
             if (cur_info->hmvp_flag) {
                 num_amvr = 0;
@@ -1897,7 +1891,7 @@ void analyze_inter_cu(core_t *core, lbac_t *lbac_best)
                 if (core->slice_type == SLICE_B && cu_width * cu_height >= 64) {
                     analyze_bi(core, lbac_best, mv_L0L1, refi_L0L1, lidx_ref);
 
-                    if (info->sqh.smvd_enable && core->ptr - core->refp[0][REFP_0].ptr == core->refp[0][REFP_1].ptr - core->ptr && !cur_info->hmvp_flag && !(history->visit && history->smvd_history == 0)) {
+                    if (info->sqh.smvd_enable && core->ptr - core->refp[0][REFP_0].ptr == core->refp[0][REFP_1].ptr - core->ptr && !cur_info->hmvp_flag && !(history->visit_mode_decision && history->smvd_history == 0)) {
                         analyze_smvd(core, lbac_best);
                     }
                 }
@@ -1934,7 +1928,7 @@ void analyze_inter_cu(core_t *core, lbac_t *lbac_best)
             }
         }
     }
-    if (!history->visit) {
+    if (!history->visit_mode_decision) {
         history->affine_flag_history = bst_info->affine_flag;
         history->mvr_idx_history     = bst_info->mvr_idx;
         history->smvd_history = bst_info->smvd_flag;
