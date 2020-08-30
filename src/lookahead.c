@@ -291,16 +291,16 @@ double loka_estimate_coding_cost(inter_search_t *pi, com_img_t *img_org, com_img
     }
     return total_cost / blk_num / UNIT_SIZE / UNIT_SIZE;
 }
-int check_scenecut_histogram_next_gop(enc_ctrl_t *h, com_img_t *img_last, int cur_scenecut_idx, int max_gop_idx, int bit_depth)
+int check_scenecut_histogram_next_gop(enc_ctrl_t *h, int *last_histo_data, int cur_scenecut_idx, int max_gop_idx, int bit_depth)
 {
     int count_unlike = 0;
     int thred_unlike = (int)(0.8 * (max_gop_idx - 1));
     for (int i = cur_scenecut_idx + 1; i < cur_scenecut_idx + max_gop_idx; i++) {
-        if (!check_scenecut_histogram(&h->pinter, h->img_rlist[i].img, img_last, bit_depth)) {
+        if (!check_scenecut_histogram(&h->pinter, &h->img_rlist[i], last_histo_data, bit_depth)) {
             h->img_rlist[cur_scenecut_idx].is_scenecut = -1;
             return 0;
         }
-        if (check_scenecut_histogram(&h->pinter, h->img_rlist[i].img, h->img_rlist[cur_scenecut_idx].img, bit_depth)) {
+        if (check_scenecut_histogram(&h->pinter, &h->img_rlist[i], h->img_rlist[cur_scenecut_idx].histo_data, bit_depth)) {
             count_unlike++;
             if (count_unlike > thred_unlike) {
                 h->img_rlist[cur_scenecut_idx].is_scenecut = -1;
@@ -310,7 +310,7 @@ int check_scenecut_histogram_next_gop(enc_ctrl_t *h, com_img_t *img_last, int cu
     }
     for (int i = 0; i < cur_scenecut_idx; i++)
     {
-        if (!check_scenecut_histogram(&h->pinter, h->img_rlist[cur_scenecut_idx].img, h->img_rlist[i].img, bit_depth))
+        if (!check_scenecut_histogram(&h->pinter, &h->img_rlist[cur_scenecut_idx], h->img_rlist[i].histo_data, bit_depth))
         {
             return 0;
         }
@@ -319,11 +319,11 @@ int check_scenecut_histogram_next_gop(enc_ctrl_t *h, com_img_t *img_last, int cu
 
     return 1;
 }
-int check_scenecut_histogram(inter_search_t *pi, com_img_t *img_org, com_img_t *img_last, int bit_depth)
+int check_scenecut_histogram(inter_search_t *pi, analyze_node_t *img_org, int *last_histo_data, int bit_depth)
 {
     int histo_block[HISBLOCK_NUM] = { 0 };
-    int blocknumber_width = img_org->width[0] / HISBLOCK_SIZE;
-    int blocknumber_height = img_org->height[0] / HISBLOCK_SIZE;
+    int blocknumber_width = img_org->img->width[0] / HISBLOCK_SIZE;
+    int blocknumber_height = img_org->img->height[0] / HISBLOCK_SIZE;
     int thread1num = 0;
     int thread2num = 0;
     int bitdepth = pi->bit_depth;
@@ -334,7 +334,7 @@ int check_scenecut_histogram(inter_search_t *pi, com_img_t *img_org, com_img_t *
         {
             for (int i = 0; i < max_num_partitions; i++)
             {
-                histo_block[pixel_row * HISBLOCK_SIZE + pixel_col] += abs(img_org->histo_data[(pixel_row * HISBLOCK_SIZE + pixel_col)* MAX_NUM_PARTITIONS + i] - img_last->histo_data[(pixel_row * HISBLOCK_SIZE + pixel_col) * MAX_NUM_PARTITIONS + i]);
+                histo_block[pixel_row * HISBLOCK_SIZE + pixel_col] += abs(img_org->histo_data[(pixel_row * HISBLOCK_SIZE + pixel_col)* MAX_NUM_PARTITIONS + i] - last_histo_data[(pixel_row * HISBLOCK_SIZE + pixel_col) * MAX_NUM_PARTITIONS + i]);
             }
         }
     }
@@ -351,12 +351,12 @@ int check_scenecut_histogram(inter_search_t *pi, com_img_t *img_org, com_img_t *
 
     return 0;
 }
-void calculate_histogram(inter_search_t *pi, com_img_t *img_org, int bit_depth)
+void calculate_histogram(inter_search_t *pi,com_img_t *img_org , int *histo_data, int bit_depth)
 {
     int width_block = img_org->width[0] / HISBLOCK_SIZE;
     int height_block = img_org->height[0] / HISBLOCK_SIZE;
     int stride = img_org->width[0];
-    memset(img_org->histo_data, 0, sizeof(img_org->histo_data));
+    //memset(img_org->histo_data, 0, HISBLOCK_NUM*MAX_NUM_PARTITIONS);
 
     for (int histo_row = 0; histo_row < HISBLOCK_SIZE; histo_row++)
     {
@@ -368,7 +368,7 @@ void calculate_histogram(inter_search_t *pi, com_img_t *img_org, int bit_depth)
                 {
                     int offset = histo_row * height_block * stride + histo_col * width_block + block_row * stride + block_col;
                     pel *org = (pel*)img_org->planes[0] + offset;
-                    img_org->histo_data[(histo_row * HISBLOCK_SIZE + histo_col) * MAX_NUM_PARTITIONS + org[0]] ++;
+                    histo_data[(histo_row * HISBLOCK_SIZE + histo_col) * MAX_NUM_PARTITIONS + org[0]] ++;
                 }
             }
         }
@@ -396,16 +396,21 @@ static double loka_get_ref_cost(inter_search_t *pi, com_img_t *img_org, com_img_
     return pcost;
 }
 
-static void update_last_ip(enc_ctrl_t *h, com_img_t *img, int type, double sc_ratio)
+static void update_last_ip(enc_ctrl_t *h, analyze_node_t *img_t, int type)
 {
     com_img_release(h->img_lastIP);
-    h->img_lastIP = img;
-    h->img_lastIP->sc_ratio = sc_ratio;
-    com_img_addref(img);
+    h->img_lastIP = img_t->img;
+    com_img_addref(img_t->img);
+	
 
     if (type == SLICE_I) {
-        h->lastI_ptr = img->ptr;
+        h->lastI_ptr = img_t->img->ptr;
     }
+	if (h->cfg.scenecut_histogram) {
+		h->lastIP_sc_ratio = img_t->sc_ratio;
+		memcpy(h->lastIP_histo_data,img_t->histo_data,sizeof(h->lastIP_histo_data));
+	}
+	
 }
 
 static void push_sub_gop(enc_ctrl_t *h, int start, int num, int level)
@@ -451,7 +456,7 @@ void loka_slicetype_decision(enc_ctrl_t *h)
                 }
             }
             add_input_node(h, h->img_rlist[i].img, 1, FRM_DEPTH_0, SLICE_I);
-            update_last_ip(h, h->img_rlist[i].img, SLICE_I, h->img_rlist[cur_ip_idx].sc_ratio);
+            update_last_ip(h, &h->img_rlist[i], SLICE_I);
             shift_reorder_list(h, i);
             return;
         }
@@ -467,14 +472,14 @@ void loka_slicetype_decision(enc_ctrl_t *h)
         int noscenecut = 0;
         int fluctuate = 0;
         for (int i = 0; i <= cur_ip_idx; i++) {
-            com_img_t *img_last = i ? h->img_rlist[i - 1].img : h->img_lastIP;
-            if (!check_scenecut_histogram(&h->pinter, h->img_rlist[i].img, h->img_lastIP, bit_depth)) {
+            int *last_histo_data = i ? h->img_rlist[i - 1].histo_data : h->lastIP_histo_data;
+            if (!check_scenecut_histogram(&h->pinter, &h->img_rlist[i], h->lastIP_histo_data, bit_depth)) {
                 for (int j = i; j >= 0; j--) {
                     h->img_rlist[j].is_scenecut = 0;
                     noscenecut = 0;
                 }
             }
-            else if (check_scenecut_histogram(&h->pinter, h->img_rlist[i].img, img_last, bit_depth) && h->img_rlist[i].is_scenecut >= 0) {// -1 means already been tested in last gop and confirmed not a scenecut frame
+            else if (check_scenecut_histogram(&h->pinter, &h->img_rlist[i], last_histo_data, bit_depth) && h->img_rlist[i].is_scenecut >= 0) {// -1 means already been tested in last gop and confirmed not a scenecut frame
                 h->img_rlist[i].is_scenecut = 1;
                 noscenecut = 1;
             }
@@ -485,9 +490,9 @@ void loka_slicetype_decision(enc_ctrl_t *h)
         if (noscenecut) {
             int flash = 1;
             for (int i = cur_ip_idx; i >= 0; i--) {
-                com_img_t *img_last = i ? h->img_rlist[i - 1].img : h->img_lastIP;
+				int *last_histo_data = i ? h->img_rlist[i - 1].histo_data : h->lastIP_histo_data;
                 double cur_scratio = h->img_rlist[i].sc_ratio;
-                double prev_scratio = img_last->sc_ratio;
+				double prev_scratio = i ? h->img_rlist[i - 1].sc_ratio : h->lastIP_sc_ratio;
                 if (prev_scratio) {
                     if (h->img_rlist[i].sc_ratio > 0.95 || (fabs(cur_scratio - prev_scratio) > 0.1 * prev_scratio || fabs(cur_scratio - avg_scratio) > 0.1 * avg_scratio))// || abs(cur_histo_sum - prev_histo_sum) > 0.06 * prev_histo_sum || abs(cur_histo_sum - avg_histo_sum) > 0.06 *avg_histo_sum)
                     {
@@ -499,7 +504,7 @@ void loka_slicetype_decision(enc_ctrl_t *h)
                                 flash = 0;
                                 break;
                             }
-                            else if (check_scenecut_histogram_next_gop(h, img_last, i, max_gop_idx, bit_depth)) {
+                            else if (check_scenecut_histogram_next_gop(h, last_histo_data, i, max_gop_idx, bit_depth)) {
                                 for (int j = 0; j < i; j++) {
                                     h->img_rlist[j].is_scenecut = 0;
                                 }
@@ -513,15 +518,15 @@ void loka_slicetype_decision(enc_ctrl_t *h)
             }
             if (!flash) {
                 for (int i = 0; i <= cur_ip_idx; i++) {
-                    com_img_t *img_last = i ? h->img_rlist[i - 1].img : h->img_lastIP;
+					int *last_histo_data = i ? h->img_rlist[i - 1].histo_data : h->lastIP_histo_data;
                     double cur_scratio = h->img_rlist[i].sc_ratio;
-                    double prev_scratio = img_last->sc_ratio;
+                    double prev_scratio = i ? h->img_rlist[i - 1].sc_ratio : h->lastIP_sc_ratio;
                     if (prev_scratio) {
                         if (h->img_rlist[i].sc_ratio > 0.95 || (fabs(cur_scratio - prev_scratio) > 0.1 * prev_scratio || fabs(cur_scratio - avg_scratio) > 0.1 * avg_scratio))
                         {
                             fluctuate = 1;
                             int max_gop_idx = i + h->cfg.max_b_frames > h->img_rsize - 1 ? h->img_rsize - 1 - i : h->cfg.max_b_frames;
-                            if (h->img_rlist[i].is_scenecut && !h->SceneTransition && check_scenecut_histogram_next_gop(h, img_last, i, max_gop_idx, bit_depth)) {
+                            if (h->img_rlist[i].is_scenecut && !h->SceneTransition && check_scenecut_histogram_next_gop(h, last_histo_data, i, max_gop_idx, bit_depth)) {
                                 for (int j = i + 1; j <= cur_ip_idx; j++) {
                                     h->img_rlist[j].is_scenecut = 0;
                                 }
@@ -551,7 +556,7 @@ void loka_slicetype_decision(enc_ctrl_t *h)
             }
             if (cur_ip_idx == 0) {
                 add_input_node(h, h->img_rlist[cur_ip_idx].img, 1, FRM_DEPTH_0, SLICE_I);
-                update_last_ip(h, h->img_rlist[cur_ip_idx].img, SLICE_I, h->img_rlist[cur_ip_idx].sc_ratio);
+                update_last_ip(h, &h->img_rlist[cur_ip_idx], SLICE_I);
                 shift_reorder_list(h, cur_ip_idx);
                 return;
             }
@@ -640,11 +645,11 @@ void loka_slicetype_decision(enc_ctrl_t *h)
                 }
             }
             add_input_node(h, h->img_rlist[cur_ip_idx].img, 1, FRM_DEPTH_0, SLICE_I);
-            update_last_ip(h, h->img_rlist[cur_ip_idx].img, SLICE_I, h->img_rlist[cur_ip_idx].sc_ratio);
+            update_last_ip(h,&h->img_rlist[cur_ip_idx], SLICE_I);
         }
         else {
             add_input_node(h, h->img_rlist[cur_ip_idx].img, 1, FRM_DEPTH_0, SLICE_I);
-            update_last_ip(h, h->img_rlist[cur_ip_idx].img, SLICE_I, h->img_rlist[cur_ip_idx].sc_ratio);
+            update_last_ip(h, &h->img_rlist[cur_ip_idx], SLICE_I);
 
             if (cur_ip_idx > 0) {
                 push_sub_gop(h, 0, cur_ip_idx, FRM_DEPTH_2);
@@ -657,7 +662,7 @@ void loka_slicetype_decision(enc_ctrl_t *h)
         }
         else {
             add_input_node(h, h->img_rlist[cur_ip_idx].img, 1, FRM_DEPTH_1, SLICE_B);
-            update_last_ip(h, h->img_rlist[cur_ip_idx].img, SLICE_B, h->img_rlist[cur_ip_idx].sc_ratio);
+            update_last_ip(h, &h->img_rlist[cur_ip_idx], SLICE_B);
 
             if (cur_ip_idx > 0) {
                 push_sub_gop(h, 0, cur_ip_idx, FRM_DEPTH_2);
@@ -671,7 +676,7 @@ void loka_slicetype_decision(enc_ctrl_t *h)
                         h->SceneTransition = 0;
                 }
             }
-            if (!check_scenecut_histogram(&h->pinter, h->img_rlist[max_ip_idx].img, h->img_lastIP, bit_depth)) {
+            if (!check_scenecut_histogram(&h->pinter, &h->img_rlist[max_ip_idx], h->lastIP_histo_data, bit_depth)) {
                 h->SceneTransition = 0;
             }
         }
