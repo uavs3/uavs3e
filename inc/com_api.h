@@ -107,8 +107,6 @@ struct uavs3e_com_img_t {
 
     /* life cycle management */
     int        refcnt;
-    int        histo_data[HISBLOCK_NUM*MAX_NUM_PARTITIONS];
-    double     sc_ratio;
 };
 
 #ifdef __cplusplus
