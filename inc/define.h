@@ -187,6 +187,7 @@ typedef struct uavs3e_enc_history_t {
     int    mvr_hmvp_idx_history;
     int    smvd_history;
     int    cu_mode;
+    int    skip_intra;
 
     u8     num_inter_pred;
     u16    inter_pred_dist[NUM_SL_INTER];

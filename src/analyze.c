@@ -877,6 +877,8 @@ static double mode_coding_unit(core_t *core, lbac_t *lbac_best, int x, int y, in
     u8 cons_pred_mode    = NO_MODE_CONS;
     com_pic_t *pic_org   = core->pic_org;
     s8 ipf_passes_num    = (info->sqh.ipf_enable_flag && (cu_width < MAX_CU_SIZE) && (cu_height < MAX_CU_SIZE)) ? 2 : 1;
+    double rdcost_intra  = MAX_D_COST;
+    double rdcost_inter  = MAX_D_COST;
 
     enc_mode_init_cu(core, x, y, cu_width_log2, cu_height_log2);
 
@@ -909,21 +911,24 @@ static double mode_coding_unit(core_t *core, lbac_t *lbac_best, int x, int y, in
             cost_best = core->cost_best;
             copy_to_cu_data(core, bst_info, cu_data);
         }
+        rdcost_inter = cost_best;
     }
 
     //**************** intra ********************
     if ((core->slice_type == SLICE_I || is_cu_nz(bst_info->num_nz) || cost_best > MAX_D_COST_EXT) && cons_pred_mode != ONLY_INTER) {
-        if (cu_width <= 64 && cu_height <= 64) {
+        enc_history_t *history = &core->history_data[cu_width_log2 - 2][cu_height_log2 - 2][core->cu_scup_in_lcu];
+
+        if (cu_width <= 64 && cu_height <= 64 && (!history->skip_intra || cons_pred_mode == ONLY_INTRA)) {
             core->dist_cu_best = COM_UINT64_MAX;
             if (core->cost_best < MAX_D_COST_EXT) {
                 core->inter_satd = com_had(cu_width, cu_height, pic_org->y + (y * pic_org->stride_luma) + x, pic_org->stride_luma, bst_info->pred[0], 1 << cu_width_log2, bit_depth);
             } else {
                 core->inter_satd = COM_UINT64_MAX;
             }
-
             for (int ipf_flag = 0; ipf_flag < ipf_passes_num; ++ipf_flag) {
                 cur_info->ipf_flag = ipf_flag;
-                analyze_intra_cu(core, lbac_best, texture_dir);
+                
+                double rdcost = analyze_intra_cu(core, lbac_best, texture_dir);
 
                 if (core->cost_best < cost_best) {
                     cost_best = core->cost_best;
@@ -936,9 +941,19 @@ static double mode_coding_unit(core_t *core, lbac_t *lbac_best, int x, int y, in
                     bst_info->affine_flag = 0;
                     copy_to_cu_data(core, bst_info, cu_data);
                 }
+                if (rdcost < rdcost_intra) {
+                    rdcost_intra = rdcost;
+                }
+            }
+
+            if (info->history_skip_intra && rdcost_intra < MAX_D_COST_EXT && rdcost_inter < MAX_D_COST_EXT) {
+                if (rdcost_intra > 1.001 * rdcost_inter) {
+                    history->skip_intra = 1;
+                }
             }
         }
     }
+
     return cost_best;
 }
 

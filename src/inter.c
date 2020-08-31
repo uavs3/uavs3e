@@ -1931,8 +1931,8 @@ void analyze_inter_cu(core_t *core, lbac_t *lbac_best)
     if (!history->visit_mode_decision) {
         history->affine_flag_history = bst_info->affine_flag;
         history->mvr_idx_history     = bst_info->mvr_idx;
-        history->smvd_history = bst_info->smvd_flag;
-        history->cu_mode = bst_info->cu_mode;
+        history->smvd_history        = bst_info->smvd_flag;
+        history->cu_mode             = bst_info->cu_mode;
 
         if (bst_info->hmvp_flag) {
             history->mvr_hmvp_idx_history = bst_info->mvr_idx;

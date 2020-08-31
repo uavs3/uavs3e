@@ -353,7 +353,8 @@ static int make_ipred_list(core_t *core, int pb_width, int pb_height, int cu_wid
 	return ipd_rdo_cnt;
 
 }
-void analyze_intra_cu(core_t *core, lbac_t *lbac_best, int texture_dir)
+
+double analyze_intra_cu(core_t *core, lbac_t *lbac_best, int texture_dir)
 {
     com_pic_t *pic_rec   = core->pic_rec;
     com_pic_t *pic_org   = core->pic_org;
@@ -500,7 +501,7 @@ void analyze_intra_cu(core_t *core, lbac_t *lbac_best, int texture_dir)
                     }
                 }
                 if (pred_cnt == 0) {
-                    return;
+                    return MAX_D_COST;
                 }
                 for (int j = 0; j < pred_cnt; j++) { /* Y */
                     if (info->ai_pred_dir_decision && j != 0) {
@@ -734,4 +735,6 @@ void analyze_intra_cu(core_t *core, lbac_t *lbac_best, int texture_dir)
     if (pData->num_intra_history < 2 && cur_info->ipf_flag == 0 && core->tree_status != TREE_C) {
         pData->best_part_size_intra[pData->num_intra_history++] = core->best_pb_part_intra;
     }
+
+    return cost_best;
 }
