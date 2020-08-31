@@ -45,5 +45,8 @@
 double loka_estimate_coding_cost(inter_search_t *pi, com_img_t *img_org, com_img_t **ref_l0, com_img_t **ref_l1, int num_ref[2], int bit_depth, double *icost, double icost_uv[2], float* map_dqp);
 double loka_get_sc_ratio(inter_search_t *pi, com_img_t *img_org, com_img_t *img_last, int bit_depth);
 void   loka_slicetype_decision(enc_ctrl_t *h);
+int    check_scenecut_histogram(inter_search_t *pi, analyze_node_t *img_org, int *last_histo_data, int bit_depth);
+int    check_scenecut_histogram_next_gop(enc_ctrl_t *h, int *histo_datat, int cur_scenecut_idx, int max_gop_idx, int bit_depth);
+void   calculate_histogram(inter_search_t *pi, com_img_t *img_org, int *histo_data, int bit_depth);
 
 #endif //_ENC_LOOKAHEAD_H_

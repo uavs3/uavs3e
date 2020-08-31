@@ -77,6 +77,8 @@ typedef struct uavs3e_analyze_node_t {
     com_img_t *img;      /* original picture store     */
     double sc_ratio;
     int    insert_idr;
+    int    histo_data[HISBLOCK_NUM*MAX_NUM_PARTITIONS];
+    int    is_scenecut;
 } analyze_node_t;
 
 /*****************************************************************************
@@ -479,6 +481,10 @@ typedef struct uavs3e_enc_ctrl_t {
     /*** global table for ME ***/
     u8  *tab_mvbits;
     int  tab_mvbits_offset;
+    /***M5582 histogram-based scenecut detection***/
+    double           lastIP_sc_ratio;
+    int              lastIP_histo_data[HISBLOCK_NUM*MAX_NUM_PARTITIONS];
+    int              SceneTransition;
 
 } enc_ctrl_t;
 
