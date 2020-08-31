@@ -84,6 +84,7 @@ typedef struct uavs3e_input_node_t {
 typedef struct uavs3e_analyze_node_t {
     com_img_t *img;      /* original picture store     */
     double sc_ratio;
+	int    histo_data[HISBLOCK_NUM*MAX_NUM_PARTITIONS];
     int    insert_idr;
     int    is_scenecut;
 } analyze_node_t;
@@ -450,6 +451,8 @@ typedef struct uavs3e_enc_ctrl_t {
     enc_cfg_t         cfg;                           /* encoding parameter */
 
     com_img_t        *img_lastIP;
+    double           lastIP_sc_ratio;
+    int              lastIP_histo_data[HISBLOCK_NUM*MAX_NUM_PARTITIONS];
     analyze_node_t   *img_rlist;                     /*  inputted images */
     int               img_rsize;
     input_node_t      node_list[MAX_REORDER_BUF];    /*  images after reorder */

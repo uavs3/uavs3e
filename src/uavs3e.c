@@ -1218,8 +1218,8 @@ static void enc_push_frm(enc_ctrl_t *h, com_img_t *img, int insert_idr)
         h->lastI_ptr = img->ptr;
         h->img_lastIP = img;
         if (h->cfg.scenecut_histogram) {
-            calculate_histogram(&h->pinter, img, h->info.bit_depth_internal);;
-            h->img_lastIP->sc_ratio = 0;
+            calculate_histogram(&h->pinter, img, h->lastIP_histo_data, h->info.bit_depth_internal);
+            h->lastIP_sc_ratio = 0;
         }
         com_img_addref(img);
         return;
@@ -1231,10 +1231,9 @@ static void enc_push_frm(enc_ctrl_t *h, com_img_t *img, int insert_idr)
     h->img_rlist[h->img_rsize].img = img;
     h->img_rlist[h->img_rsize].insert_idr = insert_idr;
     if (h->cfg.scenecut_histogram) {
-        calculate_histogram(&h->pinter, img, bit_depth);
+        calculate_histogram(&h->pinter,img, h->img_rlist[h->img_rsize].histo_data, bit_depth);
     }
     h->img_rlist[h->img_rsize].sc_ratio = loka_get_sc_ratio(&h->pinter, img, last_img, bit_depth);
-    h->img_rlist[h->img_rsize].img->sc_ratio = h->img_rlist[h->img_rsize].sc_ratio;
     h->img_rsize++;
 
     if (h->img_rsize < h->cfg.lookahead) {
