@@ -194,6 +194,12 @@ static app_cfg_t options[] = {
         ,0
     },
     {
+        CFG_KEY_NULL,  "schistogram", CFG_TYPE_INTEGER,
+        &cfg.scenecut_histogram,
+        "M5582 histogram-based scenecut detection(0:off, 1:on)"
+        ,0
+    },
+    {
         CFG_KEY_NULL,  "lookahead", CFG_TYPE_INTEGER,
         &cfg.lookahead,
         "size of lookahead window"
@@ -827,6 +833,7 @@ static void print_config(void *h, enc_cfg_t param)
     printf("\n< LookAhead Info >\n");
     printf("\tlookahead                : %d\n", param.lookahead);
     printf("\tscenecut                 : %d\n", param.scenecut);
+    printf("\tschistogram              : %d\n", param.scenecut_histogram);
     printf("\tadaptive_gop             : %d\n", param.adaptive_gop);
 
     printf("\n< Parallel Info >\n");
