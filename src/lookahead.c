@@ -37,11 +37,6 @@
 
 #include "define.h"
 
-
-#define UNITC_SIZE_LOG2 (UNIT_SIZE_LOG2 - 1)
-#define UNITC_SIZE (1 << UNITC_SIZE_LOG2)
-#define UNITC_WIDX (UNITC_SIZE_LOG2 - MIN_CU_LOG2)
-
 static void get_ipred_neighbor(pel *dst, int x, int y, int w, int h, int pic_width, int pic_height, pel *src, int s_src, int bit_depth)
 {
     pel *srcT  = src - s_src;

@@ -60,6 +60,10 @@
 #define MAX_D_COST                (1.7e+308)
 #define MAX_D_COST_EXT            (MAX_D_COST * 0.999999999)
 
+/* M5582 histogram-based scenecut detection */
+#define HISBLOCK_NUM 64
+#define MAX_NUM_PARTITIONS 1024
+
 /*****************************************************************************
  * input picture buffer structure
  *****************************************************************************/
