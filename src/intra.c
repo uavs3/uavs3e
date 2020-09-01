@@ -732,7 +732,7 @@ double analyze_intra_cu(core_t *core, lbac_t *lbac_best, int texture_dir)
             lbac_copy(lbac_best, lbac);
         }
     }
-    if (pData->num_intra_history < 2 && cur_info->ipf_flag == 0 && core->tree_status != TREE_C) {
+    if (pData->num_intra_history < 2 && core->tree_status != TREE_C) {
         pData->best_part_size_intra[pData->num_intra_history++] = core->best_pb_part_intra;
     }
 
