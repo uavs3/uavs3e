@@ -1355,6 +1355,10 @@ static double mode_coding_tree(core_t *core, lbac_t *lbac_cur, int x0, int y0, i
                         cons_pred_mode_child = cons_pred_mode;
                     }
 
+                    if (history->cons_mode_history[split_mode - 1] && history->cons_mode_history[split_mode - 1] != cons_pred_mode_child) {
+                        continue;
+                    }
+
                     clear_map_scu(core, x0, y0, cu_width, cu_height);
                     int part_num = 0;
                     double cost_temp = 0.0;
@@ -1442,6 +1446,11 @@ static double mode_coding_tree(core_t *core, lbac_t *lbac_cur, int x0, int y0, i
                         }
                     }
                 }
+
+                if (num_cons_pred_mode_loop == 2) {
+                    history->cons_mode_history[split_mode - 1] = best_cons_pred_mode;
+                }
+                
                 if (!history->visit_split) {
                     history->split_cost[split_mode] = best_cons_cost;
                 }
