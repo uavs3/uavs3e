@@ -1334,6 +1334,7 @@ static double mode_coding_tree(core_t *core, lbac_t *lbac_cur, int x0, int y0, i
                 u8 tree_status_child = TREE_LC;
                 u8 num_cons_pred_mode_loop;
                 u8 cons_pred_mode_child = NO_MODE_CONS;
+                u8 curr_best_cons = NO_MODE_CONS;
 
                 num_split_tried++;
                 com_split_get_part_structure(split_mode, x0, y0, cu_width, cu_height, cup, cud, info->log2_lcuwh_in_scu, &split_struct);
@@ -1353,6 +1354,9 @@ static double mode_coding_tree(core_t *core, lbac_t *lbac_cur, int x0, int y0, i
                         }
                     } else {
                         cons_pred_mode_child = cons_pred_mode;
+                    }
+                    if (num_cons_pred_mode_loop == 2 && history->cons_mode_history[split_mode - 1] && history->cons_mode_history[split_mode - 1] != cons_pred_mode_child) {
+                        continue;
                     }
 
                     clear_map_scu(core, x0, y0, cu_width, cu_height);
@@ -1423,6 +1427,7 @@ static double mode_coding_tree(core_t *core, lbac_t *lbac_cur, int x0, int y0, i
                     }
                     if (cost_temp < best_cons_cost) {
                         best_cons_cost = cost_temp;
+                        curr_best_cons = cons_pred_mode_child;
 
                         if (best_cons_cost < best_split_cost) {
                             best_split_cost = best_cons_cost;
@@ -1441,6 +1446,10 @@ static double mode_coding_tree(core_t *core, lbac_t *lbac_cur, int x0, int y0, i
                             }
                         }
                     }
+                }
+
+                if (num_cons_pred_mode_loop == 2 && !history->cons_mode_history[split_mode - 1]) {
+                    history->cons_mode_history[split_mode - 1] = curr_best_cons;
                 }
                 if (!history->visit_split) {
                     history->split_cost[split_mode] = best_cons_cost;
