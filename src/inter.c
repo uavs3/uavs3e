@@ -1919,6 +1919,8 @@ void analyze_inter_cu(core_t *core, lbac_t *lbac_best)
             CPMV   aff_mv_L0L1[REFP_NUM][VER_NUM][MV_D];
             int num_affine_amvr = info->sqh.amvr_enable ? MAX_NUM_AFFINE_MVR : 1;
 
+            num_affine_amvr = COM_MIN(num_amvr, num_affine_amvr);
+
             for (cur_info->mvr_idx = 0; cur_info->mvr_idx < num_affine_amvr; cur_info->mvr_idx++) {
                 pi->curr_mvr = cur_info->mvr_idx;
                 analyze_affine_uni(core, lbac_best, aff_mv_L0L1, refi_L0L1, &lidx_ref);
