@@ -1612,7 +1612,7 @@ int enc_tq_itdq_yuv_nnz(core_t *core, lbac_t *lbac, com_mode_t *cur_mode, s16 co
             com_mode_t *mod_curr = &core->mod_info_curr;
             int bits_est = est_pred_info_bits(core);
             double bits_cost = RATE_TO_COST_LAMBDA(core->lambda[Y_C], bits_est);
-            s64    dist_cost = core->dist_pred_luma >> (cur_mode->num_nz[TB0][Y_C] == 0 ? 4 : 6);
+            s64    dist_cost = core->dist_pred_luma >> (cur_mode->num_nz[TB0][Y_C] == 0 ? 2 : 3);
             if (bits_cost + dist_cost > core->cost_best) {
                 try_sub_block_transform = 0;
             }
