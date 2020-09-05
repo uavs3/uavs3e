@@ -189,6 +189,7 @@ typedef struct uavs3e_enc_history_t {
     int    visit_mode_decision;
 
     int    mvr_idx_history;
+    int    skip_idx_history;
     int    affine_flag_history;
     int    mvr_hmvp_idx_history;
     int    smvd_history;

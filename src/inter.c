@@ -672,7 +672,7 @@ static void derive_inter_cands(core_t *core, s16(*pmv_cands)[REFP_NUM][MV_D], s8
     *num_cands_all = num_cands;
 }
 
-static void analyze_direct_skip(core_t *core, lbac_t *lbac_best)
+static int analyze_direct_skip(core_t *core, lbac_t *lbac_best)
 {
     com_info_t *info = core->info;
     com_mode_t *cur_info = &core->mod_info_curr;
@@ -680,13 +680,20 @@ static void analyze_direct_skip(core_t *core, lbac_t *lbac_best)
     s8 refi_cands[MAX_SKIP_NUM + UMVE_MAX_REFINE_NUM * UMVE_BASE_NUM][REFP_NUM];
     double cost_list[MAX_INTER_SKIP_RDO];
     int    mode_list[MAX_INTER_SKIP_RDO];
-    int num_cands_all, num_rdo, num_cands_woUMVE;
+    int    num_cands_all, num_rdo, num_cands_woUMVE;
+    double min_cost = MAX_D_COST;
+    int    best_skip_idx = 0;
+    enc_history_t *history = &core->history_data[core->cu_width_log2 - 2][core->cu_height_log2 - 2][core->cu_scup_in_lcu];
 
     derive_inter_cands(core, pmv_cands, refi_cands, &num_cands_all, &num_cands_woUMVE);
     num_rdo = num_cands_woUMVE;
     assert(num_rdo <= COM_MIN(MAX_INTER_SKIP_RDO, TRADITIONAL_SKIP_NUM + info->sqh.num_of_hmvp));
 
     num_rdo = make_cand_list(core, mode_list, cost_list, num_cands_woUMVE, num_cands_all, num_rdo, pmv_cands, refi_cands);
+
+    if (history->visit_mode_decision && info->history_skip_idx) {
+        num_rdo = COM_MIN(num_rdo, history->skip_idx_history + 3);
+    }
 
     memset(core->skip_emvr_mode, 0, sizeof(core->skip_emvr_mode));
 
@@ -716,9 +723,17 @@ static void analyze_direct_skip(core_t *core, lbac_t *lbac_best)
 
         cur_info->cu_mode = MODE_DIR;
         double cost_dir  = inter_rdcost(core, lbac_best, 0, 1, dist, dist_pred);
+        if (cost_dir < min_cost) {
+            min_cost = cost_dir;
+            best_skip_idx = skip_idx;
+        }
 
         cur_info->cu_mode = MODE_SKIP;
         double cost_skip = inter_rdcost(core, lbac_best, 1, 0, dist, dist_pred);
+        if (cost_skip < min_cost) {
+            min_cost = cost_skip;
+            best_skip_idx = skip_idx;
+        }
 
         int emvr_idx = mode - TRADITIONAL_SKIP_NUM;
 
@@ -726,6 +741,7 @@ static void analyze_direct_skip(core_t *core, lbac_t *lbac_best)
             core->skip_emvr_mode[emvr_idx] = cost_skip < cost_dir;
         }
     }
+    return best_skip_idx;
 }
 
 static void analyze_affine_merge(core_t *core, lbac_t *lbac_best)
@@ -1813,6 +1829,7 @@ void analyze_inter_cu(core_t *core, lbac_t *lbac_best)
     int cu_height_log2    = core->cu_height_log2;
     int cu_width          = 1 << cu_width_log2;
     int cu_height         = 1 << cu_height_log2;
+    int best_skip_idx     = 0;
 
     int bit_depth = info->bit_depth_internal;
     enc_history_t *history = &core->history_data[cu_width_log2 - 2][cu_height_log2 - 2][core->cu_scup_in_lcu];
@@ -1848,7 +1865,7 @@ void analyze_inter_cu(core_t *core, lbac_t *lbac_best)
 	    com_pic_t *pic_org   =  core->pic_org;
         int x                =  core->cu_pix_x;
         int y                =  core->cu_pix_y;
-        analyze_direct_skip(core, lbac_best);
+        best_skip_idx = analyze_direct_skip(core, lbac_best);
         core->inter_satd = com_had(cu_width, cu_height, pic_org->y + (y * pic_org->stride_luma) + x, pic_org->stride_luma, bst_info->pred[Y_C], cu_width, bit_depth);
     } else {
         core->inter_satd = COM_UINT64_MAX;
@@ -1935,6 +1952,7 @@ void analyze_inter_cu(core_t *core, lbac_t *lbac_best)
         history->mvr_idx_history     = bst_info->mvr_idx;
         history->smvd_history        = bst_info->smvd_flag;
         history->cu_mode             = bst_info->cu_mode;
+        history->skip_idx_history    = best_skip_idx;
 
         if (bst_info->hmvp_flag) {
             history->mvr_hmvp_idx_history = bst_info->mvr_idx;
