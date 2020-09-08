@@ -67,7 +67,7 @@ static void create_bi_org(pel *org, pel *pred, int s_o, int cu_width, int cu_hei
     }
 }
 
-static int make_cand_list(core_t *core, int *mode_list, double *cost_list, int num_cands_woUMVE, int num_cands_all, int num_rdo, s16 pmv_skip_cand[MAX_SKIP_NUM][REFP_NUM][MV_D],  s8 refi_skip_cand[MAX_SKIP_NUM][REFP_NUM])
+static int make_cand_list(core_t *core, int *mode_list, u64 *cost_list, int num_cands_woUMVE, int num_cands_all, int num_rdo, s16 pmv_skip_cand[MAX_SKIP_NUM][REFP_NUM][MV_D],  s8 refi_skip_cand[MAX_SKIP_NUM][REFP_NUM])
 {
     com_info_t *info     =  core->info;
     com_mode_t *cur_info = &core->mod_info_curr;
@@ -89,7 +89,7 @@ static int make_cand_list(core_t *core, int *mode_list, double *cost_list, int n
 
     for (int i = 0; i < num_rdo; i++) {
         mode_list[i] = 0;
-        cost_list[i] = MAX_D_COST;
+        cost_list[i] = COM_UINT64_MAX;
     }
     for (int skip_idx = 0; skip_idx < num_cands_all; skip_idx++) {
         int shift = 0;
@@ -126,7 +126,7 @@ static int make_cand_list(core_t *core, int *mode_list, double *cost_list, int n
                 cost_list[num_rdo - i] = cost_list[num_rdo - 1 - i];
             }
             mode_list[num_rdo - shift] = skip_idx;
-            cost_list[num_rdo - shift] = cost;
+            cost_list[num_rdo - shift] = (u64)cost;
         }
     }
 
@@ -678,7 +678,7 @@ static int analyze_direct_skip(core_t *core, lbac_t *lbac_best)
     com_mode_t *cur_info = &core->mod_info_curr;
     s16 pmv_cands[MAX_SKIP_NUM + UMVE_MAX_REFINE_NUM * UMVE_BASE_NUM][REFP_NUM][MV_D];
     s8 refi_cands[MAX_SKIP_NUM + UMVE_MAX_REFINE_NUM * UMVE_BASE_NUM][REFP_NUM];
-    double cost_list[MAX_INTER_SKIP_RDO];
+    u64 cost_list[MAX_INTER_SKIP_RDO];
     int    mode_list[MAX_INTER_SKIP_RDO];
     int    num_cands_all, num_rdo, num_cands_woUMVE;
     double min_cost = MAX_D_COST;
@@ -698,6 +698,9 @@ static int analyze_direct_skip(core_t *core, lbac_t *lbac_best)
     memset(core->skip_emvr_mode, 0, sizeof(core->skip_emvr_mode));
 
     for (int skip_idx = 0; skip_idx < num_rdo; skip_idx++) {
+        if (cost_list[skip_idx] > core->inter_satd * 1.1) {
+			break;
+		}
         int mode = mode_list[skip_idx];
 
         if (mode < num_cands_woUMVE) {
@@ -735,6 +738,9 @@ static int analyze_direct_skip(core_t *core, lbac_t *lbac_best)
             best_skip_idx = skip_idx;
         }
 
+		if (cost_dir == core->cost_best || cost_skip == core->cost_best) {
+			core->inter_satd = cost_list[skip_idx];
+		}
         int emvr_idx = mode - TRADITIONAL_SKIP_NUM;
 
         if (!cur_info->umve_flag && emvr_idx >= 0 && emvr_idx <= 4) {
@@ -1866,9 +1872,6 @@ void analyze_inter_cu(core_t *core, lbac_t *lbac_best)
         int x                =  core->cu_pix_x;
         int y                =  core->cu_pix_y;
         best_skip_idx = analyze_direct_skip(core, lbac_best);
-        core->inter_satd = com_had(cu_width, cu_height, pic_org->y + (y * pic_org->stride_luma) + x, pic_org->stride_luma, bst_info->pred[Y_C], cu_width, bit_depth);
-    } else {
-        core->inter_satd = COM_UINT64_MAX;
     }
 
     memset(pi->hpel_satd, 0, sizeof(pi->hpel_satd));

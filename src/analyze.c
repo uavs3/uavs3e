@@ -903,7 +903,7 @@ static double mode_coding_unit(core_t *core, lbac_t *lbac_best, int x, int y, in
     //**************** inter ********************
     double cost_best = MAX_D_COST;
     core->cost_best  = MAX_D_COST;
-
+    core->inter_satd = COM_UINT64_MAX;
     if (core->slice_type != SLICE_I && cons_pred_mode != ONLY_INTRA) {
         analyze_inter_cu(core, lbac_best);
 
