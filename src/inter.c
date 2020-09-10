@@ -130,19 +130,6 @@ static int make_cand_list(core_t *core, int *mode_list, u64 *cost_list, int num_
         }
     }
 
-    if (core->info->skip_adaptive_num_rdo) {
-        double threshold = 1.08;
-        if (core->info->skip_adaptive_num_rdo_P1) {
-            threshold = 1.05;
-        }
-        for (int i = num_rdo - 1; i > 0; i--) {
-            if (cost_list[i] > cost_list[0] * threshold) {
-                num_rdo--;
-            } else {
-                break;
-            }
-        }
-    }
     return num_rdo;
 }
 
@@ -698,7 +685,7 @@ static int analyze_direct_skip(core_t *core, lbac_t *lbac_best)
     memset(core->skip_emvr_mode, 0, sizeof(core->skip_emvr_mode));
 
     for (int skip_idx = 0; skip_idx < num_rdo; skip_idx++) {
-        if (core->inter_satd != COM_UINT64_MAX && cost_list[skip_idx] > core->inter_satd * 1.1) {
+        if (info->skip_adaptive_num_rdo && core->inter_satd != COM_UINT64_MAX && cost_list[skip_idx] > core->inter_satd * 1.1) {
 			break;
 		}
         int mode = mode_list[skip_idx];

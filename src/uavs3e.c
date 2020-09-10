@@ -1339,9 +1339,8 @@ void *uavs3e_create(enc_cfg_t *cfg, int *err)
 
     info->inter_adaptive_num_rdo   = SPEED_LEVEL(1, h->cfg.speed_level);
     info->inter_uni_same_ref       = SPEED_LEVEL(1, h->cfg.speed_level);
+    info->skip_adaptive_num_rdo    = SPEED_LEVEL(1, h->cfg.speed_level);
 
-    info->skip_adaptive_num_rdo    = SPEED_LEVEL(2, h->cfg.speed_level);
-    info->skip_adaptive_num_rdo_P1 = SPEED_LEVEL(3, h->cfg.speed_level);
     info->history_skip_intra       = SPEED_LEVEL(2, h->cfg.speed_level);
     info->history_skip_idx         = SPEED_LEVEL(2, h->cfg.speed_level);
 
