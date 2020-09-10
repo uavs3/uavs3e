@@ -698,7 +698,7 @@ static int analyze_direct_skip(core_t *core, lbac_t *lbac_best)
     memset(core->skip_emvr_mode, 0, sizeof(core->skip_emvr_mode));
 
     for (int skip_idx = 0; skip_idx < num_rdo; skip_idx++) {
-        if (cost_list[skip_idx] > core->inter_satd * 1.1) {
+        if (core->inter_satd != COM_UINT64_MAX && cost_list[skip_idx] > core->inter_satd * 1.1) {
 			break;
 		}
         int mode = mode_list[skip_idx];
@@ -955,6 +955,7 @@ static void analyze_uni_pred(core_t *core, lbac_t *lbac_best, s16 mv_L0L1[REFP_N
         }
 
         rdo_cost_L0L1[lidx] = inter_rdcost(core, lbac_best, 0, 1, NULL, NULL);
+
         if (rdo_cost_L0L1[lidx] == core->cost_best && pi->curr_mvr < 2){
             core->inter_satd = me_cost_L0L1[lidx];
         }
@@ -1051,8 +1052,9 @@ static void analyze_bi(core_t *core, lbac_t *lbac_best, s16 mv_L0L1[REFP_NUM][MV
     cur_info->mvd[REFP_1][MV_X] = cur_info->mv[REFP_1][MV_X] - pi->mvp_scale[REFP_1][cur_info->refi[REFP_1]][MV_X];
     cur_info->mvd[REFP_1][MV_Y] = cur_info->mv[REFP_1][MV_Y] - pi->mvp_scale[REFP_1][cur_info->refi[REFP_1]][MV_Y];
 
-    double cost_best = inter_rdcost(core, lbac_best, 0, 1, NULL, NULL);
-    if (cost_best == core->cost_best && pi->curr_mvr < 2){
+    double cost_bi = inter_rdcost(core, lbac_best, 0, 1, NULL, NULL);
+
+    if (cost_bi == core->cost_best && pi->curr_mvr < 2){
         core->inter_satd = best_mecost;
     }
 }
@@ -1238,8 +1240,9 @@ static void analyze_smvd(core_t *core, lbac_t *lbac_best)
     cur_info->mvd[REFP_1][MV_X] = COM_CLIP3(COM_INT16_MIN, COM_INT16_MAX, -cur_info->mvd[REFP_0][MV_X]);
     cur_info->mvd[REFP_1][MV_Y] = COM_CLIP3(COM_INT16_MIN, COM_INT16_MAX, -cur_info->mvd[REFP_0][MV_Y]);
 
-    double cost_best = inter_rdcost(core, lbac_best, 0, 1, NULL, NULL);
-    if (cost_best == core->cost_best && pi->curr_mvr < 2){
+    double cost_smvd = inter_rdcost(core, lbac_best, 0, 1, NULL, NULL);
+
+    if (cost_smvd == core->cost_best && pi->curr_mvr < 2){
         core->inter_satd = mecost;
     }
 }
@@ -1797,8 +1800,9 @@ static void analyze_affine_bi(core_t *core, lbac_t *lbac_best, CPMV aff_mv_L0L1[
         }
     }
 
-    double cost_best = inter_rdcost(core, lbac_best, 0, 1, NULL, NULL);
-    if(cost_best == core->cost_best){
+    double cost_affine_bi = inter_rdcost(core, lbac_best, 0, 1, NULL, NULL);
+
+    if(cost_affine_bi == core->cost_best){
         core->inter_satd = best_mecost;
     }
 }

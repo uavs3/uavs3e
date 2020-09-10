@@ -904,6 +904,7 @@ static double mode_coding_unit(core_t *core, lbac_t *lbac_best, int x, int y, in
     double cost_best = MAX_D_COST;
     core->cost_best  = MAX_D_COST;
     core->inter_satd = COM_UINT64_MAX;
+
     if (core->slice_type != SLICE_I && cons_pred_mode != ONLY_INTRA) {
         analyze_inter_cu(core, lbac_best);
 
@@ -920,11 +921,7 @@ static double mode_coding_unit(core_t *core, lbac_t *lbac_best, int x, int y, in
 
         if (cu_width <= 64 && cu_height <= 64 && (!history->skip_intra || cons_pred_mode == ONLY_INTRA)) {
             core->dist_cu_best = COM_UINT64_MAX;
-            if (core->cost_best < MAX_D_COST_EXT) {
-                core->inter_satd = com_had(cu_width, cu_height, pic_org->y + (y * pic_org->stride_luma) + x, pic_org->stride_luma, bst_info->pred[0], 1 << cu_width_log2, bit_depth);
-            } else {
-                core->inter_satd = COM_UINT64_MAX;
-            }
+   
             for (int ipf_flag = 0; ipf_flag < ipf_passes_num; ++ipf_flag) {
                 cur_info->ipf_flag = ipf_flag;
                 
@@ -1295,7 +1292,7 @@ static double mode_coding_tree(core_t *core, lbac_t *lbac_cur, int x0, int y0, i
         nscost = cost_temp;
     }
  
-    if (cost_best < MAX_D_COST && bst_info->cu_mode == MODE_SKIP) {
+    if (cost_best < MAX_D_COST_EXT && bst_info->cu_mode == MODE_SKIP) {
         int enc_ecu_depth = (core->pic_org->layer_id == FRM_DEPTH_5 ? 3 : 4);
 
         if (cud >= enc_ecu_depth) {
@@ -1303,7 +1300,7 @@ static double mode_coding_tree(core_t *core, lbac_t *lbac_cur, int x0, int y0, i
         }
     }
 
-    if (cost_best < MAX_D_COST) {
+    if (cost_best < MAX_D_COST_EXT) {
         if (slice_type == SLICE_I) {
             if (bst_info->ipm[PB0][0] != IPD_IPCM && core->dist_cu_best < ((u64)1 << (cu_width_log2 + cu_height_log2 + 7))) {
                 u8 bits_inc_by_split = ((cu_width_log2 + cu_height_log2 >= 6) ? 2 : 0) + 8; //two split flags + one more (intra dir + cbf + edi_flag + mtr info) + 1-bit penalty, approximately 8 bits
@@ -1411,7 +1408,7 @@ static double mode_coding_tree(core_t *core, lbac_t *lbac_cur, int x0, int y0, i
                             prev_log2_sub_cuh = log2_sub_cuh;
                         }
                     }
-                    if (cost_temp < MAX_D_COST && tree_status_child == TREE_L && tree_status == TREE_LC) {
+                    if (cost_temp < MAX_D_COST_EXT && tree_status_child == TREE_L && tree_status == TREE_LC) {
                         core->tree_status = TREE_C;
                         core->cons_pred_mode = NO_MODE_CONS;
                         lbac_copy(&core->lbac_bakup, &lbac_tree_c);

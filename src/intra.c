@@ -170,12 +170,11 @@ static double intra_pu_rdcost(core_t *core, lbac_t *lbac, pel rec[N_C][MAX_CU_DI
     return cost;
 }
 
-static void com_update_cand_list(const int ipm, u64 cost_satd, double cost, int ipred_list_len, int *rmd_ipred_list, u64 *rmd_cand_satd, double *rmd_cand_cost)
+static void com_update_cand_list(const int ipm, double cost, int ipred_list_len, int *rmd_ipred_list, double *rmd_cand_cost)
 {
 	int shift = 0;
     int *plist = rmd_ipred_list + ipred_list_len - 1;
 
-    rmd_cand_satd[ipm] = cost_satd;
     rmd_cand_cost[ipm] = cost;
 
 	while (shift < ipred_list_len && (*plist < 0 || cost < rmd_cand_cost[*plist])) {
@@ -193,7 +192,7 @@ static void com_update_cand_list(const int ipm, u64 cost_satd, double cost, int 
 	}
 }
 
-static void check_one_mode(core_t *core, pel *org, int s_org, int ipm, int ipred_list_len, int *rmd_ipred_list, u64 *rmd_cand_satd, double *rmd_cand_cost, int part_idx, int pb_w, int pb_h, u16 avail_cu)
+static void check_one_mode(core_t *core, pel *org, int s_org, int ipm, int ipred_list_len, int *rmd_ipred_list, double *rmd_cand_cost, int part_idx, int pb_w, int pb_h, u16 avail_cu)
 {
 	com_mode_t *cur_info = &core->mod_info_curr;
 	int bit_depth        =  core->info->bit_depth_internal;
@@ -210,7 +209,7 @@ static void check_one_mode(core_t *core, pel *org, int s_org, int ipm, int ipred
 	bit_cnt = lbac_get_bits(&lbac_temp) - bit_cnt;
 
 	double cost = satd + RATE_TO_COST_SQRT_LAMBDA(core->sqrt_lambda[0], bit_cnt);
-	com_update_cand_list(ipm, satd, cost, ipred_list_len, rmd_ipred_list, rmd_cand_satd, rmd_cand_cost);
+	com_update_cand_list(ipm, cost, ipred_list_len, rmd_ipred_list, rmd_cand_cost);
 }
 
 static int make_ipred_list(core_t *core, int pb_width, int pb_height, int cu_width_log2, int cu_height_log2, pel *org, int s_org, int *ipred_list, int part_idx, u16 avail_cu, int skip_ipd)
@@ -219,11 +218,9 @@ static int make_ipred_list(core_t *core, int pb_width, int pb_height, int cu_wid
     com_mode_t *cur_info = &core->mod_info_curr;
 
     double rmd_cand_cost[IPD_CNT];
-    u64    rmd_cand_satd[IPD_CNT];
 
     for (int i = 0; i < IPD_CNT; i++) {
         ipred_list   [i] = -1;
-        rmd_cand_satd[i] = COM_UINT64_MAX;
         rmd_cand_cost[i] = MAX_D_COST;
     }
 
@@ -238,7 +235,7 @@ static int make_ipred_list(core_t *core, int pb_width, int pb_height, int cu_wid
         }
 	    for (int i = (skip_ipd ? 3 : 0); i < num_cand_4_in; i++) {
             int mode = rmd_range_4[i];
-		    check_one_mode(core, org, s_org, mode, i + 1, ipred_list, rmd_cand_satd, rmd_cand_cost, part_idx, pb_width, pb_height, avail_cu);
+		    check_one_mode(core, org, s_org, mode, i + 1, ipred_list, rmd_cand_cost, part_idx, pb_width, pb_height, avail_cu);
 	    }
 
         int rmd_range_2[12] = { 0 };
@@ -262,7 +259,7 @@ static int make_ipred_list(core_t *core, int pb_width, int pb_height, int cu_wid
 		    }
 	    }
 	    for (int i = 0; i < num_cand_2_in; i++) {
-		    check_one_mode(core, org, s_org, rmd_range_2[i], COM_MAX(ipd_rdo_cnt, num_cand_2_out), ipred_list, rmd_cand_satd, rmd_cand_cost, part_idx, pb_width, pb_height, avail_cu);
+		    check_one_mode(core, org, s_org, rmd_range_2[i], COM_MAX(ipd_rdo_cnt, num_cand_2_out), ipred_list, rmd_cand_cost, part_idx, pb_width, pb_height, avail_cu);
 	    }
 
         int rmd_range_1[8] = { 0 };
@@ -286,7 +283,7 @@ static int make_ipred_list(core_t *core, int pb_width, int pb_height, int cu_wid
 		    }
 	    }
 	    for (int i = 0; i < num_cand_1_in; i++) {
-		    check_one_mode(core, org, s_org, rmd_range_1[i], COM_MIN(ipd_rdo_cnt, IPD_RDO_CNT), ipred_list, rmd_cand_satd, rmd_cand_cost, part_idx, pb_width, pb_height, avail_cu);
+		    check_one_mode(core, org, s_org, rmd_range_1[i], COM_MIN(ipd_rdo_cnt, IPD_RDO_CNT), ipred_list, rmd_cand_cost, part_idx, pb_width, pb_height, avail_cu);
 	    }
 	    for (int mpmidx = 0; mpmidx < 2; mpmidx++) {
 		    int cur_mpm = cur_info->mpm[part_idx][mpmidx];
@@ -295,13 +292,13 @@ static int make_ipred_list(core_t *core, int pb_width, int pb_height, int cu_wid
 				    continue;
 			    }
 			    if (ipm_check_map[cur_mpm] == 0) {
-				    check_one_mode(core, org, s_org, cur_mpm, COM_MIN(ipd_rdo_cnt, IPD_RDO_CNT), ipred_list, rmd_cand_satd, rmd_cand_cost, part_idx, pb_width, pb_height, avail_cu);
+				    check_one_mode(core, org, s_org, cur_mpm, COM_MIN(ipd_rdo_cnt, IPD_RDO_CNT), ipred_list, rmd_cand_cost, part_idx, pb_width, pb_height, avail_cu);
 			    }
 		    }
 	    }
     } else {
         for (int i = (skip_ipd ? 3 : 0); i < IPD_CNT; i++) {
-            check_one_mode(core, org, s_org, i, ipd_rdo_cnt, ipred_list, rmd_cand_satd, rmd_cand_cost, part_idx, pb_width, pb_height, avail_cu);
+            check_one_mode(core, org, s_org, i, ipd_rdo_cnt, ipred_list, rmd_cand_cost, part_idx, pb_width, pb_height, avail_cu);
         }
     }
 
@@ -344,7 +341,7 @@ static int make_ipred_list(core_t *core, int pb_width, int pb_height, int cu_wid
     }
 
 	for (int i = ipd_rdo_cnt - 1; i >= 0; i--) {
-		if (rmd_cand_satd[ipred_list[i]] > core->inter_satd *(1.1)) {
+		if (core->inter_satd != COM_UINT64_MAX && rmd_cand_cost[ipred_list[i]] > core->inter_satd * 1.1) {
             ipd_rdo_cnt--;
 		} else {
 			break;
@@ -577,19 +574,19 @@ double analyze_intra_cu(core_t *core, lbac_t *lbac_best, int texture_dir)
                 cost_2Nx2N = cost_temp;
             } else if (pb_part_size == SIZE_2NxhN) {
                 cost_2NxhN = cost_temp;
-                assert(cost_2Nx2N < MAX_D_COST);
+                assert(cost_2Nx2N < MAX_D_COST_EXT);
                 if (cost_2NxhN > cost_2Nx2N * 1.05) {
                     try_non_2NxhN = 0;
                 }
             } else if (pb_part_size == SIZE_hNx2N) {
                 cost_hNx2N = cost_temp;
-                assert(cost_2Nx2N < MAX_D_COST);
+                assert(cost_2Nx2N < MAX_D_COST_EXT);
                 if (cost_hNx2N > cost_2Nx2N * 1.05) {
                     try_non_hNx2N = 0;
                 }
             }
 
-            if (cost_hNx2N < MAX_D_COST && cost_2NxhN < MAX_D_COST) {
+            if (cost_hNx2N < MAX_D_COST_EXT && cost_2NxhN < MAX_D_COST_EXT) {
                 if (cost_hNx2N > cost_2NxhN * 1.1) {
                     try_non_hNx2N = 0;
                 } else if (cost_2NxhN > cost_hNx2N * 1.1) {
