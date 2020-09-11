@@ -828,8 +828,10 @@ void *enc_lcu_row(core_t *core, enc_lcu_row_t *row)
         core->sqrt_lambda[1] = sqrt(core->lambda[1]);
         core->sqrt_lambda[2] = sqrt(core->lambda[2]);
 
+        core->satd_threshold = 1.1;
+
         /* initialize structures *****************************************/
-        enc_mode_init_lcu(core);
+        core->pinter.lambda_mv = (u32)floor(65536.0 * core->sqrt_lambda[0]);
         com_mset(core->history_data, 0, sizeof(enc_history_t) * MAX_CU_DEPTH * MAX_CU_DEPTH * MAX_CU_CNT_IN_LCU);
 
         /* mode decision *************************************************/

@@ -43,7 +43,6 @@
 #define RATE_TO_COST_LAMBDA(l, r)       ((double)r * l)
 #define RATE_TO_COST_SQRT_LAMBDA(l, r)  ((double)r * l)
 
-int  enc_mode_init_lcu     (core_t *core);
 int  enc_mode_analyze_lcu  (core_t *core, const lbac_t *lbac);
 
 void enc_bits_intra        (core_t *core, lbac_t *lbac, s32 slice_type, s16 coef[N_C][MAX_CU_DIM]);

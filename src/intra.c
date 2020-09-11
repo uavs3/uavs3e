@@ -341,7 +341,7 @@ static int make_ipred_list(core_t *core, int pb_width, int pb_height, int cu_wid
     }
 
 	for (int i = ipd_rdo_cnt - 1; i >= 0; i--) {
-		if (core->inter_satd != COM_UINT64_MAX && rmd_cand_cost[ipred_list[i]] > core->inter_satd * 1.1) {
+		if (core->inter_satd != COM_UINT64_MAX && rmd_cand_cost[ipred_list[i]] > core->inter_satd * core->satd_threshold) {
             ipd_rdo_cnt--;
 		} else {
 			break;

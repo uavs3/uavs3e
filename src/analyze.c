@@ -1483,17 +1483,6 @@ static double mode_coding_tree(core_t *core, lbac_t *lbac_cur, int x0, int y0, i
     return (cost_best > MAX_D_COST_EXT) ? MAX_D_COST : cost_best;
 }
 
-int enc_mode_init_lcu(core_t *core)
-{
-    core->pinter.lambda_mv = (u32)floor(65536.0 * core->sqrt_lambda[0]);
-
-    core->lcu_qp_y = core->lcu_qp_y;
-    core->lcu_qp_u = core->lcu_qp_u;
-    core->lcu_qp_v = core->lcu_qp_v;
-
-    return COM_OK;
-}
-
 int enc_mode_analyze_lcu(core_t *core, const lbac_t *lbac)
 {
     com_scu_t *map_scu;

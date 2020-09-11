@@ -47,7 +47,6 @@
 #define MAX_BS_BUF                        (32*1024*1024)
 #define DT_INTRA_BOUNDARY_FILTER_OFF        1 ///< turn off boundary filter if intra DT is ON
 #define MAX_INTER_SKIP_RDO                 MAX_SKIP_NUM
-#define THRESHOLD_MVPS_CHECK               1.1
 #define NUM_SL_INTER                       10
 #define NUM_SL_INTRA                       8
 #define INC_QT_DEPTH(qtd, smode)           (smode == SPLIT_QUAD? (qtd  + 1) : qtd )
@@ -347,6 +346,7 @@ typedef struct uavs3e_core_t {
 
     /*** for fast algorithm ***/
     u64            inter_satd;
+    double         satd_threshold;
     u64            dist_cu;
     u64            dist_cu_best; //dist of the best intra mode (note: only updated in intra coding now)
     u8             skip_mvps_check;

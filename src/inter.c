@@ -168,7 +168,8 @@ static void check_best_mode(core_t *core, lbac_t *lbac_best, lbac_t *lbac, const
             }
         }
     }
-    double skip_mode_2_threshold = core->lcu_qp_y / 60.0 * (THRESHOLD_MVPS_CHECK - 1) + 1;
+    double skip_mode_2_threshold = core->lcu_qp_y / 600.0 + 1.0;
+
     if (bst_info->cu_mode == MODE_SKIP && cur_info->cu_mode == MODE_INTER && (core->cost_best * skip_mode_2_threshold) > cost_curr) {
         core->skip_mvps_check = 0;
     }
@@ -685,7 +686,7 @@ static int analyze_direct_skip(core_t *core, lbac_t *lbac_best)
     memset(core->skip_emvr_mode, 0, sizeof(core->skip_emvr_mode));
 
     for (int skip_idx = 0; skip_idx < num_rdo; skip_idx++) {
-        if (info->skip_adaptive_num_rdo && core->inter_satd != COM_UINT64_MAX && cost_list[skip_idx] > core->inter_satd * 1.1) {
+        if (info->skip_adaptive_num_rdo && core->inter_satd != COM_UINT64_MAX && cost_list[skip_idx] > core->inter_satd * core->satd_threshold) {
 			break;
 		}
         int mode = mode_list[skip_idx];
@@ -935,7 +936,7 @@ static void analyze_uni_pred(core_t *core, lbac_t *lbac_best, s16 mv_L0L1[REFP_N
         pi->mot_bits[lidx] = get_mv_bits(pi, mvd[MV_X], mvd[MV_Y], pi->num_refp, best_refi, cur_info->mvr_idx);
         
         if(core->info->inter_adaptive_num_rdo){
-            if (pi->curr_mvr < 2 && me_cost_L0L1[lidx] > core->inter_satd * 1.1) {
+            if (pi->curr_mvr < 2 && me_cost_L0L1[lidx] > core->inter_satd * core->satd_threshold) {
                 rdo_flag [lidx] = 0;
                 continue;
             }
@@ -1029,7 +1030,7 @@ static void analyze_bi(core_t *core, lbac_t *lbac_best, s16 mv_L0L1[REFP_NUM][MV
         }
     }
     if(core->info->inter_adaptive_num_rdo){
-        if (pi->curr_mvr < 2 && best_mecost > core->inter_satd * 1.1) {
+        if (pi->curr_mvr < 2 && best_mecost > core->inter_satd * core->satd_threshold) {
             return;
         }
     }
@@ -1211,7 +1212,7 @@ static void analyze_smvd(core_t *core, lbac_t *lbac_best)
     mecost = smvd_refine(core, x, y, log2_cuw, log2_cuh, mv, mvp, cur_info->refi, 0, 1, mecost, 0, 1, cur_info->mvr_idx);
 
     if(core->info->inter_adaptive_num_rdo){
-        if (pi->curr_mvr < 2 && mecost > core->inter_satd * 1.1) {
+        if (pi->curr_mvr < 2 && mecost > core->inter_satd * core->satd_threshold) {
             return;
         }
     }
@@ -1221,9 +1222,6 @@ static void analyze_smvd(core_t *core, lbac_t *lbac_best)
 
     cur_info->mvd[REFP_0][MV_X] = mv[REFP_0][MV_X] - mvp[REFP_0][MV_X];
     cur_info->mvd[REFP_0][MV_Y] = mv[REFP_0][MV_Y] - mvp[REFP_0][MV_Y];
-    cur_info->mvd[REFP_1][MV_X] = mv[REFP_1][MV_X] - mvp[REFP_1][MV_X];
-    cur_info->mvd[REFP_1][MV_Y] = mv[REFP_1][MV_Y] - mvp[REFP_1][MV_Y];
-
     cur_info->mvd[REFP_1][MV_X] = COM_CLIP3(COM_INT16_MIN, COM_INT16_MAX, -cur_info->mvd[REFP_0][MV_X]);
     cur_info->mvd[REFP_1][MV_Y] = COM_CLIP3(COM_INT16_MIN, COM_INT16_MAX, -cur_info->mvd[REFP_0][MV_Y]);
 
@@ -1662,7 +1660,7 @@ static void analyze_affine_uni(core_t *core, lbac_t *lbac_best, CPMV aff_mv_L0L1
         memcpy(aff_mv_L0L1[lidx], affine_mv, 2 * MV_D * sizeof(CPMV));
 
         if(core->info->inter_adaptive_num_rdo){
-            if(satd_cost_L0L1[lidx] > core->inter_satd * 1.1){
+            if(satd_cost_L0L1[lidx] > core->inter_satd * core->satd_threshold){
                 rdo_flag [lidx] = 0;
                 continue;
             }
@@ -1782,7 +1780,7 @@ static void analyze_affine_bi(core_t *core, lbac_t *lbac_best, CPMV aff_mv_L0L1[
         }
     }
     if(core->info->inter_adaptive_num_rdo){
-        if(best_mecost > core->inter_satd * 1.1){
+        if(best_mecost > core->inter_satd * core->satd_threshold){
             return;
         }
     }
@@ -1818,29 +1816,25 @@ static int is_same_with_tr(core_t *core, com_motion_t hmvp_motion)
 
 void analyze_inter_cu(core_t *core, lbac_t *lbac_best)
 {
-    com_info_t *info      = core->info;
-    inter_search_t *pi    = &core->pinter;
-    com_mode_t *cur_info  = &core->mod_info_curr;
-    com_mode_t *bst_info  = &core->mod_info_best;
-    int cu_width_log2     = core->cu_width_log2;
-    int cu_height_log2    = core->cu_height_log2;
-    int cu_width          = 1 << cu_width_log2;
-    int cu_height         = 1 << cu_height_log2;
-    int best_skip_idx     = 0;
-
-    int bit_depth = info->bit_depth_internal;
+    com_info_t *info       =  core->info;
+    inter_search_t *pi     = &core->pinter;
+    com_mode_t *cur_info   = &core->mod_info_curr;
+    com_mode_t *bst_info   = &core->mod_info_best;
+    int cu_width_log2      =  core->cu_width_log2;
+    int cu_height_log2     =  core->cu_height_log2;
+    int cu_width           = 1 << cu_width_log2;
+    int cu_height          = 1 << cu_height_log2;
+    int best_skip_idx      = 0;
     enc_history_t *history = &core->history_data[cu_width_log2 - 2][cu_height_log2 - 2][core->cu_scup_in_lcu];
+    int num_hmvp_inter     = MAX_NUM_MVR;
+    int num_amvr           = MAX_NUM_MVR;
+    int allow_affine       = info->sqh.affine_enable;
 
     init_pb_part(cur_info);
     init_tb_part(cur_info);
     get_part_info(info->i_scu, core->cu_scu_x << 2, core->cu_scu_y << 2, cu_width, cu_height, cur_info->pb_part, &cur_info->pb_info);
     get_part_info(info->i_scu, core->cu_scu_x << 2, core->cu_scu_y << 2, cu_width, cu_height, cur_info->tb_part, &cur_info->tb_info);
     cur_info->mvr_idx = 0;
-
-    int num_iter_mvp = 2;
-    int num_hmvp_inter = MAX_NUM_MVR;
-    int num_amvr = MAX_NUM_MVR;
-    int allow_affine = info->sqh.affine_enable;
 
     if (history->visit_mode_decision && info->sqh.emvr_enable) { 
         num_hmvp_inter = history->mvr_hmvp_idx_history + 1;
@@ -1869,7 +1863,7 @@ void analyze_inter_cu(core_t *core, lbac_t *lbac_best)
     memset(pi->qpel_satd, 0, sizeof(pi->qpel_satd));
 
     if (!history->visit_mode_decision || history->cu_mode != MODE_SKIP) {
-        for (cur_info->hmvp_flag = 0; cur_info->hmvp_flag < num_iter_mvp; cur_info->hmvp_flag++) {
+        for (cur_info->hmvp_flag = 0; cur_info->hmvp_flag < 2; cur_info->hmvp_flag++) {
             if (cur_info->hmvp_flag) {
                 num_amvr = 0;
                 if (info->sqh.emvr_enable) {
@@ -1892,7 +1886,6 @@ void analyze_inter_cu(core_t *core, lbac_t *lbac_best)
                         continue;
                     }
                 }
-
                 init_pb_part(cur_info);
                 init_tb_part(cur_info);
                 get_part_info(info->i_scu, core->cu_scu_x << 2, core->cu_scu_y << 2, cu_width, cu_height, cur_info->pb_part, &cur_info->pb_info);
@@ -1906,13 +1899,11 @@ void analyze_inter_cu(core_t *core, lbac_t *lbac_best)
                         analyze_smvd(core, lbac_best);
                     }
                 }
-
                 if (cur_info->hmvp_flag) {
                     if (cur_info->mvr_idx > 1 && (bst_info->cu_mode == MODE_SKIP)) {
                         break;
                     }
-                }
-                else if (cur_info->mvr_idx && ((bst_info->cu_mode == MODE_SKIP || bst_info->cu_mode == MODE_DIR))) {
+                } else if (cur_info->mvr_idx && (bst_info->cu_mode == MODE_SKIP || bst_info->cu_mode == MODE_DIR)) {
                     break;
                 }
                 if (cur_info->mvr_idx > 1 && M32(bst_info->mvd[REFP_0]) == 0 && M32(bst_info->mvd[REFP_1]) == 0) {
