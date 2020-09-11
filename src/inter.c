@@ -940,6 +940,18 @@ static void analyze_uni_pred(core_t *core, lbac_t *lbac_best, s16 mv_L0L1[REFP_N
                 rdo_flag [lidx] = 0;
                 continue;
             }
+            if (pi->curr_mvr > 1 && core->info->inter_adaptive_num_rdo_P1) {
+                u32 lambda_mv = pi->lambda_mv;
+                int bit_depth = core->info->bit_depth_internal;
+                com_mc_cu(x, y, core->info->pic_width, core->info->pic_height, cu_width, cu_height, cur_info->refi, cur_info->mv, core->refp, cur_info->pred, cu_width, CHANNEL_L, bit_depth);
+                u64 temp_satd_mecost = com_had(cu_width, cu_height, pi->org, core->pic_org->stride_luma, cur_info->pred[0], cu_width, bit_depth);
+                temp_satd_mecost += MV_COST(pi->mot_bits[lidx] + pi->curr_mvr + (pi->curr_mvr < MAX_NUM_MVR - 1) + 2);
+
+                if (temp_satd_mecost > core->inter_satd * core->satd_threshold) {
+                    rdo_flag[lidx] = 0;
+                    continue;
+                }
+            }
         }
 
         rdo_cost_L0L1[lidx] = inter_rdcost(core, lbac_best, 0, 1, NULL, NULL);
@@ -1032,6 +1044,16 @@ static void analyze_bi(core_t *core, lbac_t *lbac_best, s16 mv_L0L1[REFP_NUM][MV
     if(core->info->inter_adaptive_num_rdo){
         if (pi->curr_mvr < 2 && best_mecost > core->inter_satd * core->satd_threshold) {
             return;
+        }
+        if (pi->curr_mvr > 1 && core->info->inter_adaptive_num_rdo_P1) {
+            u32 lambda_mv = pi->lambda_mv;
+            com_mc_cu(x, y, info->pic_width, info->pic_height, cu_width, cu_height, cur_info->refi, cur_info->mv, core->refp, cur_info->pred, cu_width, CHANNEL_L, bit_depth);
+            best_mecost = com_had(cu_width, cu_height, org, pic_org->stride_luma, cur_info->pred[0], cu_width, bit_depth);
+            best_mecost += MV_COST(pi->mot_bits[lidx_ref] + pi->curr_mvr + (pi->curr_mvr < MAX_NUM_MVR - 1) + pi->mot_bits[lidx_cnd] + 1);
+
+            if (best_mecost > core->inter_satd * core->satd_threshold) {
+                return;
+            }
         }
     }
 
@@ -1211,8 +1233,8 @@ static void analyze_smvd(core_t *core, lbac_t *lbac_best)
     mecost = smvd_refine(core, x, y, log2_cuw, log2_cuh, mv, mvp, cur_info->refi, 0, 1, mecost, 2, 8, cur_info->mvr_idx);
     mecost = smvd_refine(core, x, y, log2_cuw, log2_cuh, mv, mvp, cur_info->refi, 0, 1, mecost, 0, 1, cur_info->mvr_idx);
 
-    if(core->info->inter_adaptive_num_rdo){
-        if (pi->curr_mvr < 2 && mecost > core->inter_satd * core->satd_threshold) {
+    if(info->inter_adaptive_num_rdo){
+        if ((pi->curr_mvr < 2 || info->inter_adaptive_num_rdo_P1) && mecost > core->inter_satd * core->satd_threshold) {
             return;
         }
     }
@@ -1227,7 +1249,7 @@ static void analyze_smvd(core_t *core, lbac_t *lbac_best)
 
     double cost_smvd = inter_rdcost(core, lbac_best, 0, 1, NULL, NULL);
 
-    if (cost_smvd == core->cost_best && pi->curr_mvr < 2){
+    if (cost_smvd == core->cost_best){
         core->inter_satd = mecost;
     }
 }
