@@ -455,13 +455,15 @@ typedef struct uavs3e_com_info_t {
     int                     ai_split_dir_decision_P2;
     int                     ai_pred_dir_decision;
 
-    int                     me_adaptive_raster_range; 
-    int                     intra_rmd;
-    int                     skip_split_P1;
-    int                     skip_adaptive_num_rdo;
-    int                     inter_adaptive_num_rdo;
-    int                     inter_adaptive_num_rdo_P1;
-    int                     inter_uni_same_ref;
+    int                     depth_terminate_P1;
+
+    int                     adaptive_raster_range; 
+    int                     intra_fast_rmd;
+
+    int                     rmv_skip_candi_by_satd;
+    int                     rmv_inter_candi_by_satd;
+    int                     rmv_uni_same_ref;
+
     int                     history_skip_idx;
     int                     history_skip_intra;
 } com_info_t;

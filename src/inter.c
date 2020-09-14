@@ -686,7 +686,7 @@ static int analyze_direct_skip(core_t *core, lbac_t *lbac_best)
     memset(core->skip_emvr_mode, 0, sizeof(core->skip_emvr_mode));
 
     for (int skip_idx = 0; skip_idx < num_rdo; skip_idx++) {
-        if (info->skip_adaptive_num_rdo && core->inter_satd != COM_UINT64_MAX && cost_list[skip_idx] > core->inter_satd * core->satd_threshold) {
+        if (info->rmv_skip_candi_by_satd && core->inter_satd != COM_UINT64_MAX && cost_list[skip_idx] > core->inter_satd * core->satd_threshold) {
 			break;
 		}
         int mode = mode_list[skip_idx];
@@ -850,7 +850,7 @@ static void analyze_uni_pred(core_t *core, lbac_t *lbac_best, s16 mv_L0L1[REFP_N
 
     pi->i_org   = core->pic_org->stride_luma;
     pi->org     = core->pic_org->y + y * pi->i_org + x;
-    pi->adaptive_raster_range = core->info->me_adaptive_raster_range;
+    pi->adaptive_raster_range = core->info->adaptive_raster_range;
 
     cur_info->cu_mode = MODE_INTER;
 
@@ -868,7 +868,7 @@ static void analyze_uni_pred(core_t *core, lbac_t *lbac_best, s16 mv_L0L1[REFP_N
             com_derive_mvp(core->info, core->ptr, core->cu_scup_in_pic, lidx, refi_cur, cur_info->hmvp_flag, core->cnt_hmvp_cands,
                            core->motion_cands, core->map, core->refp, cur_info->mvr_idx, cu_width, cu_height, mvp);
             
-            if(core->info->inter_uni_same_ref && lidx){ // skip ME if ref and mvp in L1 are same as that in L0
+            if(core->info->rmv_uni_same_ref && lidx){ // skip ME if ref and mvp in L1 are same as that in L0
                 int check_refi = 0;
                 int check_num = core->num_refp[0];
 
@@ -911,7 +911,7 @@ static void analyze_uni_pred(core_t *core, lbac_t *lbac_best, s16 mv_L0L1[REFP_N
         refi_L0L1[lidx] = best_refi;
         me_cost_L0L1[lidx] = best_mecost;
         
-        if(core->info->inter_uni_same_ref && lidx){ // skip RDO if ref and mv in L1 are same as that in L0
+        if(core->info->rmv_uni_same_ref && lidx){ // skip RDO if ref and mv in L1 are same as that in L0
             if ((core->refp[refi_L0L1[0]][0].ptr == core->refp[refi_L0L1[1]][1].ptr) && M32(pi->mv_scale[0][refi_L0L1[0]]) == M32(pi->mv_scale[1][refi_L0L1[1]])){
                 CP32(mv_L0L1[1], mv_L0L1[0]);
                 pi->mot_bits[1] = pi->mot_bits[0];
@@ -935,12 +935,12 @@ static void analyze_uni_pred(core_t *core, lbac_t *lbac_best, s16 mv_L0L1[REFP_N
 
         pi->mot_bits[lidx] = get_mv_bits(pi, mvd[MV_X], mvd[MV_Y], pi->num_refp, best_refi, cur_info->mvr_idx);
         
-        if(core->info->inter_adaptive_num_rdo){
+        if(core->info->rmv_inter_candi_by_satd){
             if (pi->curr_mvr < 2 && me_cost_L0L1[lidx] > core->inter_satd * core->satd_threshold) {
                 rdo_flag [lidx] = 0;
                 continue;
             }
-            if (pi->curr_mvr > 1 && core->info->inter_adaptive_num_rdo_P1) {
+            if (pi->curr_mvr > 1) {
                 u32 lambda_mv = pi->lambda_mv;
                 int bit_depth = core->info->bit_depth_internal;
                 com_mc_cu(x, y, core->info->pic_width, core->info->pic_height, cu_width, cu_height, cur_info->refi, cur_info->mv, core->refp, cur_info->pred, cu_width, CHANNEL_L, bit_depth);
@@ -1041,11 +1041,11 @@ static void analyze_bi(core_t *core, lbac_t *lbac_best, s16 mv_L0L1[REFP_NUM][MV
             break;
         }
     }
-    if(core->info->inter_adaptive_num_rdo){
+    if(core->info->rmv_inter_candi_by_satd){
         if (pi->curr_mvr < 2 && best_mecost > core->inter_satd * core->satd_threshold) {
             return;
         }
-        if (pi->curr_mvr > 1 && core->info->inter_adaptive_num_rdo_P1) {
+        if (pi->curr_mvr > 1) {
             u32 lambda_mv = pi->lambda_mv;
             com_mc_cu(x, y, info->pic_width, info->pic_height, cu_width, cu_height, cur_info->refi, cur_info->mv, core->refp, cur_info->pred, cu_width, CHANNEL_L, bit_depth);
             best_mecost = com_had(cu_width, cu_height, org, pic_org->stride_luma, cur_info->pred[0], cu_width, bit_depth);
@@ -1233,8 +1233,8 @@ static void analyze_smvd(core_t *core, lbac_t *lbac_best)
     mecost = smvd_refine(core, x, y, log2_cuw, log2_cuh, mv, mvp, cur_info->refi, 0, 1, mecost, 2, 8, cur_info->mvr_idx);
     mecost = smvd_refine(core, x, y, log2_cuw, log2_cuh, mv, mvp, cur_info->refi, 0, 1, mecost, 0, 1, cur_info->mvr_idx);
 
-    if(info->inter_adaptive_num_rdo){
-        if ((pi->curr_mvr < 2 || info->inter_adaptive_num_rdo_P1) && mecost > core->inter_satd * core->satd_threshold) {
+    if(info->rmv_inter_candi_by_satd){
+        if (pi->curr_mvr < 2 && mecost > core->inter_satd * core->satd_threshold) {
             return;
         }
     }
@@ -1556,7 +1556,7 @@ static void analyze_affine_uni(core_t *core, lbac_t *lbac_best, CPMV aff_mv_L0L1
             com_get_affine_mvp_scaling(core->ptr, core->cu_scup_in_pic, lidx, refi_cur, map->map_mv, map->map_refi, core->refp,
                                         core->cu_width, core->cu_height, info->i_scu, affine_mvp, map->map_scu, map->map_pos, cur_info->mvr_idx);
             
-            if(core->info->inter_uni_same_ref && lidx){ // skip ME if ref and mvp in L1 are same as that in L0
+            if(core->info->rmv_uni_same_ref && lidx){ // skip ME if ref and mvp in L1 are same as that in L0
                 int check_refi = 0;
                 int check_num = core->num_refp[0];
 
@@ -1650,7 +1650,7 @@ static void analyze_affine_uni(core_t *core, lbac_t *lbac_best, CPMV aff_mv_L0L1
         refi_L0L1[lidx] = refi_bst;
         satd_cost_L0L1[lidx] = best_mecost;
 
-        if(core->info->inter_uni_same_ref && lidx){ // skip RDO if ref and mv in L1 are same as that in L0
+        if(core->info->rmv_uni_same_ref && lidx){ // skip RDO if ref and mv in L1 are same as that in L0
             if (core->refp[refi_L0L1[0]][0].ptr == core->refp[refi_bst][1].ptr && 
                 M64(pi->affine_mv_scale[0][refi_L0L1[0]][0]) == M64(pi->affine_mv_scale[1][refi_bst][0]) &&
                 M64(pi->affine_mv_scale[0][refi_L0L1[0]][1]) == M64(pi->affine_mv_scale[1][refi_bst][1])){
@@ -1681,7 +1681,7 @@ static void analyze_affine_uni(core_t *core, lbac_t *lbac_best, CPMV aff_mv_L0L1
 
         memcpy(aff_mv_L0L1[lidx], affine_mv, 2 * MV_D * sizeof(CPMV));
 
-        if(core->info->inter_adaptive_num_rdo){
+        if(core->info->rmv_inter_candi_by_satd){
             if(satd_cost_L0L1[lidx] > core->inter_satd * core->satd_threshold){
                 rdo_flag [lidx] = 0;
                 continue;
@@ -1801,7 +1801,7 @@ static void analyze_affine_bi(core_t *core, lbac_t *lbac_best, CPMV aff_mv_L0L1[
             return;
         }
     }
-    if(core->info->inter_adaptive_num_rdo){
+    if(core->info->rmv_inter_candi_by_satd){
         if(best_mecost > core->inter_satd * core->satd_threshold){
             return;
         }
