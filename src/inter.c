@@ -1234,7 +1234,7 @@ static void analyze_smvd(core_t *core, lbac_t *lbac_best)
     mecost = smvd_refine(core, x, y, log2_cuw, log2_cuh, mv, mvp, cur_info->refi, 0, 1, mecost, 0, 1, cur_info->mvr_idx);
 
     if(info->rmv_inter_candi_by_satd){
-        if (pi->curr_mvr < 2 && mecost > core->inter_satd * core->satd_threshold) {
+        if (mecost > core->inter_satd * core->satd_threshold) {
             return;
         }
     }
