@@ -456,6 +456,7 @@ typedef struct uavs3e_com_info_t {
     int                     ai_pred_dir_decision;
 
     int                     depth_terminate_P1;
+    int                     depth_terminate_P2;
 
     int                     adaptive_raster_range; 
     int                     intra_fast_rmd;
@@ -463,6 +464,8 @@ typedef struct uavs3e_com_info_t {
     int                     rmv_skip_candi_by_satd;
     int                     rmv_inter_candi_by_satd;
     int                     rmv_uni_same_ref;
+
+    int                     rmv_satd_level_P1;
 
     int                     history_skip_idx;
     int                     history_skip_intra;

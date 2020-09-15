@@ -208,6 +208,12 @@ static int refine_input_cfg(enc_cfg_t *param, enc_cfg_t *cfg_org)
     if (SPEED_LEVEL(1, cfg_org->speed_level)) {
         cfg_org->max_bt_size = 64;
     }
+    if (SPEED_LEVEL(2, cfg_org->speed_level)) {
+        cfg_org->emvr_enable = 0;
+    }
+    if (SPEED_LEVEL(3, cfg_org->speed_level)) {
+        cfg_org->dt_enable    = 0;
+    }
     /***************************************************************************/
 
     com_mcpy(param, cfg_org, sizeof(enc_cfg_t));
@@ -830,6 +836,10 @@ void *enc_lcu_row(core_t *core, enc_lcu_row_t *row)
 
         core->satd_threshold = 1.1;
 
+        if (info->rmv_satd_level_P1) {
+            core->satd_threshold = 1.05;
+        }
+
         /* initialize structures *****************************************/
         core->pinter.lambda_mv = (u32)floor(65536.0 * core->sqrt_lambda[0]);
         com_mset(core->history_data, 0, sizeof(enc_history_t) * MAX_CU_DEPTH * MAX_CU_DEPTH * MAX_CU_CNT_IN_LCU);
@@ -1329,23 +1339,26 @@ void *uavs3e_create(enc_cfg_t *cfg, int *err)
     /***************************************************************************/
 
     if (h->cfg.i_period == 1) {
-        info->ai_skip_large_cu_eqt     = SPEED_LEVEL(1, h->cfg.speed_level) ? 1 : 0;
         info->ai_split_dir_decision    = SPEED_LEVEL(0, h->cfg.speed_level) ? 1 : 0;
+        info->ai_skip_large_cu_eqt     = SPEED_LEVEL(1, h->cfg.speed_level) ? 1 : 0;
         info->ai_split_dir_decision_P1 = SPEED_LEVEL(1, h->cfg.speed_level) ? 1 : 0;
         info->ai_split_dir_decision_P2 = SPEED_LEVEL(2, h->cfg.speed_level) ? 1 : 0;
         info->ai_pred_dir_decision     = SPEED_LEVEL(2, h->cfg.speed_level) ? 1 : 0;
     }
-    info->adaptive_raster_range  = SPEED_LEVEL(1, h->cfg.speed_level);
-    info->intra_fast_rmd                 = SPEED_LEVEL(1, h->cfg.speed_level);
-    info->depth_terminate_P1             = SPEED_LEVEL(1, h->cfg.speed_level);
+    info->adaptive_raster_range      = SPEED_LEVEL(1, h->cfg.speed_level);
+    info->intra_fast_rmd             = SPEED_LEVEL(1, h->cfg.speed_level);
+    info->depth_terminate_P1         = SPEED_LEVEL(1, h->cfg.speed_level);
                                     
     info->rmv_inter_candi_by_satd    = SPEED_LEVEL(1, h->cfg.speed_level);
-    info->rmv_uni_same_ref         = SPEED_LEVEL(1, h->cfg.speed_level);
+    info->rmv_uni_same_ref           = SPEED_LEVEL(1, h->cfg.speed_level);
     info->rmv_skip_candi_by_satd     = SPEED_LEVEL(1, h->cfg.speed_level);
 
-    info->history_skip_intra        = SPEED_LEVEL(2, h->cfg.speed_level);
-    info->history_skip_idx          = SPEED_LEVEL(2, h->cfg.speed_level);
+    info->history_skip_intra         = SPEED_LEVEL(2, h->cfg.speed_level);
+    info->history_skip_idx           = SPEED_LEVEL(2, h->cfg.speed_level);
 
+    info->rmv_satd_level_P1          = SPEED_LEVEL(3, h->cfg.speed_level);
+
+    info->depth_terminate_P2         = SPEED_LEVEL(4, h->cfg.speed_level);
 
     return h;
 }

@@ -1379,6 +1379,9 @@ static double mode_coding_tree(core_t *core, lbac_t *lbac_cur, int x0, int y0, i
 
                         if (info->depth_terminate_P1) {
                             a = 0.8, b = 10.0;
+                            if (info->depth_terminate_P2) {
+                                a = 0.9, b = 10.0;
+                            }
                         }
                         if (nscost * a + cost_temp + RATE_TO_COST_LAMBDA(core->lambda[0], b) > nscost) {
                             continue;
