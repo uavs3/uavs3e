@@ -51,7 +51,6 @@ void com_alf_buf_init(com_info_t *info, u8 *alf_var_map);
 void com_df_lcu(com_info_t *info, com_pic_header_t *pichdr, com_map_t *map, com_pic_t *pic, int lcu_x, int lcu_y);
 void com_df_rdo_luma(com_info_t *info, com_pic_header_t *pichdr, com_map_t *map, u8 *edge, int i_edge, pel *src, int i_src, int pix_x, int pix_y, int cuw, int cuh);
 void com_df_set_edge(com_info_t *info, com_map_t *map, u8 *edge, int i_edge, com_ref_pic_t refp[MAX_REFS][REFP_NUM], int x, int y, int cuw, int cuh, int cud, int cup, BOOL b_recurse);
-void com_df_clear_edge(int x, int y, int w, int h, u8 *map_edge, int i_scu);
 
 ////////////// INTRA
 void com_intra_get_nbr(int x, int y, int width, int height, pel *src, int s_src, pel *top, int lcu_size, u16 avail_cu, pel nb[N_C][INTRA_NEIB_SIZE], int scup, com_scu_t *map_scu, int i_scu, int bit_depth, int ch_type);

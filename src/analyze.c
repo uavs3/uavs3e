@@ -1257,7 +1257,7 @@ static double mode_coding_tree(core_t *core, lbac_t *lbac_cur, int x0, int y0, i
         if (split_allow[NO_SPLIT]) {
             if (cu_width > MIN_CU_SIZE || cu_height > MIN_CU_SIZE) {
                 int bit_cnt = lbac_get_bits(lbac_cur);
-                com_set_split_mode(NO_SPLIT, cud, 0, cu_width, cu_height, cu_width, cu_data_tmp->split_mode);
+                com_set_split_mode(NO_SPLIT, cud, 0, cu_width, cu_height, cu_width, cu_data_bst->split_mode);
                 lbac_enc_split_mode(lbac_cur, NULL, core, NO_SPLIT, cud, 0, cu_width, cu_height, cu_width, parent_split, qt_depth, bet_depth, x0, y0);
                 bit_cnt = lbac_get_bits(lbac_cur) - bit_cnt;
                 cost_temp += RATE_TO_COST_LAMBDA(core->lambda[0], bit_cnt);
@@ -1271,12 +1271,10 @@ static double mode_coding_tree(core_t *core, lbac_t *lbac_cur, int x0, int y0, i
             }
             core->tree_status = tree_status;
             core->cons_pred_mode = cons_pred_mode;
-            cost_temp += mode_coding_unit(core, lbac_cur, x0, y0, cu_width_log2, cu_height_log2, cud, cu_data_tmp, texture_dir);
-
-            copy_cu_data(cu_data_bst, cu_data_tmp, 0, 0, cu_width_log2, cu_height_log2, cu_width_log2, cud, tree_status);
+            cost_temp += mode_coding_unit(core, lbac_cur, x0, y0, cu_width_log2, cu_height_log2, cud, cu_data_bst, texture_dir);
 
             if (info->sqh.num_of_hmvp && bst_info->cu_mode != MODE_INTRA && !bst_info->affine_flag) {
-                update_skip_candidates(motion_cands_curr, &cnt_hmvp_cands_curr, info->sqh.num_of_hmvp, cu_data_tmp->mv[0], cu_data_tmp->refi[0]);
+                update_skip_candidates(motion_cands_curr, &cnt_hmvp_cands_curr, info->sqh.num_of_hmvp, cu_data_bst->mv[0], cu_data_bst->refi[0]);
             }
             cost_best = cost_temp;
             best_split_mode = NO_SPLIT;

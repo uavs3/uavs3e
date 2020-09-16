@@ -58,17 +58,6 @@ static tab_u8  BETA_TABLE[64] = {
     23, 23, 24, 24, 25, 25, 26, 27
 };
 
-
-void com_df_clear_edge(int x, int y, int w, int h, u8 *map_edge, int i_scu)
-{
-    map_edge += (y >> MIN_CU_LOG2) * i_scu;
-
-    for (int b4_y = (y >> MIN_CU_LOG2); b4_y < ((y + h) >> MIN_CU_LOG2); b4_y++) {
-        memset(map_edge, 0, (x + w) >> MIN_CU_LOG2);
-        map_edge += i_scu;
-    }
-}
-
 #define pack16to32_mask2(x,y) (((x) << 16)|((y) & 0x7FFF))
 #define CHECK_MVRANGE(pkt) (((pkt + pkt_mv_min) | (pkt_mv_max - pkt)) & 0x80004000)
 
