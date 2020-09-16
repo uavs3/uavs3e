@@ -1358,7 +1358,7 @@ void *uavs3e_create(enc_cfg_t *cfg, int *err)
 
     info->rmv_satd_level_P1          = SPEED_LEVEL(3, h->cfg.speed_level);
 
-    info->depth_terminate_P2         = SPEED_LEVEL(4, h->cfg.speed_level);
+    info->depth_terminate_P2         = SPEED_LEVEL(3, h->cfg.speed_level);
 
     return h;
 }
