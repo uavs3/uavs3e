@@ -206,10 +206,11 @@ static int refine_input_cfg(enc_cfg_t *param, enc_cfg_t *cfg_org)
     /*              refine config by speed_level                               */
     /***************************************************************************/
     if (SPEED_LEVEL(1, cfg_org->speed_level)) {
-        cfg_org->max_bt_size = 64;
+        cfg_org->max_bt_size  = 64;
     }
     if (SPEED_LEVEL(2, cfg_org->speed_level)) {
-        cfg_org->emvr_enable = 0;
+        cfg_org->max_eqt_size = 32;
+        cfg_org->emvr_enable  = 0;
     }
     if (SPEED_LEVEL(3, cfg_org->speed_level)) {
         cfg_org->dt_enable    = 0;
@@ -1348,7 +1349,6 @@ void *uavs3e_create(enc_cfg_t *cfg, int *err)
     info->adaptive_raster_range      = SPEED_LEVEL(1, h->cfg.speed_level);
     info->intra_fast_rmd             = SPEED_LEVEL(1, h->cfg.speed_level);
     info->depth_terminate_P1         = SPEED_LEVEL(1, h->cfg.speed_level);
-                                    
     info->rmv_inter_candi_by_satd    = SPEED_LEVEL(1, h->cfg.speed_level);
     info->rmv_uni_same_ref           = SPEED_LEVEL(1, h->cfg.speed_level);
     info->rmv_skip_candi_by_satd     = SPEED_LEVEL(1, h->cfg.speed_level);
@@ -1357,8 +1357,9 @@ void *uavs3e_create(enc_cfg_t *cfg, int *err)
     info->history_skip_idx           = SPEED_LEVEL(2, h->cfg.speed_level);
 
     info->rmv_satd_level_P1          = SPEED_LEVEL(3, h->cfg.speed_level);
-
     info->depth_terminate_P2         = SPEED_LEVEL(3, h->cfg.speed_level);
+
+    info->depth_max_bt_32            = SPEED_LEVEL(3, h->cfg.speed_level);
 
     return h;
 }

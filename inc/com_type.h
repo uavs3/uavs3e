@@ -457,6 +457,7 @@ typedef struct uavs3e_com_info_t {
 
     int                     depth_terminate_P1;
     int                     depth_terminate_P2;
+    int                     depth_max_bt_32;
 
     int                     adaptive_raster_range; 
     int                     intra_fast_rmd;
