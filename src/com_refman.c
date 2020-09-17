@@ -68,7 +68,7 @@ void com_refm_build_ref_buf(com_pic_manager_t *pm)
     }
 }
 
-int com_refm_create_rpl(com_pic_manager_t *pm, com_pic_header_t *pichdr, com_ref_pic_t(*refp)[REFP_NUM], com_pic_t *top_pic[REFP_NUM], int is_top_level)
+int com_refm_create_rpl(com_info_t *info, com_pic_manager_t *pm, com_pic_header_t *pichdr, com_ref_pic_t(*refp)[REFP_NUM], com_pic_t *top_pic[REFP_NUM], int is_top_level)
 {
     int idx_nearest_l0;
     int num0 = 0, num1 = 0;
@@ -110,10 +110,18 @@ int com_refm_create_rpl(com_pic_manager_t *pm, com_pic_header_t *pichdr, com_ref
     for (int i = idx_nearest_l0 + 1; i < pm->cur_num_ref_pics; i++) {
         pic_ref_l1[num1++] = pic_ref[i];
     }
-    for (int i = 0; num0 < pichdr->rpl_l0.active && i < num1; i++, num0++) {
+
+    int active0 = pichdr->rpl_l0.active;
+    int active1 = pichdr->rpl_l1.active;
+
+    if (info->rpl_rmv_same_ref) {
+        active0 = active1 = 1;
+    }
+
+    for (int i = 0; num0 < active0 && i < num1; i++, num0++) {
         pic_ref_l0[num0] = pic_ref_l1[i];
     }
-    for (int i = 0; num1 < pichdr->rpl_l1.active && i < num0; i++, num1++) {
+    for (int i = 0; num1 < active1 && i < num0; i++, num1++) {
         pic_ref_l1[num1] = pic_ref_l0[i];
     }
     for (int i = 0; i < num0; i++) {

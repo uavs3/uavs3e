@@ -576,7 +576,7 @@ static void set_pic_header(enc_ctrl_t *h, com_pic_t *pic_rec)
                 h->top_pic[0] = ref;
             }
         }
-        com_refm_create_rpl(&h->rpm, pichdr, h->refp, h->top_pic, is_top);
+        com_refm_create_rpl(&h->info, &h->rpm, pichdr, h->refp, h->top_pic, is_top);
         com_refm_pick_seqhdr_idx(&h->info.sqh, pichdr);
 
         for (int i = 0; i < 2; i++) {
@@ -1355,10 +1355,10 @@ void *uavs3e_create(enc_cfg_t *cfg, int *err)
 
     info->history_skip_intra         = SPEED_LEVEL(2, h->cfg.speed_level);
     info->history_skip_idx           = SPEED_LEVEL(2, h->cfg.speed_level);
+    info->rpl_rmv_same_ref           = SPEED_LEVEL(2, h->cfg.speed_level);
 
     info->rmv_satd_level_P1          = SPEED_LEVEL(3, h->cfg.speed_level);
     info->depth_terminate_P2         = SPEED_LEVEL(3, h->cfg.speed_level);
-
     info->depth_max_bt_32            = SPEED_LEVEL(3, h->cfg.speed_level);
 
     return h;

@@ -76,7 +76,7 @@ void com_if_luma_frame(com_img_t *img_list[4][4], s16 *tmp_buf[3], int bit_depth
 ////////////// PICMAN
 int com_refm_create(com_pic_manager_t *pm, int max_pb_size, int width, int height);
 int com_refm_free(com_pic_manager_t *pm);
-int com_refm_create_rpl(com_pic_manager_t *pm, com_pic_header_t *pichdr, com_ref_pic_t(*refp)[REFP_NUM], com_pic_t *top_pic[REFP_NUM], int is_top_level);
+int com_refm_create_rpl(com_info_t* info, com_pic_manager_t *pm, com_pic_header_t *pichdr, com_ref_pic_t(*refp)[REFP_NUM], com_pic_t *top_pic[REFP_NUM], int is_top_level);
 void com_refm_pick_seqhdr_idx(com_seqh_t *seqhdr, com_pic_header_t *pichdr);
 void com_refm_build_ref_buf(com_pic_manager_t *pm);
 int com_refm_insert_rec_pic(com_pic_manager_t *pm, com_pic_t *pic, com_ref_pic_t(*refp)[REFP_NUM]);
