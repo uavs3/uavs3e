@@ -212,7 +212,7 @@ static int refine_input_cfg(enc_cfg_t *param, enc_cfg_t *cfg_org)
         cfg_org->max_eqt_size = 32;
         cfg_org->emvr_enable  = 0;
     }
-    if (SPEED_LEVEL(3, cfg_org->speed_level)) {
+    if (SPEED_LEVEL(4, cfg_org->speed_level)) {
         cfg_org->dt_enable    = 0;
     }
     /***************************************************************************/
@@ -1359,8 +1359,9 @@ void *uavs3e_create(enc_cfg_t *cfg, int *err)
     info->rpl_rmv_same_ref           = SPEED_LEVEL(2, h->cfg.speed_level);
 
     info->rmv_satd_level_P1          = SPEED_LEVEL(3, h->cfg.speed_level);
-    info->depth_terminate_P2         = SPEED_LEVEL(3, h->cfg.speed_level);
     info->depth_max_bt_32            = SPEED_LEVEL(3, h->cfg.speed_level);
+
+    info->depth_terminate_P2         = SPEED_LEVEL(4, h->cfg.speed_level);
 
     return h;
 }
