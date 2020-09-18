@@ -107,6 +107,7 @@ double loka_estimate_coding_cost(inter_search_t *pi, com_img_t *img_org, com_img
     pi->lambda_mv = (u32)floor(65536.0 * sqrt(base_lambda));
     pi->i_org     = i_org;
     pi->adaptive_raster_range   = 0;
+    pi->subpel_cost_type        = 0;
 
 #define WRITE_REC_PIC 0
 

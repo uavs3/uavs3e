@@ -101,6 +101,7 @@ typedef struct uavs3e_enc_inter_data_t {
     s16 min_mv[MV_D];                   /* min mv relative to current coordinate */
     s16 max_mv[MV_D];                   /* max mv relative to current coordinate */
     s16 max_coord[MV_D];                /* max coordinate */
+    int subpel_cost_type;
 
     /*** picture level ***/
     s64  ptr;                           /* current frame numbser */

@@ -354,6 +354,15 @@ static int search_diamond(inter_search_t *pi, int x, int y, int w, int h, s8 ref
     return best_step;
 }
 
+static u32 get_subpel_cost(int cost_type, int w, int h, int widx, pel *org, int i_org, pel *cur, int i_cur, int bit_depth)
+{
+    if (!cost_type) {
+        return com_had(w, h, org, i_org, cur, i_cur, bit_depth);
+    } else {
+        return uavs3e_funs_handle.cost_sad[widx](org, i_org, cur, i_cur, h);
+    }
+}
+
 static u64 me_sub_pel_search(inter_search_t *pi, int x, int y, int w, int h, s8 refi, int lidx, const s16 mvp[MV_D], s16 mv[MV_D], int bi)
 {
     int max_posx        = pi->max_coord[MV_X];
@@ -376,7 +385,8 @@ static u64 me_sub_pel_search(inter_search_t *pi, int x, int y, int w, int h, s8 
     int store_satd      = 0;
     s16 cx              = mv[MV_X];
     s16 cy              = mv[MV_Y];
-    int shift           = 16 - bi;
+    int cost_type       = pi->subpel_cost_type;
+    int shift           = 16 - bi - (cost_type == 0 ? 0 : (bit_depth - 8)); // sad << 16 for u64 cost
     u32 satd;
 
     if (pi->curr_mvr <= 1 && !bi && M32(mv) == M32(hpel_start_mv) && hpel_satd[0]) {
@@ -387,7 +397,7 @@ static u64 me_sub_pel_search(inter_search_t *pi, int x, int y, int w, int h, s8 
     if (ipel_is_same) {
         satd = hpel_satd[0];
     } else {
-        satd = com_had(w, h, org, i_org, ref + (cx >> 2) + (cy >> 2) * i_ref, i_ref, bit_depth);
+        satd = get_subpel_cost(cost_type, w, h, widx, org, i_org, ref + (cx >> 2) + (cy >> 2) * i_ref, i_ref, bit_depth);
 
         if (!bi && pi->curr_mvr == 0) {
             store_satd = 1;
@@ -413,7 +423,7 @@ static u64 me_sub_pel_search(inter_search_t *pi, int x, int y, int w, int h, s8 
             satd = hpel_satd[i + 1];
         } else {
             pel* pred = com_mc_blk_luma_pointer(ref_pic, mv_x + (x << 2), mv_y + (y << 2), max_posx, max_posy);
-            satd = com_had(w, h, org, i_org, pred, ref_pic->stride_luma, bit_depth);
+            satd = get_subpel_cost(cost_type, w, h, widx, org, i_org, pred, ref_pic->stride_luma, bit_depth);
 
             if (store_satd) {
                 hpel_satd[i + 1] = satd;
@@ -458,7 +468,7 @@ static u64 me_sub_pel_search(inter_search_t *pi, int x, int y, int w, int h, s8 
                 satd = qpel_satd[i + 1];
             } else {
                 pel* pred = com_mc_blk_luma_pointer(ref_pic, mv_x + (x << 2), mv_y + (y << 2), max_posx, max_posy);
-                satd = com_had(w, h, org, i_org, pred, ref_pic->stride_luma, bit_depth);
+                satd = get_subpel_cost(cost_type, w, h, widx, org, i_org, pred, ref_pic->stride_luma, bit_depth);
 
                 if (!bi) {
                     qpel_satd[i + 1] = satd;
@@ -476,6 +486,16 @@ static u64 me_sub_pel_search(inter_search_t *pi, int x, int y, int w, int h, s8 
             }
         }
     }
+
+    if (cost_type) { // me use SAD£¬ re-cal SATD
+        pel* pred = com_mc_blk_luma_pointer(ref_pic, mv[MV_X] + (x << 2), mv[MV_Y] + (y << 2), max_posx, max_posy);
+        shift = 16 - bi;
+        satd = com_had(w, h, org, i_org, pred, ref_pic->stride_luma, bit_depth);
+        mv_bits = GET_MVBITS_X(mv[MV_X]) + GET_MVBITS_Y(mv[MV_Y]);
+        cost_best = MV_COST64(mv_bits);
+        cost_best += (u64)satd << shift;
+    }
+
     return cost_best;
 }
 

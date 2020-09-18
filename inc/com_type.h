@@ -461,6 +461,7 @@ typedef struct uavs3e_com_info_t {
 
     int                     rpl_rmv_same_ref;
     int                     adaptive_raster_range; 
+    int                     me_subpel_cost_type;
     int                     intra_fast_rmd;
 
     int                     rmv_skip_candi_by_satd;
