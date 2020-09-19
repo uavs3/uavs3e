@@ -204,7 +204,7 @@ com_pic_t *com_pic_create(int width, int height, int pad_l, int pad_c, int *err)
 
     u8 *buf;
     int total_mem_size = ALIGN_MASK + sizeof( s8) * f_scu * REFP_NUM            + // map_refi
-                         ALIGN_MASK + sizeof(s16) * f_scu * REFP_NUM * MV_D;    + // map_mv
+                         ALIGN_MASK + sizeof(s16) * f_scu * REFP_NUM * MV_D     + // map_mv
                          ALIGN_MASK;
     pic->mem_base = buf = com_malloc(total_mem_size);
     com_assert_gv(buf, ret, COM_ERR_OUT_OF_MEMORY, ERR);

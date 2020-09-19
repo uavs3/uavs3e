@@ -470,6 +470,7 @@ static int copy_cu_data(enc_cu_t *dst, enc_cu_t *src, int x, int y, int cu_width
         com_mcpy(dst->mvd         + idx_dst, src->mvd         + idx_src, cuw_scu * sizeof(s16) * REFP_NUM * MV_D);
         com_mcpy(dst->pb_part     + idx_dst, src->pb_part     + idx_src, cuw_scu * sizeof(int));
         com_mcpy(dst->tb_part     + idx_dst, src->tb_part     + idx_src, cuw_scu * sizeof(int));
+        com_mcpy(dst->qtd         + idx_dst, src->qtd         + idx_src, cuw_scu * sizeof(s8));
     }
     for (j = 0; j < cu_height; j++) {
         int idx_dst = (y + j) * cus + x;
@@ -814,12 +815,14 @@ static void update_map_scu(core_t *core, int x, int y, int src_cuw, int src_cuh)
     s16    (*src_map_mv)[REFP_NUM][MV_D] = cu_data_bst->mv;
     s8     (*src_map_refi)[REFP_NUM]     = cu_data_bst->refi;
     u32     *src_map_cu_mode             = cu_data_bst->map_pos;
+    s8      *src_map_cud                 = cu_data_bst->qtd;
 
     com_scu_t *dst_map_scu               = map->map_scu  + map_offset;
     s8      *dst_map_ipm                 = map->map_ipm  + map_offset;
     s16    (*dst_map_mv)[REFP_NUM][MV_D] = map->map_mv   + map_offset;
     s8     (*dst_map_refi)[REFP_NUM]     = map->map_refi + map_offset;
     u32     *dst_map_pos                 = map->map_pos  + map_offset;
+    s8      *dst_map_cud                 = map->map_cud  + map_offset;
 
     int w = COM_MIN(src_cuw, info->pic_width  - x) >> MIN_CU_LOG2;
     int h = COM_MIN(src_cuh, info->pic_height - y) >> MIN_CU_LOG2;
@@ -829,6 +832,7 @@ static void update_map_scu(core_t *core, int x, int y, int src_cuw, int src_cuh)
     int size_ipm  = sizeof(       u8) * w;
     int size_mv   = sizeof(      s16) * w * REFP_NUM * MV_D;
     int size_refi = sizeof(       s8) * w * REFP_NUM;
+    int size_cud  = sizeof(       s8) * w;
 
     assert(core->tree_status != TREE_C);
 
@@ -839,6 +843,7 @@ static void update_map_scu(core_t *core, int x, int y, int src_cuw, int src_cuh)
         COPY_ONE_DATA(dst_map_ipm,  src_map_ipm,     size_ipm);
         COPY_ONE_DATA(dst_map_mv,   src_map_mv,      size_mv);
         COPY_ONE_DATA(dst_map_refi, src_map_refi,    size_refi);
+        COPY_ONE_DATA(dst_map_cud,  src_map_cud,     size_cud);
 #undef COPY_ONE_DATA
     }
 }
@@ -1249,6 +1254,89 @@ static double mode_coding_tree(core_t *core, lbac_t *lbac_cur, int x0, int y0, i
 				}
 			}
 		}
+        //********* x. Neighbour CU depth **********
+        ////neighbourdepth from cud_map
+        int neb_addr[6];
+        int valid_flag[6];
+        int valid_num = 0;
+        int neb_cud[6] = { -1 };
+        int cu_width_in_scu = x0 + cu_width <= info->pic_width ? cu_width >> MIN_CU_LOG2 : (info->pic_width - x0) >> MIN_CU_LOG2;
+        int cu_height_in_scu = y0 + cu_height <= info->pic_height ? cu_height >> MIN_CU_LOG2 : (info->pic_height - y0) >> MIN_CU_LOG2;
+        int cupthis = ((u32)PEL2SCU(y0) * info->i_scu) + PEL2SCU(x0);
+        int min_cud = 100, max_cud = -1;
+        int loop_cud = 0, loop_cubed = 0;
+        com_map_t* map = core->map;
+        
+        
+        //! F: left-below neighbor (inside)
+        neb_addr[0] = cupthis + (cu_height_in_scu - 1) * info->i_scu - 1;
+        valid_flag[0] = (x0 > 0 && neb_addr[0] >= 0 && map->map_cud[neb_addr[0]] != -1);
+        if (valid_flag[0])
+            neb_cud[0] = map->map_cud[neb_addr[0]];
+
+        //! G: above-right neighbor (inside)
+        neb_addr[1] = cupthis - info->i_scu + cu_width_in_scu - 1;
+        valid_flag[1] = (y0 > 0 && neb_addr[1] >= 0 && map->map_cud[neb_addr[1]] != -1);
+        if (valid_flag[1])
+            neb_cud[1] = map->map_cud[neb_addr[1]];
+
+        //! C: above-right neighbor (outside)
+        neb_addr[2] = cupthis - info->i_scu + cu_width_in_scu;
+        valid_flag[2] = (y0 > 0 && x0 < info->pic_width&& neb_addr[2] >= 0 && map->map_cud[neb_addr[2]] != -1);
+        if (valid_flag[2])
+            neb_cud[2] = map->map_cud[neb_addr[2]];
+
+        //! A: left neighbor
+        neb_addr[3] = cupthis - 1;
+        valid_flag[3] = (x0 > 0 && neb_addr[3] >= 0 && map->map_cud[neb_addr[3]] != -1);
+        if (valid_flag[3])
+            neb_cud[3] = map->map_cud[neb_addr[3]];
+
+        //! B: above neighbor
+        neb_addr[4] = cupthis - info->i_scu;
+        valid_flag[4] = (y0 > 0 && neb_addr[4] >= 0 && map->map_cud[neb_addr[4]] != -1);
+        if (valid_flag[4])
+            neb_cud[4] = map->map_cud[neb_addr[4]];
+
+        //! D: above-left neighbor
+        neb_addr[5] = cupthis - info->i_scu - 1;
+        valid_flag[5] = (x0 > 0 && y0 > 0 && neb_addr[5] >= 0 && map->map_cud[neb_addr[5]] != -1);
+        if (valid_flag[5])
+            neb_cud[5] = map->map_cud[neb_addr[5]];
+
+        for (int i = 0; i < 6; i++) {
+            if (valid_flag[i]) {
+                valid_num++;
+                if (neb_cud[i] < min_cud)
+                    min_cud = neb_cud[i];
+                if (neb_cud[i] > max_cud)
+                    max_cud = neb_cud[i];
+
+            }
+        }
+        if (max_cud == min_cud)
+            loop_cud = 1;
+        else loop_cud = 0;
+
+        // qt depth
+        if (qt_depth < min_cud - loop_cud && valid_num >= 2 && bet_depth == 0) {
+            split_allow[SPLIT_QUAD] = 1;
+            split_allow[SPLIT_BI_HOR] = 0;
+            split_allow[SPLIT_EQT_HOR] = 0;
+            split_allow[SPLIT_EQT_VER] = 0;
+            split_allow[SPLIT_BI_VER] = 0;
+        }
+        if (qt_depth > max_cud + loop_cud && valid_num >= 2) {
+            split_allow[SPLIT_QUAD] = 0;
+        }
+
+        num_split_to_try = 0;
+        for (int i = 1; i < NUM_SPLIT_MODE; i++) {
+            num_split_to_try += split_allow[i];
+        }
+        if (num_split_to_try == 0)
+            split_allow[NO_SPLIT] = 1;
+
     } else {
         split_allow[0] = 1;
         for (int i = 1; i < NUM_SPLIT_MODE; i++) {
@@ -1277,6 +1365,13 @@ static double mode_coding_tree(core_t *core, lbac_t *lbac_cur, int x0, int y0, i
             core->tree_status = tree_status;
             core->cons_pred_mode = cons_pred_mode;
             cost_temp += mode_coding_unit(core, lbac_cur, x0, y0, cu_width_log2, cu_height_log2, cud, cu_data_bst, texture_dir);
+            //map_cud
+            for (int j = 0; j < cu_height >> MIN_CU_LOG2; j++) {
+                int idx = j * (cu_width >> MIN_CU_LOG2);
+                for (int i = 0; i < cu_width >> MIN_CU_LOG2; i++, idx++) {
+                    cu_data_bst->qtd[idx] = (s8)qt_depth;
+                }
+            }
 
             if (info->sqh.num_of_hmvp && bst_info->cu_mode != MODE_INTRA && !bst_info->affine_flag) {
                 update_skip_candidates(motion_cands_curr, &cnt_hmvp_cands_curr, info->sqh.num_of_hmvp, cu_data_bst->mv[0], cu_data_bst->refi[0]);
@@ -1485,7 +1580,6 @@ static double mode_coding_tree(core_t *core, lbac_t *lbac_cur, int x0, int y0, i
         history->visit_split = 1;
     }
     update_map_scu(core, x0, y0, 1 << cu_width_log2, 1 << cu_height_log2);
-
     return (cost_best > MAX_D_COST_EXT) ? MAX_D_COST : cost_best;
 }
 

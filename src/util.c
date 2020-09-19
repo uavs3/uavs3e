@@ -142,6 +142,8 @@ int enc_create_cu_data(enc_cu_t *cu_data, int cu_width_log2, int cu_height_log2)
     enc_malloc_1d((void **)&cu_data->map_pos, size_32b);
     enc_malloc_1d((void **)&cu_data->mv, size_16b * REFP_NUM * MV_D);
     enc_malloc_1d((void **)&cu_data->mvd, size_16b * REFP_NUM * MV_D);
+    enc_malloc_1d((void **)&cu_data->qtd, size_8b);
+
 
     for (i = 0; i < N_C; i++) {
         enc_malloc_1d((void **)&cu_data->coef[i], (pixel_cnt >> (!!(i) * 2)) * sizeof(s16));
@@ -184,6 +186,7 @@ int enc_delete_cu_data(enc_cu_t *cu_data)
     enc_free_1d((void *)cu_data->map_pos);
     enc_free_1d((void *)cu_data->mv);
     enc_free_1d((void *)cu_data->mvd);
+    enc_free_1d((void *)cu_data->qtd);
 
     for (i = 0; i < N_C; i++) {
         enc_free_1d((void *)cu_data->coef[i]);

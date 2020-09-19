@@ -177,6 +177,7 @@ typedef struct uavs3e_enc_cu_t {
     u8 *ipf_flag;
     s16 *coef[N_C];
     pel *reco[N_C];
+    s8  *qtd;
 } enc_cu_t;
 
 typedef struct uavs3e_enc_history_t {

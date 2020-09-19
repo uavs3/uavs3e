@@ -105,10 +105,12 @@ static enc_pic_t *pic_enc_alloc(com_info_t *info)
         ALIGN_MASK * 1 + sizeof(       s8) * info->f_lcu +                                                      // map.map_qp
         ALIGN_MASK * 1 + sizeof(com_scu_t) * info->f_scu +                                                      // map.map_scu
         ALIGN_MASK * 1 + sizeof(       u8) * info->f_scu +                                                      // map.map_edge
+        ALIGN_MASK * 1 + sizeof(       s8) * info->f_scu +                                                      // map.map_cud
         ALIGN_MASK * 1 + sizeof(       s8) * info->f_scu +                                                      // map.map_ipm
         ALIGN_MASK * 1 + sizeof(       s8) * info->f_scu +                                                      // map.map_patch
         ALIGN_MASK * 1 + sizeof(      u32) * info->f_scu +                                                      // map.map_pos
-        ALIGN_MASK * 1 + sizeof(    float) * dqp_bufsize +                                                     // map.map_dqp
+
+        ALIGN_MASK * 1 + sizeof(    float) * dqp_bufsize +                                                      // map.map_dqp
         ALIGN_MASK * 1 + (linebuf_intra_size + sizeof(pel *) * 3) * info->pic_height_in_lcu +                   // linebuf_intra
         ALIGN_MASK * 3 + sizeof(pel) * ((info->pic_width + MAX_CU_SIZE) * 2 + 3) +                              // linebuf_sao
         ALIGN_MASK * 1 + sizeof(             u8) * info->f_lcu +                                                // alf_var_map
@@ -132,6 +134,7 @@ static enc_pic_t *pic_enc_alloc(com_info_t *info)
     GIVE_BUFFER(ep->map.map_scu    , buf, sizeof(com_scu_t) * info->f_scu); ep->map.map_scu   += info->i_scu + 1;
     GIVE_BUFFER(ep->map.map_edge   , buf, sizeof(u8       ) * info->f_scu); ep->map.map_edge  += info->i_scu + 1;
     GIVE_BUFFER(ep->map.map_ipm    , buf, sizeof(s8       ) * info->f_scu); ep->map.map_ipm   += info->i_scu + 1;
+    GIVE_BUFFER(ep->map.map_cud    , buf, sizeof(s8       ) * info->f_scu); ep->map.map_cud   += info->i_scu + 1;
     GIVE_BUFFER(ep->map.map_patch  , buf, sizeof(s8       ) * info->f_scu); ep->map.map_patch += info->i_scu + 1;
     GIVE_BUFFER(ep->map.map_pos    , buf, sizeof(u32      ) * info->f_scu); ep->map.map_pos   += info->i_scu + 1;
     GIVE_BUFFER(ep->linebuf_intra  , buf, sizeof(pel     *) * 3 * info->pic_height_in_lcu);
@@ -633,6 +636,10 @@ static int lbac_enc_tree(core_t *core, lbac_t *lbac, bs_t *bs, int x0, int y0, i
         }
     } else {
         com_assert(x0 + cu_width <= info->pic_width && y0 + cu_height <= info->pic_height);
+        // map_cud
+        com_map_t* map = core->map;
+        int cup_in_pic = ((u32)PEL2SCU(y0) * info->i_scu) + PEL2SCU(x0);
+        com_assert(map->map_cud[cup_in_pic] == qt_depth);
         lbac_enc_split_mode(lbac, bs, core, split_mode, cud, cup, cu_width, cu_height, info->max_cuwh, parent_split, qt_depth, bet_depth, x0, y0);
         core->tree_status = tree_status;
         core->cons_pred_mode = cons_pred_mode;
@@ -999,6 +1006,8 @@ void *enc_pic_thread(enc_pic_t *ep, pic_thd_param_t *p)
     com_mset_x64a(map->map_pos   - info->i_scu - 1,  0, sizeof(u32      ) * info->f_scu);
     com_mset_x64a(map->map_edge  - info->i_scu - 1,  0, sizeof(u8       ) * info->f_scu);
     com_mset_x64a(map->map_patch - info->i_scu - 1,  0, sizeof(u8       ) * info->f_scu);
+    // map_cud
+    com_mset_x64a(map->map_cud   - info->i_scu - 1, -1, sizeof(s8       ) * info->f_scu);
 
     pathdr.fixed_slice_qp_flag = pichdr->fixed_picture_qp_flag;
     pathdr.slice_qp = pic_org->picture_qp;
@@ -1353,6 +1362,7 @@ void *uavs3e_create(enc_cfg_t *cfg, int *err)
     info->rmv_uni_same_ref           = SPEED_LEVEL(1, h->cfg.speed_level);
     info->rmv_skip_candi_by_satd     = SPEED_LEVEL(1, h->cfg.speed_level);
     info->me_subpel_cost_type        = SPEED_LEVEL(1, h->cfg.speed_level);
+    info->neb_qtd_loop_0             = SPEED_LEVEL(2, h->cfg.speed_level);
 
     info->history_skip_intra         = SPEED_LEVEL(2, h->cfg.speed_level);
     info->history_skip_idx           = SPEED_LEVEL(2, h->cfg.speed_level);
