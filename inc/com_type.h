@@ -459,6 +459,8 @@ typedef struct uavs3e_com_info_t {
     int                     depth_terminate_P1;
     int                     depth_terminate_P2;
     int                     depth_max_bt_32;
+    int                     neb_qtd;
+    int                     neb_qtd_P1;
 
     int                     rpl_rmv_same_ref;
     int                     adaptive_raster_range; 
@@ -473,7 +475,7 @@ typedef struct uavs3e_com_info_t {
 
     int                     history_skip_idx;
     int                     history_skip_intra;
-    int                     neb_qtd_loop_0;
+
 } com_info_t;
 
 #endif /* _COM_H_ */

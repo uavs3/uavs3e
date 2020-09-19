@@ -959,7 +959,7 @@ static double mode_coding_unit(core_t *core, lbac_t *lbac_best, int x, int y, in
     return cost_best;
 }
 
-static void check_run_split(core_t *core, int cu_width_log2, int cu_height_log2, int cup, int *split_allow)
+static void check_history_split_result(core_t *core, int cu_width_log2, int cu_height_log2, int cup, int *split_allow)
 {
     int i;
     double min_cost = MAX_D_COST;
@@ -1133,7 +1133,141 @@ s64 calc_dist_filter_boundary(core_t *core, com_pic_t *pic_rec, com_pic_t *pic_o
     return dist_filter - dist_nofilt;
 }
 
+static void check_neighbor_depth(core_t *core, int* split_allow, int x0, int y0, int cu_width, int cu_height, int qt_depth, int bet_depth)
+{
+    com_info_t *info = core->info;
 
+    int neb_addr[6];
+    int valid_flag[6];
+    int valid_num = 0;
+    int neb_cud[6] = { -1 };
+    int cu_width_in_scu  = x0 + cu_width  <= info->pic_width  ? cu_width  >> MIN_CU_LOG2 : (info->pic_width  - x0) >> MIN_CU_LOG2;
+    int cu_height_in_scu = y0 + cu_height <= info->pic_height ? cu_height >> MIN_CU_LOG2 : (info->pic_height - y0) >> MIN_CU_LOG2;
+    int cupthis = ((u32)PEL2SCU(y0) * info->i_scu) + PEL2SCU(x0);
+    int min_cud = 100, max_cud = -1;
+    int loop_cud = 0, loop_cubed = 0;
+    com_map_t* map = core->map;
+
+    //! F: left-below neighbor (inside)
+    neb_addr[0] = cupthis + (cu_height_in_scu - 1) * info->i_scu - 1;
+    valid_flag[0] = (x0 > 0 && neb_addr[0] >= 0 && map->map_cud[neb_addr[0]] != -1);
+    if (valid_flag[0])
+        neb_cud[0] = map->map_cud[neb_addr[0]];
+
+    //! G: above-right neighbor (inside)
+    neb_addr[1] = cupthis - info->i_scu + cu_width_in_scu - 1;
+    valid_flag[1] = (y0 > 0 && neb_addr[1] >= 0 && map->map_cud[neb_addr[1]] != -1);
+    if (valid_flag[1])
+        neb_cud[1] = map->map_cud[neb_addr[1]];
+
+    //! C: above-right neighbor (outside)
+    neb_addr[2] = cupthis - info->i_scu + cu_width_in_scu;
+    valid_flag[2] = (y0 > 0 && x0 < info->pic_width&& neb_addr[2] >= 0 && map->map_cud[neb_addr[2]] != -1);
+    if (valid_flag[2])
+        neb_cud[2] = map->map_cud[neb_addr[2]];
+
+    //! A: left neighbor
+    neb_addr[3] = cupthis - 1;
+    valid_flag[3] = (x0 > 0 && neb_addr[3] >= 0 && map->map_cud[neb_addr[3]] != -1);
+    if (valid_flag[3])
+        neb_cud[3] = map->map_cud[neb_addr[3]];
+
+    //! B: above neighbor
+    neb_addr[4] = cupthis - info->i_scu;
+    valid_flag[4] = (y0 > 0 && neb_addr[4] >= 0 && map->map_cud[neb_addr[4]] != -1);
+    if (valid_flag[4])
+        neb_cud[4] = map->map_cud[neb_addr[4]];
+
+    //! D: above-left neighbor
+    neb_addr[5] = cupthis - info->i_scu - 1;
+    valid_flag[5] = (x0 > 0 && y0 > 0 && neb_addr[5] >= 0 && map->map_cud[neb_addr[5]] != -1);
+
+    if (valid_flag[5]) {
+        neb_cud[5] = map->map_cud[neb_addr[5]];
+    }
+
+    for (int i = 0; i < 6; i++) {
+        if (valid_flag[i]) {
+            valid_num++;
+            if (neb_cud[i] < min_cud)
+                min_cud = neb_cud[i];
+            if (neb_cud[i] > max_cud)
+                max_cud = neb_cud[i];
+        }
+    }
+
+    if (core->info->neb_qtd_P1) {
+        loop_cud = 0;
+    } else {
+        if (max_cud == min_cud) {
+            loop_cud = 1;
+        } else {
+            loop_cud = 0;
+        }
+    }
+
+    // qt depth
+    if (qt_depth < min_cud - loop_cud && valid_num >= 2 && bet_depth == 0) {
+        split_allow[SPLIT_QUAD] = 1;
+        split_allow[SPLIT_BI_HOR] = 0;
+        split_allow[SPLIT_EQT_HOR] = 0;
+        split_allow[SPLIT_EQT_VER] = 0;
+        split_allow[SPLIT_BI_VER] = 0;
+    }
+    if (qt_depth > max_cud + loop_cud && valid_num >= 2) {
+        split_allow[SPLIT_QUAD] = 0;
+    }
+}
+
+static int check_split_dir_by_sobel(core_t *core, int *split_allow, int x0, int y0, int cu_width, int cu_height)
+{
+    com_info_t *info = core->info;
+
+    int check_sobel_cost = 1;
+    int min_size = info->ai_split_dir_decision_P2 ? 16 : (info->ai_split_dir_decision_P1 ? 32 : 64);
+
+    if (cu_width < min_size || cu_height < min_size) {
+        check_sobel_cost = 0;
+    }
+    if (info->ai_split_dir_decision_P2 && cu_width * cu_height <= 256) {
+        check_sobel_cost = 0;
+    }
+
+    if (check_sobel_cost) {
+        com_pic_t *pic_org = core->pic_org;
+        int x = x0, y = y0, w = cu_width, h = cu_height;
+        int ver, hor;
+
+        if (x == 0) {
+            x = 1;
+            w -= 1;
+        }
+        if (y == 0) {
+            y = 1;
+            h -= 1;
+        }
+        if (x + w == pic_org->width_luma) {
+            w -= 1;
+        }
+        if (y + h == pic_org->height_luma) {
+            h -= 1;
+        }
+        uavs3e_funs_handle.sobel_cost(pic_org->y + y * pic_org->stride_luma + x, pic_org->stride_luma, w, h, &ver, &hor);
+
+        if (ver > 1.04 * hor) {
+            split_allow[SPLIT_BI_HOR] = 0;
+            split_allow[SPLIT_EQT_HOR] = 0;
+            return 1;
+        }
+        if (hor > 1.04 * ver) {
+            split_allow[SPLIT_BI_VER] = 0;
+            split_allow[SPLIT_EQT_VER] = 0;
+            return -1;
+        }
+    }
+
+    return 0;
+}
 
 static double mode_coding_tree(core_t *core, lbac_t *lbac_cur, int x0, int y0, int cup, int cu_width_log2, int cu_height_log2, int cud
                                , const int parent_split, int qt_depth, int bet_depth, u8 cons_pred_mode, u8 tree_status)
@@ -1191,16 +1325,18 @@ static double mode_coding_tree(core_t *core, lbac_t *lbac_cur, int x0, int y0, i
         if (core->slice_type == SLICE_I && cu_width == 128 && cu_height == 128) {
             split_allow[NO_SPLIT] = 0;
         }
-        // ******** 2. fast algorithm to reduce modes **********
+        // ******** 3. fast algorithm to reduce modes **********
+
+        // 3.1 limit bt size
         if (info->depth_max_bt_32 && (cu_width > 32 || cu_height > 32) && !boundary && split_allow[SPLIT_QUAD]) {
             split_allow[SPLIT_BI_VER] = 0;
             split_allow[SPLIT_BI_HOR] = 0;
         }
+        // 3.2 check history_split_result
+        check_history_split_result(core, cu_width_log2, cu_height_log2, cup, split_allow);
 
-        check_run_split(core, cu_width_log2, cu_height_log2, cup, split_allow);
-
-		//********* x. CUs with large size are not allowed to use EQT **********
-		if (core->info->ai_skip_large_cu_eqt == 1) {  //all intra
+        // 3.3 limit eqt size for all intra config
+        if (info->ai_skip_large_cu_eqt == 1) { 
 			if ((cu_width == 64) || (cu_width == 32 && cu_height == 64)) { // EQT-V is not allowed if max cu size is 64
 				split_allow[SPLIT_EQT_VER] = 0;
 			}
@@ -1208,135 +1344,23 @@ static double mode_coding_tree(core_t *core, lbac_t *lbac_cur, int x0, int y0, i
 				split_allow[SPLIT_EQT_HOR] = 0;
 			}
 		}
-
-		//********* x. Sobel operator detect CU texture **********
-		if (core->info->ai_split_dir_decision == 1 && (!boundary) && cu_width < 128 && cu_height < 128) {
-            int check_sobel_cost = 1;
-            int min_size = info->ai_split_dir_decision_P2 ? 16 : (info->ai_split_dir_decision_P1 ? 32 : 64);
-
-            if (cu_width < min_size || cu_height < min_size) {
-                check_sobel_cost = 0;
-            }
-            if (info->ai_split_dir_decision_P2 && cu_width * cu_height <= 256) {
-                check_sobel_cost = 0;
-            }
-
-			if (check_sobel_cost) {
-				com_pic_t *pic_org = core->pic_org;
-                int x = x0, y = y0, w = cu_width, h = cu_height;
-                int ver, hor;
-
-                if (x == 0) {
-                    x = 1;
-                    w -= 1;
-                }
-                if (y == 0) {
-                    y = 1;
-                    h -= 1;
-                }
-                if (x + w == pic_org->width_luma) {
-                    w -= 1;
-                }
-                if (y + h == pic_org->height_luma) {
-                    h -= 1;
-                }
-                uavs3e_funs_handle.sobel_cost(pic_org->y + y * pic_org->stride_luma + x, pic_org->stride_luma, w, h, &ver, &hor);
-
-				if (ver > 1.04 * hor) {
-					texture_dir =  1;
-					split_allow[SPLIT_BI_HOR ] = 0;
-					split_allow[SPLIT_EQT_HOR] = 0;
-				}
-				if (hor > 1.04 * ver) {
-					texture_dir = -1;
-					split_allow[SPLIT_BI_VER ] = 0;
-					split_allow[SPLIT_EQT_VER] = 0;
-				}
-			}
+        // 3.4 check split direction for all intra config
+        if (info->ai_split_dir_decision == 1 && (!boundary) && cu_width < 128 && cu_height < 128) {
+            texture_dir = check_split_dir_by_sobel(core, split_allow, x0, y0, cu_width, cu_height);
 		}
-        //********* x. Neighbour CU depth **********
-        ////neighbourdepth from cud_map
-        int neb_addr[6];
-        int valid_flag[6];
-        int valid_num = 0;
-        int neb_cud[6] = { -1 };
-        int cu_width_in_scu = x0 + cu_width <= info->pic_width ? cu_width >> MIN_CU_LOG2 : (info->pic_width - x0) >> MIN_CU_LOG2;
-        int cu_height_in_scu = y0 + cu_height <= info->pic_height ? cu_height >> MIN_CU_LOG2 : (info->pic_height - y0) >> MIN_CU_LOG2;
-        int cupthis = ((u32)PEL2SCU(y0) * info->i_scu) + PEL2SCU(x0);
-        int min_cud = 100, max_cud = -1;
-        int loop_cud = 0, loop_cubed = 0;
-        com_map_t* map = core->map;
-        
-        
-        //! F: left-below neighbor (inside)
-        neb_addr[0] = cupthis + (cu_height_in_scu - 1) * info->i_scu - 1;
-        valid_flag[0] = (x0 > 0 && neb_addr[0] >= 0 && map->map_cud[neb_addr[0]] != -1);
-        if (valid_flag[0])
-            neb_cud[0] = map->map_cud[neb_addr[0]];
+        // 3.5 check depth of neighbor scu
+        if (info->neb_qtd) {
+            check_neighbor_depth(core, split_allow, x0, y0, cu_width, cu_height, qt_depth, bet_depth);
 
-        //! G: above-right neighbor (inside)
-        neb_addr[1] = cupthis - info->i_scu + cu_width_in_scu - 1;
-        valid_flag[1] = (y0 > 0 && neb_addr[1] >= 0 && map->map_cud[neb_addr[1]] != -1);
-        if (valid_flag[1])
-            neb_cud[1] = map->map_cud[neb_addr[1]];
+            num_split_to_try = 0;
 
-        //! C: above-right neighbor (outside)
-        neb_addr[2] = cupthis - info->i_scu + cu_width_in_scu;
-        valid_flag[2] = (y0 > 0 && x0 < info->pic_width&& neb_addr[2] >= 0 && map->map_cud[neb_addr[2]] != -1);
-        if (valid_flag[2])
-            neb_cud[2] = map->map_cud[neb_addr[2]];
-
-        //! A: left neighbor
-        neb_addr[3] = cupthis - 1;
-        valid_flag[3] = (x0 > 0 && neb_addr[3] >= 0 && map->map_cud[neb_addr[3]] != -1);
-        if (valid_flag[3])
-            neb_cud[3] = map->map_cud[neb_addr[3]];
-
-        //! B: above neighbor
-        neb_addr[4] = cupthis - info->i_scu;
-        valid_flag[4] = (y0 > 0 && neb_addr[4] >= 0 && map->map_cud[neb_addr[4]] != -1);
-        if (valid_flag[4])
-            neb_cud[4] = map->map_cud[neb_addr[4]];
-
-        //! D: above-left neighbor
-        neb_addr[5] = cupthis - info->i_scu - 1;
-        valid_flag[5] = (x0 > 0 && y0 > 0 && neb_addr[5] >= 0 && map->map_cud[neb_addr[5]] != -1);
-        if (valid_flag[5])
-            neb_cud[5] = map->map_cud[neb_addr[5]];
-
-        for (int i = 0; i < 6; i++) {
-            if (valid_flag[i]) {
-                valid_num++;
-                if (neb_cud[i] < min_cud)
-                    min_cud = neb_cud[i];
-                if (neb_cud[i] > max_cud)
-                    max_cud = neb_cud[i];
-
+            for (int i = 1; i < NUM_SPLIT_MODE; i++) {
+                num_split_to_try += split_allow[i];
+            }
+            if (num_split_to_try == 0) {
+                split_allow[NO_SPLIT] = 1;
             }
         }
-        if (max_cud == min_cud)
-            loop_cud = 1;
-        else loop_cud = 0;
-
-        // qt depth
-        if (qt_depth < min_cud - loop_cud && valid_num >= 2 && bet_depth == 0) {
-            split_allow[SPLIT_QUAD] = 1;
-            split_allow[SPLIT_BI_HOR] = 0;
-            split_allow[SPLIT_EQT_HOR] = 0;
-            split_allow[SPLIT_EQT_VER] = 0;
-            split_allow[SPLIT_BI_VER] = 0;
-        }
-        if (qt_depth > max_cud + loop_cud && valid_num >= 2) {
-            split_allow[SPLIT_QUAD] = 0;
-        }
-
-        num_split_to_try = 0;
-        for (int i = 1; i < NUM_SPLIT_MODE; i++) {
-            num_split_to_try += split_allow[i];
-        }
-        if (num_split_to_try == 0)
-            split_allow[NO_SPLIT] = 1;
-
     } else {
         split_allow[0] = 1;
         for (int i = 1; i < NUM_SPLIT_MODE; i++) {
