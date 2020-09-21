@@ -1419,8 +1419,18 @@ void com_check_split_mode(com_seqh_t *sqh, int *split_allow, int cu_width_log2, 
             }
         }
     }
+    if (cu_w == 64 && cu_h == 128) {
+        split_allow[SPLIT_BI_VER] = 0;
+    }
+    if (cu_w == 128 && cu_h == 64) {
+        split_allow[SPLIT_BI_HOR] = 0;
+    }
+    if (slice_type == SLICE_I && cu_w == 128 && cu_h == 128) {
+        split_allow[NO_SPLIT] = 0;
+    }
 
     int num_allowed = 0;
+
     for (i = NO_SPLIT; i <= SPLIT_QUAD; i++) {
         num_allowed += split_allow[i] == 1;
     }
