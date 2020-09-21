@@ -1196,14 +1196,10 @@ static void check_neighbor_depth(core_t *core, int* split_allow, int x0, int y0,
         }
     }
 
-    if (core->info->neb_qtd_P1) {
-        loop_cud = 0;
+    if (max_cud == min_cud) {
+        loop_cud = 1;
     } else {
-        if (max_cud == min_cud) {
-            loop_cud = 1;
-        } else {
-            loop_cud = 0;
-        }
+        loop_cud = 0;
     }
 
     // qt depth
