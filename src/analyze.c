@@ -1311,21 +1311,31 @@ static double mode_coding_tree(core_t *core, lbac_t *lbac_cur, int x0, int y0, i
         int boundary_b = boundary && (y0 + cu_height > info->pic_height) && !(x0 + cu_width > info->pic_width);
         int boundary_r = boundary && (x0 + cu_width > info->pic_width) && !(y0 + cu_height > info->pic_height);
         com_check_split_mode(&info->sqh, split_allow, cu_width_log2, cu_height_log2, boundary, boundary_b, boundary_r, info->log2_max_cuwh, parent_split, qt_depth, bet_depth, slice_type);
-
+       
         for (int i = 1; i < NUM_SPLIT_MODE; i++) {
             num_split_to_try += split_allow[i];
         }
-        // ******** 2. fast algorithm to reduce modes **********
+        // ******** 2. split constraints **********
+        if (cu_width == 64 && cu_height == 128) {
+            split_allow[SPLIT_BI_VER] = 0;
+        }
+        if (cu_width == 128 && cu_height == 64) {
+            split_allow[SPLIT_BI_HOR] = 0;
+        }
+        if (core->slice_type == SLICE_I && cu_width == 128 && cu_height == 128) {
+            split_allow[NO_SPLIT] = 0;
+        }
+        // ******** 3. fast algorithm to reduce modes **********
 
-        // 2.1 limit bt size
+        // 3.1 limit bt size
         if (info->depth_max_bt_32 && (cu_width > 32 || cu_height > 32) && !boundary && split_allow[SPLIT_QUAD]) {
             split_allow[SPLIT_BI_VER] = 0;
             split_allow[SPLIT_BI_HOR] = 0;
         }
-        // 2.2 check history_split_result
+        // 3.2 check history_split_result
         check_history_split_result(core, cu_width_log2, cu_height_log2, cup, split_allow);
 
-        // 2.3 limit eqt size for all intra config
+        // 3.3 limit eqt size for all intra config
         if (info->ai_skip_large_cu_eqt == 1) { 
 			if ((cu_width == 64) || (cu_width == 32 && cu_height == 64)) { // EQT-V is not allowed if max cu size is 64
 				split_allow[SPLIT_EQT_VER] = 0;
@@ -1334,11 +1344,11 @@ static double mode_coding_tree(core_t *core, lbac_t *lbac_cur, int x0, int y0, i
 				split_allow[SPLIT_EQT_HOR] = 0;
 			}
 		}
-        // 2.4 check split direction for all intra config
+        // 3.4 check split direction for all intra config
         if (info->ai_split_dir_decision == 1 && (!boundary) && cu_width < 128 && cu_height < 128) {
             texture_dir = check_split_dir_by_sobel(core, split_allow, x0, y0, cu_width, cu_height);
 		}
-        // 2.5 check depth of neighbor scu
+        // 3.5 check depth of neighbor scu
         if (info->neb_qtd) {
             check_neighbor_depth(core, split_allow, x0, y0, cu_width, cu_height, qt_depth, bet_depth);
 
