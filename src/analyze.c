@@ -1133,7 +1133,7 @@ s64 calc_dist_filter_boundary(core_t *core, com_pic_t *pic_rec, com_pic_t *pic_o
     return dist_filter - dist_nofilt;
 }
 
-static void check_neighbor_depth(core_t *core, int* split_allow, int x0, int y0, int cu_width, int cu_height, int qt_depth, int bet_depth)
+static void check_neighbor_depth(core_t *core, int* split_allow, int x0, int y0, int cu_width, int cu_height, int qt_depth, int bet_depth, int boundary)
 {
     com_info_t *info = core->info;
 
@@ -1207,7 +1207,7 @@ static void check_neighbor_depth(core_t *core, int* split_allow, int x0, int y0,
     }
 
     // qt depth
-    if (qt_depth < min_cud - loop_cud && valid_num >= 2 && bet_depth == 0) {
+    if (qt_depth < min_cud - loop_cud && valid_num >= 2 && bet_depth == 0 && !boundary) {
         split_allow[SPLIT_QUAD] = 1;
         split_allow[SPLIT_BI_HOR] = 0;
         split_allow[SPLIT_EQT_HOR] = 0;
@@ -1350,7 +1350,7 @@ static double mode_coding_tree(core_t *core, lbac_t *lbac_cur, int x0, int y0, i
 		}
         // 3.5 check depth of neighbor scu
         if (info->neb_qtd) {
-            check_neighbor_depth(core, split_allow, x0, y0, cu_width, cu_height, qt_depth, bet_depth);
+            check_neighbor_depth(core, split_allow, x0, y0, cu_width, cu_height, qt_depth, bet_depth, boundary);
 
             num_split_to_try = 0;
 
