@@ -1362,7 +1362,7 @@ void *uavs3e_create(enc_cfg_t *cfg, int *err)
     info->rmv_uni_same_ref           = SPEED_LEVEL(1, h->cfg.speed_level);
     info->rmv_skip_candi_by_satd     = SPEED_LEVEL(1, h->cfg.speed_level);
     info->me_subpel_cost_type        = SPEED_LEVEL(1, h->cfg.speed_level);
-    info->neb_qtd                    = SPEED_LEVEL(1, h->cfg.speed_level) && h->cfg.speed_level <= 2;
+    info->neb_qtd                    = SPEED_LEVEL(1, h->cfg.speed_level) && h->cfg.speed_level <= 1;
 
     info->history_skip_intra         = SPEED_LEVEL(2, h->cfg.speed_level);
     info->history_skip_idx           = SPEED_LEVEL(2, h->cfg.speed_level);
