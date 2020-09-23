@@ -1570,7 +1570,7 @@ void uavs3e_load_default_cfg(enc_cfg_t *cfg)
     memset(cfg, 0, sizeof(enc_cfg_t));
 
     //#=========== Misc. ===============================
-    cfg->use_pic_sign        =   1;
+    cfg->use_pic_sign        =   0;
     cfg->bit_depth_internal  =   8;
     cfg->chroma_format       =   1;
 

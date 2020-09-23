@@ -1124,6 +1124,7 @@ int main(int argc, const char **argv)
 
     if (fdo > 0) {
         _write(fdo, end_code, 4);
+        bitrate += 4 * 8;
     }
 
     print_log(1, "\n\n===============================================================================\n");
