@@ -500,38 +500,75 @@ double analyze_intra_cu(core_t *core, lbac_t *lbac_best, int texture_dir)
                 if (pred_cnt == 0) {
                     return MAX_D_COST;
                 }
-                for (int j = 0; j < pred_cnt; j++) { /* Y */
-                    if (info->ai_pred_dir_decision && j != 0) {
-                        if (texture_dir ==  1 && ipred_list[j] >= IPD_DIA_L && ipred_list[j] <= IPD_DIA_R) {
-                            continue;
-                        }
-                        if (texture_dir == -1 && ipred_list[j] >= IPD_DIA_R && ipred_list[j] <= IPD_DIA_U) {
-                            continue;
-                        }
-                    }
-                    s32 dist_t = 0;
-                    cur_info->ipm[pb_part_idx][0] = (s8)ipred_list[j];
-                    cur_info->ipm[pb_part_idx][1] = IPD_INVALID;
-                    cost_pb_temp = intra_pu_rdcost(core, lbac, rec, org, NULL, NULL, s_org, s_org_c, cu_width_log2, cu_height_log2, &dist_t, 0, pb_part_idx, x, y);
+				int trave = 0;
+				if (ipred_list[0] == cur_info->mpm[pb_part_idx][0] || ipred_list[0] == cur_info->mpm[pb_part_idx][1])
+				{
+					trave = 1;
+				}
+				if (trave == 1)
+				{
+					for (int idx = 0; idx < 2; idx++)
+					{
+						s32 dist_t = 0;
+						cur_info->ipm[pb_part_idx][0] = cur_info->mpm[pb_part_idx][idx];
+						cur_info->ipm[pb_part_idx][1] = IPD_INVALID;
+						cost_pb_temp = intra_pu_rdcost(core, lbac, rec, org, NULL, NULL, s_org, s_org_c, cu_width_log2, cu_height_log2, &dist_t, 0, pb_part_idx, x, y);
 
-                    if (cost_pb_temp < cost_pb_best) {
-                        cost_pb_best = cost_pb_temp;
-                        best_dist_y_pb_part[pb_part_idx] = dist_t;
-                        best_ipd_pb_part   [pb_part_idx] = ipred_list[j];
-                        best_mpm_pb_part   [pb_part_idx][0] = cur_info->mpm[pb_part_idx][0];
-                        best_mpm_pb_part   [pb_part_idx][1] = cur_info->mpm[pb_part_idx][1];
+						if (cost_pb_temp < cost_pb_best) {
+							cost_pb_best = cost_pb_temp;
+							best_dist_y_pb_part[pb_part_idx] = dist_t;
+							best_ipd_pb_part[pb_part_idx] = cur_info->mpm[pb_part_idx][idx];
+							best_mpm_pb_part[pb_part_idx][0] = cur_info->mpm[pb_part_idx][0];
+							best_mpm_pb_part[pb_part_idx][1] = cur_info->mpm[pb_part_idx][1];
 
-                        com_mcpy(coef_y_pb_part + pb_coef_offset, cur_info->coef[Y_C], pb_w * pb_h * sizeof(s16));
-                        for (int j = 0; j < pb_h; j++) {
-                            int rec_offset = ((pb_y - y) + j) * cu_width + (pb_x - x);
-                            com_mcpy(rec_y_pb_part + rec_offset, rec[Y_C] + rec_offset, pb_w * sizeof(pel));
-                        }
-                        for (int tb_idx = 0; tb_idx < num_tb_in_pb; tb_idx++) {
-                            num_nz_y_pb_part[tb_idx + tb_idx_offset] = cur_info->num_nz[tb_idx][Y_C];
-                        }
-                        lbac_copy(&core->lbac_intra_prev_pu, lbac);
-                    }
-                }
+							com_mcpy(coef_y_pb_part + pb_coef_offset, cur_info->coef[Y_C], pb_w * pb_h * sizeof(s16));
+							for (int j = 0; j < pb_h; j++) {
+								int rec_offset = ((pb_y - y) + j) * cu_width + (pb_x - x);
+								com_mcpy(rec_y_pb_part + rec_offset, rec[Y_C] + rec_offset, pb_w * sizeof(pel));
+							}
+							for (int tb_idx = 0; tb_idx < num_tb_in_pb; tb_idx++) {
+								num_nz_y_pb_part[tb_idx + tb_idx_offset] = cur_info->num_nz[tb_idx][Y_C];
+							}
+							lbac_copy(&core->lbac_intra_prev_pu, lbac);
+						}
+					}
+				}
+				else
+				{
+					for (int j = 0; j < pred_cnt; j++) { /* Y */
+						if (info->ai_pred_dir_decision && j != 0) {
+							if (texture_dir == 1 && ipred_list[j] >= IPD_DIA_L && ipred_list[j] <= IPD_DIA_R) {
+								continue;
+							}
+							if (texture_dir == -1 && ipred_list[j] >= IPD_DIA_R && ipred_list[j] <= IPD_DIA_U) {
+								continue;
+							}
+						}
+						s32 dist_t = 0;
+						cur_info->ipm[pb_part_idx][0] = (s8)ipred_list[j];
+						cur_info->ipm[pb_part_idx][1] = IPD_INVALID;
+						cost_pb_temp = intra_pu_rdcost(core, lbac, rec, org, NULL, NULL, s_org, s_org_c, cu_width_log2, cu_height_log2, &dist_t, 0, pb_part_idx, x, y);
+
+						if (cost_pb_temp < cost_pb_best) {
+							cost_pb_best = cost_pb_temp;
+							best_dist_y_pb_part[pb_part_idx] = dist_t;
+							best_ipd_pb_part[pb_part_idx] = ipred_list[j];
+							best_mpm_pb_part[pb_part_idx][0] = cur_info->mpm[pb_part_idx][0];
+							best_mpm_pb_part[pb_part_idx][1] = cur_info->mpm[pb_part_idx][1];
+
+							com_mcpy(coef_y_pb_part + pb_coef_offset, cur_info->coef[Y_C], pb_w * pb_h * sizeof(s16));
+							for (int j = 0; j < pb_h; j++) {
+								int rec_offset = ((pb_y - y) + j) * cu_width + (pb_x - x);
+								com_mcpy(rec_y_pb_part + rec_offset, rec[Y_C] + rec_offset, pb_w * sizeof(pel));
+							}
+							for (int tb_idx = 0; tb_idx < num_tb_in_pb; tb_idx++) {
+								num_nz_y_pb_part[tb_idx + tb_idx_offset] = cur_info->num_nz[tb_idx][Y_C];
+							}
+							lbac_copy(&core->lbac_intra_prev_pu, lbac);
+						}
+					}
+				}
+                
                 cost_temp += cost_pb_best;
             
                 //update PU map
