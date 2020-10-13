@@ -505,7 +505,7 @@ double analyze_intra_cu(core_t *core, lbac_t *lbac_best, int texture_dir)
 				{
 					trave = 1;
 				}
-				if (trave == 1)
+				if (trave == 1 && core->info->ai_mpm_rdo == 1)
 				{
 					for (int idx = 0; idx < 2; idx++)
 					{

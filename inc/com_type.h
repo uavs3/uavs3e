@@ -455,6 +455,7 @@ typedef struct uavs3e_com_info_t {
     int                     ai_split_dir_decision_P1;
     int                     ai_split_dir_decision_P2;
     int                     ai_pred_dir_decision;
+	int                     ai_mpm_rdo;//Only MPMs is used for rdo when the best rdo candidate is one of the MPMs
 
     int                     depth_terminate_P1;
     int                     depth_terminate_P2;
