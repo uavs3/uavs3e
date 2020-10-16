@@ -473,6 +473,8 @@ typedef struct uavs3e_com_info_t {
 
     int                     rmv_satd_level_P1;
 
+    int                     bind_emvr_to_amvr;
+
     int                     history_skip_idx;
     int                     history_skip_intra;
 

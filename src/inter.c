@@ -1888,15 +1888,27 @@ void analyze_inter_cu(core_t *core, lbac_t *lbac_best)
 
     if (!history->visit_mode_decision || history->cu_mode != MODE_SKIP) {
         for (cur_info->hmvp_flag = 0; cur_info->hmvp_flag < 2; cur_info->hmvp_flag++) {
+            int start_mvr = 0;
+
             if (cur_info->hmvp_flag) {
                 num_amvr = 0;
+
                 if (info->sqh.emvr_enable) {
                     if ((bst_info->cu_mode == MODE_SKIP && core->skip_mvps_check == 0) || (bst_info->cu_mode != MODE_SKIP)) {
                         num_amvr = COM_MIN(num_hmvp_inter, core->cnt_hmvp_cands);
+
+                        if (info->bind_emvr_to_amvr) {
+                            if (bst_info->cu_mode == MODE_INTER && bst_info->mvr_idx < num_amvr) {
+                                start_mvr = bst_info->mvr_idx;
+                                num_amvr = start_mvr + 1;
+                            } else {
+                                num_amvr = 0;
+                            }
+                        }
                     }
                 }
             }
-            for (cur_info->mvr_idx = 0; cur_info->mvr_idx < num_amvr; cur_info->mvr_idx++) {
+            for (cur_info->mvr_idx = start_mvr; cur_info->mvr_idx < num_amvr; cur_info->mvr_idx++) {
                 s8 lidx_ref;
                 s8 refi_L0L1[2] = { REFI_INVALID, REFI_INVALID };
                 s16 mv_L0L1[REFP_NUM][MV_D];

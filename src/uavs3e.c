@@ -213,7 +213,6 @@ static int refine_input_cfg(enc_cfg_t *param, enc_cfg_t *cfg_org)
     }
     if (SPEED_LEVEL(2, cfg_org->speed_level)) {
         cfg_org->max_eqt_size = 32;
-        cfg_org->emvr_enable  = 0;
     }
     if (SPEED_LEVEL(3, cfg_org->speed_level)) {
         cfg_org->dt_enable    = 0;
@@ -1364,6 +1363,7 @@ void *uavs3e_create(enc_cfg_t *cfg, int *err)
     info->rmv_skip_candi_by_satd     = SPEED_LEVEL(1, h->cfg.speed_level);
     info->me_subpel_cost_type        = SPEED_LEVEL(1, h->cfg.speed_level);
     info->neb_qtd                    = SPEED_LEVEL(1, h->cfg.speed_level) && h->cfg.speed_level <= 1;
+    info->bind_emvr_to_amvr          = SPEED_LEVEL(1, h->cfg.speed_level);
 
     info->history_skip_intra         = SPEED_LEVEL(2, h->cfg.speed_level);
     info->history_skip_idx           = SPEED_LEVEL(2, h->cfg.speed_level);
