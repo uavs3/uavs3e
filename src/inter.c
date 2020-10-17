@@ -1897,12 +1897,21 @@ void analyze_inter_cu(core_t *core, lbac_t *lbac_best)
                     if ((bst_info->cu_mode == MODE_SKIP && core->skip_mvps_check == 0) || (bst_info->cu_mode != MODE_SKIP)) {
                         num_amvr = COM_MIN(num_hmvp_inter, core->cnt_hmvp_cands);
 
-                        if (info->bind_emvr_to_amvr) {
-                            if (bst_info->cu_mode == MODE_INTER && bst_info->mvr_idx < num_amvr) {
-                                start_mvr = bst_info->mvr_idx;
-                                num_amvr = start_mvr + 1;
+                        if (num_amvr && info->bind_emvr_to_amvr_P1) {
+                            if (info->bind_emvr_to_amvr_P2) {
+                                if (bst_info->cu_mode == MODE_INTER && bst_info->mvr_idx == 0) {
+                                    start_mvr = 0;
+                                    num_amvr = 1;
+                                } else {
+                                    num_amvr = 0;
+                                }
                             } else {
-                                num_amvr = 0;
+                                if (bst_info->cu_mode == MODE_INTER && bst_info->mvr_idx < num_amvr) {
+                                    start_mvr = bst_info->mvr_idx;
+                                    num_amvr = start_mvr + 1;
+                                } else {
+                                    num_amvr = 0;
+                                }
                             }
                         }
                     }
