@@ -214,8 +214,8 @@ static int refine_input_cfg(enc_cfg_t *param, enc_cfg_t *cfg_org)
     if (SPEED_LEVEL(2, cfg_org->speed_level)) {
         cfg_org->max_eqt_size = 32;
     }
-    if (SPEED_LEVEL(3, cfg_org->speed_level)) {
-        cfg_org->dt_enable    = 0;
+    if (SPEED_LEVEL(3, cfg_org->speed_level)) {    
+        cfg_org->max_dt_size = 16;
     }
     /***************************************************************************/
 
