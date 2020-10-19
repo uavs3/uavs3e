@@ -1362,7 +1362,7 @@ void *uavs3e_create(enc_cfg_t *cfg, int *err)
     info->rmv_uni_same_ref           = SPEED_LEVEL(1, h->cfg.speed_level);
     info->rmv_skip_candi_by_satd     = SPEED_LEVEL(1, h->cfg.speed_level);
     info->me_subpel_cost_type        = SPEED_LEVEL(1, h->cfg.speed_level);
-    info->neb_qtd                    = SPEED_LEVEL(1, h->cfg.speed_level) && h->cfg.speed_level <= 1;
+    info->depth_neb_qtd              = SPEED_LEVEL(1, h->cfg.speed_level) && h->cfg.speed_level <= 1;
     info->bind_emvr_to_amvr_P1       = SPEED_LEVEL(1, h->cfg.speed_level);
 
     info->history_skip_intra         = SPEED_LEVEL(2, h->cfg.speed_level);
@@ -1374,6 +1374,7 @@ void *uavs3e_create(enc_cfg_t *cfg, int *err)
     info->depth_terminate_P2         = SPEED_LEVEL(3, h->cfg.speed_level);
     info->bind_emvr_to_amvr_P2       = SPEED_LEVEL(3, h->cfg.speed_level);
 
+    info->depth_limit_part_ratio     = SPEED_LEVEL(4, h->cfg.speed_level);
 
     return h;
 }

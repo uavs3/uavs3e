@@ -1328,6 +1328,25 @@ static double mode_coding_tree(core_t *core, lbac_t *lbac_cur, int x0, int y0, i
             split_allow[SPLIT_BI_VER] = 0;
             split_allow[SPLIT_BI_HOR] = 0;
         }
+
+        if (info->depth_limit_part_ratio && (split_allow[NO_SPLIT] || split_allow[SPLIT_QUAD])) {
+            int cu_w = cu_width;
+            int cu_h = cu_height;
+
+            if (split_allow[SPLIT_BI_HOR] && cu_w >= cu_h * 4) {
+                split_allow[SPLIT_BI_HOR] = 0;
+            }
+            if (split_allow[SPLIT_BI_VER] && cu_h >= cu_w * 4) {
+                split_allow[SPLIT_BI_VER] = 0;
+            }
+            if (split_allow[SPLIT_EQT_HOR] && cu_w >= cu_h * 2) {
+                split_allow[SPLIT_EQT_HOR] = 0;
+            }
+            if (split_allow[SPLIT_EQT_VER] && cu_h >= cu_w * 2) {
+                split_allow[SPLIT_EQT_VER] = 0;
+            }
+        }
+
         // 3.2 check history_split_result
         check_history_split_result(core, cu_width_log2, cu_height_log2, cup, split_allow);
 
@@ -1345,7 +1364,7 @@ static double mode_coding_tree(core_t *core, lbac_t *lbac_cur, int x0, int y0, i
             texture_dir = check_split_dir_by_sobel(core, split_allow, x0, y0, cu_width, cu_height);
 		}
         // 3.5 check depth of neighbor scu
-        if (info->neb_qtd) {
+        if (info->depth_neb_qtd) {
             check_neighbor_depth(core, split_allow, x0, y0, cu_width, cu_height, qt_depth, bet_depth, boundary);
 
             num_split_to_try = 0;

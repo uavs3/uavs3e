@@ -1347,7 +1347,8 @@ void com_check_split_mode(com_seqh_t *sqh, int *split_allow, int cu_width_log2, 
     const int min_qt_size      = sqh->min_qt_size;
     const int max_bt_size      = sqh->max_bt_size;
     const int max_eqt_size     = sqh->max_eqt_size;
-    int max_aspect_ratio_eqt = max_aspect_ratio >> 1;
+    int max_aspect_ratio_eqt   = max_aspect_ratio >> 1;
+
     int cu_w = 1 << cu_width_log2;
     int cu_h = 1 << cu_height_log2;
     int i;
