@@ -848,10 +848,9 @@ static void analyze_uni_pred(core_t *core, lbac_t *lbac_best, s16 mv_L0L1[REFP_N
     u64   me_cost_L0L1[2] = {COM_UINT64_MAX, COM_UINT64_MAX};
     int rdo_flag[2] = {1, 1};
 
-    pi->i_org   = core->pic_org->stride_luma;
-    pi->org     = core->pic_org->y + y * pi->i_org + x;
+    pi->i_org                 = core->pic_org->stride_luma;
+    pi->org                   = core->pic_org->y + y * pi->i_org + x;
     pi->adaptive_raster_range = core->info->adaptive_raster_range;
-    pi->subpel_cost_type      = core->info->me_subpel_cost_type;
 
     cur_info->cu_mode = MODE_INTER;
 
@@ -1009,7 +1008,6 @@ static void analyze_bi(core_t *core, lbac_t *lbac_best, s16 mv_L0L1[REFP_NUM][MV
         pi->i_org = cu_width;
         pi->org = org_bi;
         pi->adaptive_raster_range = 0;
-        pi->subpel_cost_type = core->info->me_subpel_cost_type;
 
         com_mc_cu(x, y, info->pic_width, info->pic_height, cu_width, cu_height, refi, cur_info->mv, core->refp, pred, cu_width, CHANNEL_L, bit_depth);
         create_bi_org(org, pred[0], pic_org->stride_luma, cu_width, cu_height, org_bi, cu_width, info->bit_depth_internal);
@@ -1071,6 +1069,17 @@ static void analyze_bi(core_t *core, lbac_t *lbac_best, s16 mv_L0L1[REFP_NUM][MV
     }
 }
 
+static u32 get_smvd_cost(int cost_type, int w, int h, int widx, pel *org, int i_org, pel *cur, int i_cur, int bit_depth)
+{
+    if (!cost_type) {
+        return com_had(w, h, org, i_org, cur, i_cur, bit_depth);
+    }
+    else {
+        int shift = bit_depth - 8;
+        return uavs3e_funs_handle.cost_sad[widx](org, i_org, cur, i_cur, h) >> shift;
+    }
+}
+
 static u32 smvd_refine(core_t *core, int x, int y, int log2_cuw, int log2_cuh, s16 mv[REFP_NUM][MV_D], s16 mvp[REFP_NUM][MV_D], s8 refi[REFP_NUM], s32 lidx_cur, s32 lidx_tar, u32 mecost, s32 search_pattern, s32 search_round, s32 search_shift)
 {
     com_info_t *info     = core->info;
@@ -1080,6 +1089,8 @@ static u32 smvd_refine(core_t *core, int x, int y, int log2_cuw, int log2_cuh, s
     int bit_depth = info->bit_depth_internal;
     int cu_width  = (1 << log2_cuw);
     int cu_height = (1 << log2_cuh);
+    int cost_type = pi->subpel_cost_type;
+    int widx = log2_cuw - MIN_CU_LOG2;
 
     static const s32 search_offset_cross  [4][MV_D] = { {  0, 1 }, { 1, 0 }, {  0, -1 }, { -1,  0 } };
     static const s32 search_offset_square [8][MV_D] = { { -1, 1 }, { 0, 1 }, {  1,  1 }, {  1,  0 }, {  1, -1 }, {  0, -1 }, { -1, -1 }, { -1, 0 } };
@@ -1155,7 +1166,7 @@ static u32 smvd_refine(core_t *core, int x, int y, int log2_cuw, int log2_cuh, s
 
             int mv_bits = ref_mvr_bits + GET_MVBITS_X(mvd_cand[lidx_cur][MV_X]) + GET_MVBITS_Y(mvd_cand[lidx_cur][MV_Y]);
 
-            mecost_tmp = com_had(cu_width, cu_height, org, pic_org->stride_luma, cur_info->pred[0], cu_width, bit_depth);
+            mecost_tmp = get_smvd_cost(cost_type, cu_width, cu_height, widx, org, pic_org->stride_luma, cur_info->pred[0], cu_width, bit_depth);
             mecost_tmp += MV_COST(mv_bits);
 
             if (mecost_tmp < mecost) {
@@ -1191,9 +1202,11 @@ static void analyze_smvd(core_t *core, lbac_t *lbac_best)
     com_pic_t *pic_org   = core->pic_org;
     int cu_width         = 1 << log2_cuw;
     int cu_height        = 1 << log2_cuh;
+    int widx             = log2_cuw - MIN_CU_LOG2;
 
     pel *org             = pic_org->y + x + y * pic_org->stride_luma;
     u32 lambda_mv        = pi->lambda_mv;
+    int cost_type        = pi->subpel_cost_type;
     int bit_depth        = info->bit_depth_internal;
 
     s16 mv[REFP_NUM][MV_D], mvp[REFP_NUM][MV_D], mvd[MV_D];
@@ -1210,7 +1223,7 @@ static void analyze_smvd(core_t *core, lbac_t *lbac_best)
 
     com_mc_cu(x, y, info->pic_width, info->pic_height, cu_width, cu_height, cur_info->refi, mv, core->refp, cur_info->pred, cu_width, CHANNEL_L, bit_depth);
 
-    u32 mecost = com_had(cu_width, cu_height, org, pic_org->stride_luma, cur_info->pred[0], cu_width, bit_depth);
+    u32 mecost = get_smvd_cost(cost_type, cu_width, cu_height, widx, org, pic_org->stride_luma, cur_info->pred[0], cu_width, bit_depth);
     mecost += MV_COST(get_mv_bits_with_mvr(pi, 0, 0, cur_info->mvr_idx));
 
     s16 mv_bi[REFP_NUM][MV_D];
@@ -1222,7 +1235,7 @@ static void analyze_smvd(core_t *core, lbac_t *lbac_best)
 
     com_mc_cu(x, y, info->pic_width, info->pic_height, cu_width, cu_height, cur_info->refi, mv_bi, core->refp, cur_info->pred, cu_width, CHANNEL_L, bit_depth);
 
-    u32 mecost_bi = com_had(cu_width, cu_height, org, pic_org->stride_luma, cur_info->pred[0], cu_width, bit_depth);
+    u32 mecost_bi = get_smvd_cost(cost_type, cu_width, cu_height, widx, org, pic_org->stride_luma, cur_info->pred[0], cu_width, bit_depth);
     mecost_bi += MV_COST(get_mv_bits_with_mvr(pi, mvd[MV_X], mvd[MV_Y], cur_info->mvr_idx));
 
     if (mecost_bi < mecost) {
@@ -1234,6 +1247,14 @@ static void analyze_smvd(core_t *core, lbac_t *lbac_best)
     // refine
     mecost = smvd_refine(core, x, y, log2_cuw, log2_cuh, mv, mvp, cur_info->refi, 0, 1, mecost, 2, 8, cur_info->mvr_idx);
     mecost = smvd_refine(core, x, y, log2_cuw, log2_cuh, mv, mvp, cur_info->refi, 0, 1, mecost, 0, 1, cur_info->mvr_idx);
+
+    if (cost_type) {
+        com_mc_cu(x, y, info->pic_width, info->pic_height, cu_width, cu_height, cur_info->refi, mv, core->refp, cur_info->pred, cu_width, CHANNEL_L, bit_depth);
+        mecost = com_had(cu_width, cu_height, org, pic_org->stride_luma, cur_info->pred[0], cu_width, bit_depth);
+        mvd[MV_X] = mv[REFP_0][MV_X] - mvp[REFP_0][MV_X];
+        mvd[MV_Y] = mv[REFP_0][MV_Y] - mvp[REFP_0][MV_Y];
+        mecost += MV_COST(get_mv_bits_with_mvr(pi, mvd[MV_X], mvd[MV_Y], cur_info->mvr_idx));
+    }
 
     if(info->rmv_inter_candi_by_satd){
         if (mecost > core->inter_satd * core->satd_threshold) {
@@ -1885,6 +1906,7 @@ void analyze_inter_cu(core_t *core, lbac_t *lbac_best)
 
     memset(pi->hpel_satd, 0, sizeof(pi->hpel_satd));
     memset(pi->qpel_satd, 0, sizeof(pi->qpel_satd));
+    pi->subpel_cost_type = core->info->me_subpel_cost_type;
 
     if (!history->visit_mode_decision || history->cu_mode != MODE_SKIP) {
         for (cur_info->hmvp_flag = 0; cur_info->hmvp_flag < 2; cur_info->hmvp_flag++) {
