@@ -471,6 +471,7 @@ static int copy_cu_data(enc_cu_t *dst, enc_cu_t *src, int x, int y, int cu_width
         com_mcpy(dst->pb_part     + idx_dst, src->pb_part     + idx_src, cuw_scu * sizeof(int));
         com_mcpy(dst->tb_part     + idx_dst, src->tb_part     + idx_src, cuw_scu * sizeof(int));
         com_mcpy(dst->qtd         + idx_dst, src->qtd         + idx_src, cuw_scu * sizeof(s8));
+        com_mcpy(dst->border      + idx_dst, src->border      + idx_src, cuw_scu * sizeof(s8));
     }
     for (j = 0; j < cu_height; j++) {
         int idx_dst = (y + j) * cus + x;
@@ -1215,6 +1216,63 @@ static void check_neighbor_depth(core_t *core, int* split_allow, int x0, int y0,
     }
 }
 
+static void score_split(core_t* core, int cur_split, int x0, int y0, int cu_width, int cu_height, int split_score[5], int allow_EQT_V, int allow_EQT_H, enc_cu_t* cu_data_bst) {
+    com_info_t* info = core->info;
+
+    if (x0 + cu_width > info->pic_width || y0 + cu_height > info->pic_height) {
+        return;
+    }
+    int w_in_scu = cu_width  >> MIN_CU_LOG2;
+    int h_in_scu = cu_height >> MIN_CU_LOG2;
+
+    if (cur_split == SPLIT_BI_HOR) {
+        s8 *b = cu_data_bst->border + w_in_scu / 2;
+        for (int i = 0; i < h_in_scu; i++, b += w_in_scu) {
+            split_score[SPLIT_BI_VER] += (*b & 1) ? 1 : -1;
+        }
+        if (allow_EQT_H) {
+            s8* b  = cu_data_bst->border + (h_in_scu / 4) * w_in_scu + w_in_scu / 2;
+
+            for (int i = 0; i < h_in_scu / 2; i++, b += w_in_scu) {
+                split_score[SPLIT_EQT_HOR] += (*b & 1) ? 1 : -1;
+            }
+        }
+    } else if (cur_split == SPLIT_BI_VER) {
+        s8 *b = cu_data_bst->border + h_in_scu / 2 * w_in_scu;
+        for (int i = 0; i < w_in_scu; i++, b++) {
+            split_score[SPLIT_BI_HOR] += (*b & 2) ? 1 : -1;
+        }
+        if (allow_EQT_V) {
+            s8* b = cu_data_bst->border + w_in_scu / 4 + h_in_scu / 2 * w_in_scu;
+
+            for (int i = 0; i < w_in_scu / 2; i++, b++) {
+                split_score[SPLIT_EQT_VER] += (*b & 2) ? 1 : -1;
+            }
+        }
+    } 
+
+    if (allow_EQT_V) {
+        s8* b1 = cu_data_bst->border + w_in_scu / 4;
+        s8* b2 = b1 + w_in_scu / 2;
+
+        for (int i = 0; i < h_in_scu; i++, b1 += w_in_scu, b2 += w_in_scu) {
+            split_score[SPLIT_EQT_VER] += (*b1 & 1) ? 1 : -1;
+            split_score[SPLIT_EQT_VER] += (*b2 & 1) ? 1 : -1;
+        }
+    }
+    if (allow_EQT_H) {
+        s8* b1 = cu_data_bst->border + h_in_scu / 4 * w_in_scu;
+        s8* b2 = b1 + h_in_scu / 2 * w_in_scu;
+
+        for (int i = 0; i < w_in_scu; i++, b1++, b2++) {
+            split_score[SPLIT_EQT_HOR] += (*b1 & 2) ? 1 : -1;
+            split_score[SPLIT_EQT_HOR] += (*b2 & 2) ? 1 : -1;
+        }
+    }
+
+    return;
+}
+
 static int check_split_dir_by_sobel(core_t *core, int *split_allow, int x0, int y0, int cu_width, int cu_height)
 {
     com_info_t *info = core->info;
@@ -1288,6 +1346,10 @@ static double mode_coding_tree(core_t *core, lbac_t *lbac_cur, int x0, int y0, i
     u8 best_cons_pred_mode = NO_MODE_CONS;
     int next_split         = 1; //early termination flag
 	int texture_dir      = 0;
+
+    int score_from_qt [5] = { 0 };
+    int score_from_btv[5] = { 0 };
+    int score_from_bth[5] = { 0 };
 
     int split_allow[SPLIT_QUAD + 1];
     com_motion_t motion_cands_curr[ALLOWED_HMVP_NUM];
@@ -1404,12 +1466,15 @@ static double mode_coding_tree(core_t *core, lbac_t *lbac_cur, int x0, int y0, i
             core->tree_status = tree_status;
             core->cons_pred_mode = cons_pred_mode;
             cost_temp += mode_coding_unit(core, lbac_cur, x0, y0, cu_width_log2, cu_height_log2, cud, cu_data_bst, texture_dir);
-            //map_cud
-            for (int j = 0; j < cu_height >> MIN_CU_LOG2; j++) {
-                int idx = j * (cu_width >> MIN_CU_LOG2);
-                for (int i = 0; i < cu_width >> MIN_CU_LOG2; i++, idx++) {
-                    cu_data_bst->qtd[idx] = (s8)qt_depth;
-                }
+
+            memset(cu_data_bst->qtd, qt_depth, (cu_width >> MIN_CU_LOG2) * (cu_height >> MIN_CU_LOG2));
+            memset(cu_data_bst->border, 0,     (cu_width >> MIN_CU_LOG2) * (cu_height >> MIN_CU_LOG2));
+            s8* b = cu_data_bst->border;
+            for (int i = 0; i < cu_width >> MIN_CU_LOG2; i++) {
+                b[i] = 2;
+            }
+            for (int i = 0; i < cu_height >> MIN_CU_LOG2; i++, b += (cu_width >> MIN_CU_LOG2)) {
+                *b |= 1;
             }
 
             if (info->sqh.num_of_hmvp && bst_info->cu_mode != MODE_INTRA && !bst_info->affine_flag) {
@@ -1458,11 +1523,27 @@ static double mode_coding_tree(core_t *core, lbac_t *lbac_cur, int x0, int y0, i
             int is_mode_EQT = com_split_is_EQT(split_mode);
             int EQT_not_skiped = is_mode_EQT ? (best_split_mode != NO_SPLIT || cost_best > MAX_D_COST_EXT) : 1;
 
+            if (info->depth_terminateeqt_by_score) {
+                if (split_mode == SPLIT_EQT_HOR && EQT_not_skiped && split_allow[SPLIT_EQT_HOR]) {
+                    if (score_from_bth[SPLIT_EQT_HOR] + score_from_btv[SPLIT_EQT_HOR] + score_from_qt[SPLIT_EQT_HOR] < 0 && cu_width_log2 + cu_height_log2 >= 11)
+                        EQT_not_skiped = 0;
+                }
+                if (split_mode == SPLIT_EQT_VER && EQT_not_skiped && split_allow[SPLIT_EQT_VER]) {
+                    if (score_from_bth[SPLIT_EQT_VER] + score_from_btv[SPLIT_EQT_VER] + score_from_qt[SPLIT_EQT_VER] < 0 && cu_width_log2 + cu_height_log2 >= 11)
+                        EQT_not_skiped = 0;
+                }
+            }
+            
+            if (info->depth_terminatebt_by_score) {
+                if (split_mode_num == 3 && split_mode == SPLIT_BI_HOR && score_from_btv[SPLIT_BI_HOR] < 0  && cu_width_log2 + cu_height_log2 >= 11)
+                    continue;
+                if (split_mode_num == 3 && split_mode == SPLIT_BI_VER && score_from_bth[SPLIT_BI_VER] < 0  && cu_width_log2 + cu_height_log2 >= 11)
+                    continue;
+            }
+
             if (split_allow[split_mode] && EQT_not_skiped) {
                 double best_cons_cost = MAX_D_COST;
                 com_split_struct_t split_struct;
-                int prev_log2_sub_cuw = split_struct.log_cuw[0];
-                int prev_log2_sub_cuh = split_struct.log_cuh[0];
                 u8 tree_status_child = TREE_LC;
                 u8 num_cons_pred_mode_loop;
                 u8 cons_pred_mode_child = NO_MODE_CONS;
@@ -1544,9 +1625,12 @@ static double mode_coding_tree(core_t *core, lbac_t *lbac_cur, int x0, int y0, i
                             cost_temp += mode_coding_tree(core, &lbac_split, x_pos, y_pos, split_struct.cup[cur_part_num], log2_sub_cuw, log2_sub_cuh, split_struct.cud
                                                           , split_mode, INC_QT_DEPTH(qt_depth, split_mode), INC_BET_DEPTH(bet_depth, split_mode), cons_pred_mode_child, tree_status_child);
                             copy_cu_data(cu_data_tmp, &core->cu_data_best[log2_sub_cuw - 2][log2_sub_cuh - 2], x_pos - split_struct.x_pos[0], y_pos - split_struct.y_pos[0], log2_sub_cuw, log2_sub_cuh, cu_width_log2, cud, tree_status_child);
-                            prev_log2_sub_cuw = log2_sub_cuw;
-                            prev_log2_sub_cuh = log2_sub_cuh;
                         }
+                    }
+                    // split_score
+                    if (split_mode == SPLIT_QUAD || split_mode == SPLIT_BI_HOR || split_mode == SPLIT_BI_VER) {
+                        int* score = split_mode == SPLIT_QUAD ? score_from_qt : split_mode == SPLIT_BI_HOR ? score_from_bth : score_from_btv;
+                        score_split(core, split_mode, x0, y0, cu_width, cu_height, score, split_allow[SPLIT_EQT_VER], split_allow[SPLIT_EQT_HOR], cu_data_tmp);
                     }
                     if (cost_temp < MAX_D_COST_EXT && tree_status_child == TREE_L && tree_status == TREE_LC) {
                         core->tree_status = TREE_C;
