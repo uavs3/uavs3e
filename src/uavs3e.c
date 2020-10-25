@@ -1364,9 +1364,7 @@ void *uavs3e_create(enc_cfg_t *cfg, int *err)
     info->me_subpel_cost_type        = SPEED_LEVEL(1, h->cfg.speed_level);
     info->depth_neb_qtd              = SPEED_LEVEL(1, h->cfg.speed_level) && h->cfg.speed_level <= 1;
     info->bind_emvr_to_amvr_P1       = SPEED_LEVEL(1, h->cfg.speed_level);
-
-    info->depth_terminatebt_by_score  = SPEED_LEVEL(1, h->cfg.speed_level);
-    info->depth_terminateeqt_by_score = SPEED_LEVEL(1, h->cfg.speed_level);
+    info->depth_rm_splite_by_border  = SPEED_LEVEL(1, h->cfg.speed_level);
      
     info->history_skip_intra         = SPEED_LEVEL(2, h->cfg.speed_level);
     info->history_skip_idx           = SPEED_LEVEL(2, h->cfg.speed_level);

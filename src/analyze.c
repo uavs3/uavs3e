@@ -1521,27 +1521,28 @@ static double mode_coding_tree(core_t *core, lbac_t *lbac_cur, int x0, int y0, i
         for (int split_mode_num = 1; split_mode_num < NUM_SPLIT_MODE; ++split_mode_num) {
             split_mode_t split_mode = split_mode_order[split_mode_num];
             int is_mode_EQT = com_split_is_EQT(split_mode);
-            int EQT_not_skiped = is_mode_EQT ? (best_split_mode != NO_SPLIT || cost_best > MAX_D_COST_EXT) : 1;
+            int skip_cur_splite = is_mode_EQT ? (best_split_mode != NO_SPLIT || cost_best > MAX_D_COST_EXT) : 1;
 
-            if (info->depth_terminateeqt_by_score) {
-                if (split_mode == SPLIT_EQT_HOR && EQT_not_skiped && split_allow[SPLIT_EQT_HOR]) {
-                    if (score_from_bth[SPLIT_EQT_HOR] + score_from_btv[SPLIT_EQT_HOR] + score_from_qt[SPLIT_EQT_HOR] < 0 && cu_width_log2 + cu_height_log2 >= 11)
-                        EQT_not_skiped = 0;
+            if (info->depth_rm_splite_by_border) {
+                if (split_mode == SPLIT_EQT_HOR && skip_cur_splite && split_allow[SPLIT_EQT_HOR] && cu_width_log2 + cu_height_log2 >= 11) {
+                    if (score_from_bth[SPLIT_EQT_HOR] + score_from_btv[SPLIT_EQT_HOR] + score_from_qt[SPLIT_EQT_HOR] < 0) {
+                        skip_cur_splite = 0;
+                    }
                 }
-                if (split_mode == SPLIT_EQT_VER && EQT_not_skiped && split_allow[SPLIT_EQT_VER]) {
-                    if (score_from_bth[SPLIT_EQT_VER] + score_from_btv[SPLIT_EQT_VER] + score_from_qt[SPLIT_EQT_VER] < 0 && cu_width_log2 + cu_height_log2 >= 11)
-                        EQT_not_skiped = 0;
+                if (split_mode == SPLIT_EQT_VER && skip_cur_splite && split_allow[SPLIT_EQT_VER] && cu_width_log2 + cu_height_log2 >= 11) {
+                    if (score_from_bth[SPLIT_EQT_VER] + score_from_btv[SPLIT_EQT_VER] + score_from_qt[SPLIT_EQT_VER] < 0) {
+                        skip_cur_splite = 0;
+                    }
+                }
+                if (split_mode_num == 3 && split_mode == SPLIT_BI_HOR && score_from_btv[SPLIT_BI_HOR] < 0 && cu_width_log2 + cu_height_log2 >= 11) {
+                    skip_cur_splite = 0;
+                }
+                if (split_mode_num == 3 && split_mode == SPLIT_BI_VER && score_from_bth[SPLIT_BI_VER] < 0 && cu_width_log2 + cu_height_log2 >= 11) {
+                    skip_cur_splite = 0;
                 }
             }
-            
-            if (info->depth_terminatebt_by_score) {
-                if (split_mode_num == 3 && split_mode == SPLIT_BI_HOR && score_from_btv[SPLIT_BI_HOR] < 0  && cu_width_log2 + cu_height_log2 >= 11)
-                    continue;
-                if (split_mode_num == 3 && split_mode == SPLIT_BI_VER && score_from_bth[SPLIT_BI_VER] < 0  && cu_width_log2 + cu_height_log2 >= 11)
-                    continue;
-            }
 
-            if (split_allow[split_mode] && EQT_not_skiped) {
+            if (split_allow[split_mode] && skip_cur_splite) {
                 double best_cons_cost = MAX_D_COST;
                 com_split_struct_t split_struct;
                 u8 tree_status_child = TREE_LC;
@@ -1669,6 +1670,7 @@ static double mode_coding_tree(core_t *core, lbac_t *lbac_cur, int x0, int y0, i
                     history->split_cost[split_mode] = best_cons_cost;
                 }
             }
+
             if (!history->visit_split && num_split_tried > 0) {
                 if ((best_curr_cost *(1.10)) < best_split_cost) {
                     break;
