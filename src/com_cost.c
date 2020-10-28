@@ -862,15 +862,16 @@ static float ssim_end4(int sum0[5][4], int sum1[5][4], int width, float ssim_c1,
 static void sobel_cost(pel *pix, int i_pel, int width, int height, int *cost_ver, int *cost_hor)
 {
     int ver = 0, hor = 0;
-    
-    pel *p_u = pix - i_pel;
-    pel *p_c = p_u + i_pel;
-    pel *p_d = p_c + i_pel;
+    int sum_ver = 0, sum_hor = 0;
 
-    for (int i = 0; i < height; i++) {
-        for (int j = 0; j < width; j++) {
-            int a = abs(p_u[j + 1] + (p_c[j + 1] << 1) + p_d[j + 1] -(p_u[j - 1] + (p_c[j - 1] << 1) + p_d[j - 1])); // ver edge 
-            int b = abs(p_u[j - 1] + (p_u[j    ] << 1) + p_u[j + 1] -(p_d[j - 1] + (p_d[j    ] << 1) + p_d[j + 1])); // hor edge
+    pel* p_u = pix - i_pel;
+    pel* p_c = p_u + i_pel;
+    pel* p_d = p_c + i_pel;
+
+    for (int i = 0; i < height / 2; i++) {
+        for (int j = 0; j < width / 2; j++) {
+            int a = abs(p_u[j + 1] + (p_c[j + 1] << 1) + p_d[j + 1] - (p_u[j - 1] + (p_c[j - 1] << 1) + p_d[j - 1])); // ver edge 
+            int b = abs(p_u[j - 1] + (p_u[j] << 1) + p_u[j + 1] - (p_d[j - 1] + (p_d[j] << 1) + p_d[j + 1])); // hor edge
 
             ver += COM_MIN(a, 255);
             hor += COM_MIN(b, 255);
@@ -879,6 +880,79 @@ static void sobel_cost(pel *pix, int i_pel, int width, int height, int *cost_ver
         p_c += i_pel;
         p_d += i_pel;
     }
+    sum_ver += ver;
+    sum_hor += hor;
+    *(cost_ver + 1) = ver;
+    *(cost_hor + 1) = hor;
+    ver = 0;
+    hor = 0;
+
+    p_u = pix - i_pel;
+    p_c = p_u + i_pel;
+    p_d = p_c + i_pel;
+
+    for (int i = 0; i < height / 2; i++) {
+        for (int j = width / 2; j < width; j++) {
+            int a = abs(p_u[j + 1] + (p_c[j + 1] << 1) + p_d[j + 1] - (p_u[j - 1] + (p_c[j - 1] << 1) + p_d[j - 1])); // ver edge 
+            int b = abs(p_u[j - 1] + (p_u[j] << 1) + p_u[j + 1] - (p_d[j - 1] + (p_d[j] << 1) + p_d[j + 1])); // hor edge
+
+            ver += COM_MIN(a, 255);
+            hor += COM_MIN(b, 255);
+        }
+        p_u += i_pel;
+        p_c += i_pel;
+        p_d += i_pel;
+    }
+    sum_ver += ver;
+    sum_hor += hor;
+    *(cost_ver + 2) = ver;
+    *(cost_hor + 2) = hor;
+    ver = 0;
+    hor = 0;
+
+
+    for (int i = height / 2; i < height; i++) {
+        for (int j = 0; j < width / 2; j++) {
+            int a = abs(p_u[j + 1] + (p_c[j + 1] << 1) + p_d[j + 1] - (p_u[j - 1] + (p_c[j - 1] << 1) + p_d[j - 1])); // ver edge 
+            int b = abs(p_u[j - 1] + (p_u[j] << 1) + p_u[j + 1] - (p_d[j - 1] + (p_d[j] << 1) + p_d[j + 1])); // hor edge
+
+            ver += COM_MIN(a, 255);
+            hor += COM_MIN(b, 255);
+        }
+        p_u += i_pel;
+        p_c += i_pel;
+        p_d += i_pel;
+    }
+    sum_ver += ver;
+    sum_hor += hor;
+    *(cost_ver + 3) = ver;
+    *(cost_hor + 3) = hor;
+    ver = 0;
+    hor = 0;
+
+    p_u = pix - i_pel + height / 2 * i_pel;
+    p_c = p_u + i_pel;
+    p_d = p_c + i_pel;
+
+    for (int i = height / 2; i < height; i++) {
+        for (int j = width / 2; j < width; j++) {
+            int a = abs(p_u[j + 1] + (p_c[j + 1] << 1) + p_d[j + 1] - (p_u[j - 1] + (p_c[j - 1] << 1) + p_d[j - 1])); // ver edge 
+            int b = abs(p_u[j - 1] + (p_u[j] << 1) + p_u[j + 1] - (p_d[j - 1] + (p_d[j] << 1) + p_d[j + 1])); // hor edge
+
+            ver += COM_MIN(a, 255);
+            hor += COM_MIN(b, 255);
+        }
+        p_u += i_pel;
+        p_c += i_pel;
+        p_d += i_pel;
+    }
+    sum_ver += ver;
+    sum_hor += hor;
+    *(cost_ver + 4) = ver;
+    *(cost_hor + 4) = hor;
+    ver = sum_ver;
+    hor = sum_hor;
+
     *cost_ver = ver;
     *cost_hor = hor;
 }

@@ -1278,7 +1278,7 @@ static int check_split_dir_by_sobel(core_t *core, int *split_allow, int x0, int 
     com_info_t *info = core->info;
 
     int check_sobel_cost = 1;
-    int min_size = info->ai_split_dir_decision_P2 ? 16 : (info->ai_split_dir_decision_P1 ? 32 : 64);
+    int min_size = info->ai_split_dir_decision_P2 ? 16 : (info->ai_split_dir_decision_P1 ? 32 : 64); // 跳过不划分测试是在min_size = 32 条件下做的
 
     if (cu_width < min_size || cu_height < min_size) {
         check_sobel_cost = 0;
@@ -1290,7 +1290,13 @@ static int check_split_dir_by_sobel(core_t *core, int *split_allow, int x0, int 
     if (check_sobel_cost) {
         com_pic_t *pic_org = core->pic_org;
         int x = x0, y = y0, w = cu_width, h = cu_height;
-        int ver, hor;
+        ////int ver, hor;
+        int ver[5], hor[5];
+        double cu_grad_dis[4];
+        double cu_gradh_dis_max;
+        double cu_gradv_dis_max;
+        double avg_grad;
+        double grad_dis_minmax;
 
         if (x == 0) {
             x = 1;
@@ -1306,17 +1312,33 @@ static int check_split_dir_by_sobel(core_t *core, int *split_allow, int x0, int 
         if (y + h == pic_org->height_luma) {
             h -= 1;
         }
-        uavs3e_funs_handle.sobel_cost(pic_org->y + y * pic_org->stride_luma + x, pic_org->stride_luma, w, h, &ver, &hor);
+        uavs3e_funs_handle.sobel_cost(pic_org->y + y * pic_org->stride_luma + x, pic_org->stride_luma, w, h, ver, hor);
 
-        if (ver > 1.04 * hor) {
+        cu_grad_dis[0] = max((ver[1] / (double)ver[2]), (ver[2] / (double)ver[1]));
+        cu_grad_dis[1] = max((ver[3] / (double)ver[4]), (ver[4] / (double)ver[3]));
+        cu_grad_dis[2] = max((hor[1] / (double)hor[3]), (hor[3] / (double)hor[1]));
+        cu_grad_dis[3] = max((hor[2] / (double)hor[4]), (hor[4] / (double)hor[2]));
+
+        cu_gradh_dis_max = max(cu_grad_dis[0], cu_grad_dis[1]);
+        cu_gradv_dis_max = max(cu_grad_dis[2], cu_grad_dis[3]);
+
+        grad_dis_minmax = min(cu_gradh_dis_max, cu_gradv_dis_max);
+        avg_grad = (cu_grad_dis[0] + cu_grad_dis[1] + cu_grad_dis[2] + cu_grad_dis[3]);
+
+        if (avg_grad > 2.0 * 4) {
+            split_allow[NO_SPLIT] = 0;
+        }
+        else if (grad_dis_minmax > 2.0) {
+            split_allow[NO_SPLIT] = 0;
+        }
+
+        if (ver[0] > 1.04 * hor[0]) {
             split_allow[SPLIT_BI_HOR] = 0;
             split_allow[SPLIT_EQT_HOR] = 0;
-            return 1;
         }
-        if (hor > 1.04 * ver) {
+        if (hor[0] > 1.04 * ver[0]) {
             split_allow[SPLIT_BI_VER] = 0;
             split_allow[SPLIT_EQT_VER] = 0;
-            return -1;
         }
     }
 
