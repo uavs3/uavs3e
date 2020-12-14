@@ -69,3 +69,9 @@ This program is originally developed by the team of Prof.Ronggang Wang (rgwang@p
   * Yangang Cai, Peking University Shenzhen Graduate School. 
   * Hao Lv, Peng Cheng Laboratory. 
   * Ronggang Wang (rgwang@pkusz.edu.cn), Peking University Shenzhen Graduate School
+
+# References
+*This program also refers to the following fast algorithm:
+  * 陈焕浜, 杨海涛. SMVD编码加速. AVS技术提案, M5218. 2020年3月.
+  * 赵寅, 杨海涛. 块划分快速算法. AVS技术提案, M5137. 2020年3月.
+  * 张焕宸, 陈雅梅, 喻莉. 基于灰度共生矩阵与编码信息的帧内预测快速算法. AVS技术提案, M5327.
