@@ -525,26 +525,18 @@ void print_log(int i_level, const char *psz_fmt, ...)
 #include <windows.h>
 
 typedef DWORD time_clk_t;
-#define CLK_PER_SEC     (1000)
-#define CLK_PER_MSEC    (1)
 #define app_get_time()  clock()
-
 #elif defined(__GNUC__) || defined(ANDROID)
 #include <time.h>
 #include <sys/time.h>
 typedef unsigned long time_clk_t;
-#define CLK_PER_SEC     (10000)
-#define CLK_PER_MSEC    (10)
-static time_clk_t app_get_time(void)
-{
-    time_clk_t t;
-    t = (time_clk_t)(clock()) * 10000L / CLK_PER_SEC;
-    return t;
-}
+#define app_get_time()  clock()
 #else
 #error THIS PLATFORM CANNOT SUPPORT CLOCK.
 #endif
 
+#define CLK_PER_SEC  (CLOCKS_PER_SEC)
+#define CLK_PER_MSEC (CLOCKS_PER_SEC / 1000)
 #define clock_2_msec(clk) \
     ((int)((clk + (CLK_PER_MSEC/2))/CLK_PER_MSEC))
 
