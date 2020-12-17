@@ -76,6 +76,7 @@ static char fn_input [256] = "\0";
 static char fn_output[256] = "\0";
 static char fn_rec   [256] = "\0";
 static int  max_frames = 0;
+static int  num_skip_frames = 0;
 static int  t_ds_ratio = 1;
 static int  g_loglevel = LOG_LEVEL_1;
 static int  frame_to_be_encoded;
@@ -505,6 +506,12 @@ static app_cfg_t options[] = {
         "crf value (0 - 63)"
         ,0 
     },
+    {
+        CFG_KEY_NULL,  "skip_frames", CFG_TYPE_INTEGER,
+        &num_skip_frames,
+        "number of skipped frames before encoding. (default: 0)"
+        ,0
+    },
     { 0, "", CFG_TYPE_NULL, NULL, "" , 0 } /* termination */
 };
 
@@ -694,7 +701,7 @@ static int read_image(int fd, com_img_t *img, int hor_size, int ver_size, int bi
     //    seek_offset = 200;
     //}
 
-    _lseeki64(fd, total_size * (frm_idx + seek_offset), SEEK_SET);
+    //_lseeki64(fd, total_size * (frm_idx + seek_offset), SEEK_SET);
 
     for (int comp = 0; comp < num_comp; comp++) {
         int padding_w = (img->width[0] - hor_size) >> (comp > 0 ? 1 : 0);
@@ -1011,6 +1018,12 @@ int main(int argc, const char **argv)
         frame_to_be_encoded = (max_frames + t_ds_ratio - 1) / t_ds_ratio;
     } else {
         frame_to_be_encoded = -1;
+    }
+
+    if (num_skip_frames > 0) {
+        int scale = (cfg.bit_depth_input == 10) ? 2 : 1;
+        long long total_size = (((long long)cfg.horizontal_size * cfg.vertical_size) * 3 / 2) * scale;
+        _lseeki64(fdi, total_size * num_skip_frames, SEEK_SET);
     }
 
     /* create encoder */
