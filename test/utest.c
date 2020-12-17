@@ -702,7 +702,7 @@ static int read_image(int fd, com_img_t *img, int hor_size, int ver_size, int bi
     //    seek_offset = 200;
     //}
 
-    _lseeki64(fd, total_size * (frm_idx + seek_offset), SEEK_SET);
+    //_lseeki64(fd, total_size * (frm_idx + seek_offset), SEEK_SET);
 
     for (int comp = 0; comp < num_comp; comp++) {
         int padding_w = (img->width[0] - hor_size) >> (comp > 0 ? 1 : 0);
