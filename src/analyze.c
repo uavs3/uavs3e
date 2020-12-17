@@ -1278,7 +1278,7 @@ static int check_split_dir_by_sobel(core_t *core, int *split_allow, int x0, int 
     com_info_t *info = core->info;
 
     int check_sobel_cost = 1;
-    int min_size = info->ai_split_dir_decision_P2 ? 16 : (info->ai_split_dir_decision_P1 ? 32 : 64); // 跳过不划分测试是在min_size = 32 条件下做的
+    int min_size = info->ai_split_dir_decision_P2 ? 16 : (info->ai_split_dir_decision_P1 ? 32 : 64); 
 
     if (cu_width < min_size || cu_height < min_size) {
         check_sobel_cost = 0;
