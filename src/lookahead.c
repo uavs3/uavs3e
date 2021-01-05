@@ -120,13 +120,14 @@ double loka_estimate_coding_cost(inter_search_t *pi, com_img_t *img_org, com_img
     if (fp_org == NULL) fp_org = fopen("preprocess_org.yuv", "wb");
 #endif
 
+#define UNIT_DIM (1 << (UNIT_SIZE_LOG2 << 1))
     for (int y = 0; y < pic_height - UNIT_SIZE + 1; y += UNIT_SIZE) {
         float *var = map_dqp + (y / UNIT_SIZE) * (pic_width / UNIT_SIZE);
 
         for (int x = 0; x < pic_width - UNIT_SIZE + 1; x += UNIT_SIZE) {
-            ALIGNED_32(pel pred_buf[MAX_CU_DIM]);
-            ALIGNED_32(pel pred_buf_fwd[MAX_CU_DIM]);
-            ALIGNED_32(pel pred_buf_bwd[MAX_CU_DIM]);
+            ALIGNED_32(pel pred_buf[UNIT_DIM]);
+            ALIGNED_32(pel pred_buf_fwd[UNIT_DIM]);
+            ALIGNED_32(pel pred_buf_bwd[UNIT_DIM]);
 
             u64 min_cost = COM_UINT64_MAX;
             pel *org = (pel*)img_org->planes[0] + y * i_org + x;
@@ -261,6 +262,7 @@ double loka_estimate_coding_cost(inter_search_t *pi, com_img_t *img_org, com_img
             }
         }        
     }
+#undef UNIT_DIM
 
 #if WRITE_REC_PIC
     fwrite(buf, 1, pic_width * pic_height, fp);
