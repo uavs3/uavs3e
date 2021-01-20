@@ -632,7 +632,7 @@ void uavs3e_alf_one_lcu_avx2(pel *dst, int i_dst, pel *src, int i_src, int lcu_w
             S = _mm256_packus_epi32(SS1, SS2);
             S = _mm256_min_epu16(S, max_val);
 
-            _mm256_store_si256((__m256i *)(dst + j), S);
+            _mm256_storeu_si256((__m256i *)(dst + j), S);
 
         }
 

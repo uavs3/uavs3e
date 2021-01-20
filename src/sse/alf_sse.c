@@ -222,7 +222,7 @@ void uavs3e_alf_one_lcu_sse(pel *dst, int i_dst, pel *src, int i_src, int lcu_wi
             SS2 = _mm_max_epi16(SS2, mZero);
 
             S = _mm_packus_epi16(SS1, SS2);
-            _mm_store_si128((__m128i *)(dst + j), S);
+            _mm_storeu_si128((__m128i *)(dst + j), S);
         }
 
         src += i_src;
@@ -860,7 +860,7 @@ void uavs3e_alf_one_lcu_sse(pel *dst, int i_dst, pel *src, int i_src, int lcu_wi
             S = _mm_packus_epi32(SS1, SS2);
             S = _mm_min_epu16(S, max_val);
 
-            _mm_store_si128((__m128i *)(dst + j), S);
+            _mm_storeu_si128((__m128i *)(dst + j), S);
 
         }
 

@@ -3857,10 +3857,10 @@ void uavs3e_ipred_ver_avx2(pel *src, pel *dst, int i_dst, int width, int height)
         T0 = _mm256_loadu_si256((__m256i *)(src));
         t0 = _mm_loadu_si128((__m128i *)(src + 16));
         for (y = 0; y < height; y += 2) {
-            _mm256_store_si256((__m256i *)(dst), T0);
-            _mm_store_si128((__m128i *)(dst + 16), t0);
-            _mm256_store_si256((__m256i *)(dst + i_dst), T0);
-            _mm_store_si128((__m128i *)(dst + i_dst + 16), t0);
+            _mm256_storeu_si256((__m256i *)(dst), T0);
+            _mm_storeu_si128((__m128i *)(dst + 16), t0);
+            _mm256_storeu_si256((__m256i *)(dst + i_dst), T0);
+            _mm_storeu_si128((__m128i *)(dst + i_dst + 16), t0);
             dst += i_dst2;
         }
         break;

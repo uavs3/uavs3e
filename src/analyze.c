@@ -1314,15 +1314,15 @@ static int check_split_dir_by_sobel(core_t *core, int *split_allow, int x0, int 
         }
         uavs3e_funs_handle.sobel_cost(pic_org->y + y * pic_org->stride_luma + x, pic_org->stride_luma, w, h, ver, hor);
 
-        cu_grad_dis[0] = max((ver[1] / (double)ver[2]), (ver[2] / (double)ver[1]));
-        cu_grad_dis[1] = max((ver[3] / (double)ver[4]), (ver[4] / (double)ver[3]));
-        cu_grad_dis[2] = max((hor[1] / (double)hor[3]), (hor[3] / (double)hor[1]));
-        cu_grad_dis[3] = max((hor[2] / (double)hor[4]), (hor[4] / (double)hor[2]));
+        cu_grad_dis[0] = COM_MAX((ver[1] / (double)ver[2]), (ver[2] / (double)ver[1]));
+        cu_grad_dis[1] = COM_MAX((ver[3] / (double)ver[4]), (ver[4] / (double)ver[3]));
+        cu_grad_dis[2] = COM_MAX((hor[1] / (double)hor[3]), (hor[3] / (double)hor[1]));
+        cu_grad_dis[3] = COM_MAX((hor[2] / (double)hor[4]), (hor[4] / (double)hor[2]));
 
-        cu_gradh_dis_max = max(cu_grad_dis[0], cu_grad_dis[1]);
-        cu_gradv_dis_max = max(cu_grad_dis[2], cu_grad_dis[3]);
+        cu_gradh_dis_max = COM_MAX(cu_grad_dis[0], cu_grad_dis[1]);
+        cu_gradv_dis_max = COM_MAX(cu_grad_dis[2], cu_grad_dis[3]);
 
-        grad_dis_minmax = min(cu_gradh_dis_max, cu_gradv_dis_max);
+        grad_dis_minmax = COM_MIN(cu_gradh_dis_max, cu_gradv_dis_max);
         avg_grad = (cu_grad_dis[0] + cu_grad_dis[1] + cu_grad_dis[2] + cu_grad_dis[3]);
 
         if (avg_grad > 2.0 * 4) {
