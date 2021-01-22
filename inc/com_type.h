@@ -463,6 +463,7 @@ typedef struct uavs3e_com_info_t {
     int                     depth_neb_qtd;
     int                     depth_limit_part_ratio;
     int                     depth_rm_splite_by_border;
+    int                     depth_limit_eqt_by_cudepth;
 
     int                     rpl_rmv_same_ref;
     int                     adaptive_raster_range; 

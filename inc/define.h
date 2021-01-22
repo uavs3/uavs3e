@@ -179,6 +179,7 @@ typedef struct uavs3e_enc_cu_t {
     pel *reco[N_C];
     s8  *qtd;
     s8  *border;
+    s8  *cudepth;
 } enc_cu_t;
 
 typedef struct uavs3e_enc_history_t {
