@@ -1289,6 +1289,7 @@ static int check_split_dir_by_sobel(core_t *core, int *split_allow, int x0, int 
 
     if (check_sobel_cost) {
         com_pic_t *pic_org = core->pic_org;
+        int i = 0, qp = core->lcu_qp_y;
         int x = x0, y = y0, w = cu_width, h = cu_height;
         ////int ver, hor;
         int ver[5], hor[5];
@@ -1297,6 +1298,7 @@ static int check_split_dir_by_sobel(core_t *core, int *split_allow, int x0, int 
         double cu_gradv_dis_max;
         double avg_grad;
         double grad_dis_minmax;
+        double grad_max, grad_min;
 
         if (x == 0) {
             x = 1;
@@ -1339,6 +1341,24 @@ static int check_split_dir_by_sobel(core_t *core, int *split_allow, int x0, int 
         if (hor[0] > 1.04 * ver[0]) {
             split_allow[SPLIT_BI_VER] = 0;
             split_allow[SPLIT_EQT_VER] = 0;
+        }
+
+        grad_max = COM_MAX(ver[0], hor[0]);
+        grad_min = COM_MIN(ver[0], hor[0]);
+
+        if (cu_width == 32 && cu_height == 32) {
+            if (split_allow[SPLIT_QUAD] && qp < 35 && ver[0] >= 20938.5 && hor[0] >= 20372.5 && grad_max < 1.7005 * grad_min) {
+                for (i = 0; i < SPLIT_QUAD; i++)
+                    split_allow[i] = 0;
+            }
+        }
+
+        if (cu_width == 64 && cu_height == 64) {
+            if (split_allow[SPLIT_QUAD] && ver[0] >= 66638.5 && hor[0] >= 66638.5) {
+            //if (split_allow[SPLIT_QUAD] && ver[0] >= 60152 && hor[0] >= 60152) {
+                for (i = 0; i < SPLIT_QUAD; i++)
+                    split_allow[i] = 0;
+            }
         }
     }
 
