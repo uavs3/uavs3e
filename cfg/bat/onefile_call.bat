@@ -1,1 +1,0 @@
-for %%i in (38) do call oneqp  %1  %2  %3  %4  %5  %6  %7  %%i

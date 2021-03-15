@@ -1,16 +1,11 @@
 cmake_minimum_required(VERSION 2.8)
 
-project(uavs3e)
+project(uAVS3)
 
-aux_source_directory(./test DIR_SRC_TEST)
-set_source_files_properties(${DIR_SRC_TEST} PROPERTIES COMPILE_FLAGS "${CMAKE_C_FLAGS}  -std=c99 -O3")
+add_subdirectory(uAVS3lib)
 
-add_subdirectory(./src)
-include_directories("./inc")
+add_executable(uAVS3 ./utest.c)
+add_executable(uAVS3_gop ./utest_gop.c)
 
-add_executable(uavs3enc ${DIR_SRC_TEST})
-
-target_link_libraries(uavs3enc m)
-target_link_libraries(uavs3enc uavs3e)
-#target_link_libraries(uavs3enc dl)
-
+target_link_libraries(uAVS3 uavs3e)
+target_link_libraries(uAVS3_gop uavs3e)

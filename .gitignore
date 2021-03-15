@@ -1,52 +1,25 @@
-﻿# Prerequisites
-*.d
-
-# Object files
-*.o
-*.ko
-*.obj
-*.elf
-
-# Linker output
-*.ilk
-*.map
-*.exp
-
-# Precompiled Headers
-*.gch
-*.pch
-
-# Libraries
-*.lib
-*.a
-*.la
-*.lo
-
-# Shared objects (inc. Windows DLLs)
-*.dll
-*.so
-*.so.*
-*.dylib
-
-# Executables
+lcommon/debug
+lcommon/release
+lencod/debug
+lencod/release
+ldecod/debug
+ldecod/release
+x64
+*.suo
+*.sdf
+*.opensdf
+*.yuv
+*.avs
+*.dat
+*.dec
 *.exe
-*.out
-*.app
-*.i*86
-*.x86_64
-*.hex
-
-# Debug files
-*.dSYM/
-*.su
-*.idb
+*.dll
+*.ax
+*.avs
+*.avs2
+*.ilk
+*.user
+*.exp
 *.pdb
-
-# Kernel Module Compile Results
-*.mod*
-*.cmd
-.tmp_versions/
-modules.order
-Module.symvers
-Mkfile.old
-dkms.conf
+*.lib
+*.obj

@@ -1,0 +1,239 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hh;hpp;hxx;hm;inl;inc;xsd</Extensions>
+    </Filter>
+    <Filter Include="x86">
+      <UniqueIdentifier>{74a58b9e-0349-4ca3-8479-afc1cfe84582}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="tools">
+      <UniqueIdentifier>{2ae541e1-61fc-4402-b02c-399f484da564}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="uAVS3lib\x86\intrinsic.c">
+      <Filter>x86</Filter>
+    </ClCompile>
+    <ClCompile Include="uAVS3lib\x86\intrinsic_block.c">
+      <Filter>x86</Filter>
+    </ClCompile>
+    <ClCompile Include="uAVS3lib\x86\intrinsic_cost.c">
+      <Filter>x86</Filter>
+    </ClCompile>
+    <ClCompile Include="uAVS3lib\x86\intrinsic_dct.c">
+      <Filter>x86</Filter>
+    </ClCompile>
+    <ClCompile Include="uAVS3lib\x86\intrinsic_deblock.c">
+      <Filter>x86</Filter>
+    </ClCompile>
+    <ClCompile Include="uAVS3lib\x86\intrinsic_idct.c">
+      <Filter>x86</Filter>
+    </ClCompile>
+    <ClCompile Include="uAVS3lib\x86\intrinsic_inter_pred.c">
+      <Filter>x86</Filter>
+    </ClCompile>
+    <ClCompile Include="uAVS3lib\x86\intrinsic_intra-pred.c">
+      <Filter>x86</Filter>
+    </ClCompile>
+    <ClCompile Include="uAVS3lib\x86\intrinsic_pixel.c">
+      <Filter>x86</Filter>
+    </ClCompile>
+    <ClCompile Include="uAVS3lib\x86\intrinsic_sao.c">
+      <Filter>x86</Filter>
+    </ClCompile>
+    <ClCompile Include="uAVS3lib\biariencode.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="uAVS3lib\block.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="uAVS3lib\block_info.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="uAVS3lib\codingUnit.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="uAVS3lib\common.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="uAVS3lib\cost.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="uAVS3lib\header.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="uAVS3lib\image.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="uAVS3lib\inter-prediction.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="uAVS3lib\intra-prediction.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="uAVS3lib\loopfilter.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="uAVS3lib\loop-filter.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="uAVS3lib\me.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="uAVS3lib\pixel.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="uAVS3lib\rdopt.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="uAVS3lib\rdoq.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="uAVS3lib\slice.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="uAVS3lib\transform.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="uAVS3lib\vlc.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="uAVS3lib\uAVS3lib.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="uAVS3lib\aec.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="uAVS3lib\water_mark.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="uAVS3lib\x86\intrinsic_dct_10bit.c">
+      <Filter>x86</Filter>
+    </ClCompile>
+    <ClCompile Include="uAVS3lib\x86\intrinsic_idct_10bit.c">
+      <Filter>x86</Filter>
+    </ClCompile>
+    <ClCompile Include="uAVS3lib\wquant.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="uAVS3lib\tools\threadpool.c">
+      <Filter>tools</Filter>
+    </ClCompile>
+    <ClCompile Include="uAVS3lib\tools\win32thread.c">
+      <Filter>tools</Filter>
+    </ClCompile>
+    <ClCompile Include="uAVS3lib\tools\xlist.c">
+      <Filter>tools</Filter>
+    </ClCompile>
+    <ClCompile Include="uAVS3lib\tools\preprocess.c">
+      <Filter>tools</Filter>
+    </ClCompile>
+    <ClCompile Include="uAVS3lib\tools\uratectrl_CBR.c">
+      <Filter>tools</Filter>
+    </ClCompile>
+    <ClCompile Include="uAVS3lib\tools\uratectrl_ABR.c">
+      <Filter>tools</Filter>
+    </ClCompile>
+    <ClCompile Include="uAVS3lib\x86\intrinsic_avx512.c">
+      <Filter>x86</Filter>
+    </ClCompile>
+    <ClCompile Include="uAVS3lib\tools\uratectrl_CRF.c">
+      <Filter>tools</Filter>
+    </ClCompile>
+    <ClCompile Include="uAVS3lib\uAVS3lib_gop.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="uAVS3lib\x86\intrinsic.h">
+      <Filter>x86</Filter>
+    </ClInclude>
+    <ClInclude Include="uAVS3lib\biariencode.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="uAVS3lib\block.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="uAVS3lib\codingUnit.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="uAVS3lib\common.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="uAVS3lib\commonStructures.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="uAVS3lib\commonVariables.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="uAVS3lib\defines.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="uAVS3lib\global.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="uAVS3lib\header.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="uAVS3lib\image.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="uAVS3lib\inter-prediction.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="uAVS3lib\intra-prediction.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="uAVS3lib\loop-filter.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="uAVS3lib\me.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="uAVS3lib\rdoq.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="uAVS3lib\transform.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="uAVS3lib\uAVS3lib.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="uAVS3lib\vlc.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="uAVS3lib\aec.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="uAVS3lib\x86\intrinsic_10.h">
+      <Filter>x86</Filter>
+    </ClInclude>
+    <ClInclude Include="uAVS3lib\wquant.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="uAVS3lib\tools\threadpool.h">
+      <Filter>tools</Filter>
+    </ClInclude>
+    <ClInclude Include="uAVS3lib\tools\win32thread.h">
+      <Filter>tools</Filter>
+    </ClInclude>
+    <ClInclude Include="uAVS3lib\tools\xlist.h">
+      <Filter>tools</Filter>
+    </ClInclude>
+    <ClInclude Include="uAVS3lib\tools\uratectrl.h">
+      <Filter>tools</Filter>
+    </ClInclude>
+    <ClInclude Include="uAVS3lib\tools\preprocess.h">
+      <Filter>tools</Filter>
+    </ClInclude>
+    <ClInclude Include="uAVS3lib\uAVS3lib_gop.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>

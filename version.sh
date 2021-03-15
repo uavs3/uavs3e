@@ -13,7 +13,7 @@ VER_L=`git rev-list HEAD | sort | wc -l | gawk '{print $1}'`
 VER_SHA1=`git log -n 1 | head -n 1 | cut -d ' ' -f 2`
 
 major_version="1"
-minor_version="2"
+minor_version="0"
 type_version="release"
 
 # generate the file version.h
