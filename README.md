@@ -64,11 +64,16 @@ This program is originally developed by the team of Prof.Ronggang Wang (rgwang@p
   * Chunhui Yang, Peking University Shenzhen Graduate School.
   * Dapeng Chen, Bigo Technology Pte. Ltd 
   * Jin Lin, Harbin Institute of Technology, Shenzhen.
+  * Yi Ma, Peking University Shenzhen Graduate School. 
+  * Litian Li, Peking University Shenzhen Graduate School. 
   * Guisen Xu, Peking University Shenzhen Graduate School. 
   * Xufeng Li, Peking University Shenzhen Graduate School. 
   * Yangang Cai, Peking University Shenzhen Graduate School. 
   * Hao Lv, Peng Cheng Laboratory. 
   * Ronggang Wang (rgwang@pkusz.edu.cn), Peking University Shenzhen Graduate School
+
+  # XueliCheng
+  # luofl
 
 # References
 *This program also refers to the following fast algorithm:
