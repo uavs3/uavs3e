@@ -269,7 +269,9 @@ u8 com_tree_split(int w, int h, split_mode_t split, u8 slice_type);
 #define ENABLE_FUNCTION_C 1
 #define ENABLE_FUNCTION_ARM32 1
 #elif (defined(__WIN32__) || defined(_WIN32)) || (defined(__MACOSX__) || defined(macintosh) || defined(__linux__) || defined(__unix__)) && (defined(__i386__) || defined(__x86_64__) || defined(__AMD64__))
+#if defined(__AVX2__) || defined(__SSE4_2__)
 #define ENABLE_FUNCTION_X86 1
+#endif
 #define ENABLE_FUNCTION_C 1
 #else
 #define ENABLE_FUNCTION_C 1
