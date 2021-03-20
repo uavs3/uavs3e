@@ -49,7 +49,7 @@
 /*****************************************************************************
  * basic types
  *****************************************************************************/
-#if defined(WIN32) || defined(WIN64)
+#if defined(_MSC_VER)
 typedef __int8                     s8;
 typedef unsigned __int8            u8;
 typedef __int16                    s16;
@@ -75,7 +75,7 @@ typedef signed short               s16;
 typedef unsigned short             u16;
 typedef signed int                 s32;
 typedef unsigned int               u32;
-#if defined(X86_64) && !defined(_MSC_VER) /* for 64bit-Linux */
+#if defined(__X86_64__) && !defined(_MSC_VER) /* for 64bit-Linux */
 typedef signed long                s64;
 typedef unsigned long              u64;
 #else
@@ -161,7 +161,7 @@ typedef int BOOL;
 #define com_mset_x128(dst,v,size) memset((dst), (v), (size))
 #define com_mcmp(dst,src,size)    memcmp((dst), (src), (size))
 
-#if defined(__GNUC__)
+#if !defined(__GNUC__)
 #define offsetof(s,m) __builtin_offsetof(s,m)
 #endif
 
