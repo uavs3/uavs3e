@@ -352,7 +352,7 @@ int check_scenecut_histogram(inter_search_t *pi, analyze_node_t *img_org, int *l
 
     return 0;
 }
-void calculate_histogram(inter_search_t *pi, com_img_t *img_org, int *histo_data, int bit_depth)
+void uavs3e_calculate_histogram(inter_search_t *pi, com_img_t *img_org, int *histo_data, int bit_depth)
 {
     int width_block = img_org->width[0] / HISBLOCK_SIZE;
     int height_block = img_org->height[0] / HISBLOCK_SIZE;

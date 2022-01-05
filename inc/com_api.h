@@ -43,7 +43,7 @@ extern "C"
 {
 #endif
 
-#define BIT_DEPTH 8
+#define BIT_DEPTH 10
 
 #if (BIT_DEPTH == 8)
     typedef unsigned char     pel; /* pixel type */
