@@ -1125,6 +1125,7 @@ void lbac_reset(lbac_t *lbac)
     lbac->pending_byte    = 0;
     lbac->is_pending_byte = 0;
     lbac->stacked_ff      = 0;
+	lbac->bitcounter      = 0;
 }
 
 void lbac_finish(lbac_t *lbac, bs_t *bs)

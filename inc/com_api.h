@@ -43,12 +43,25 @@ extern "C"
 {
 #endif
 
-#define BIT_DEPTH 8
-
-#if (BIT_DEPTH == 8)
-    typedef unsigned char     pel; /* pixel type */
+#if defined(__linux__)
+#if COMPILE_10BIT
+    typedef unsigned short pel;
+    #define BIT_DEPTH 10
 #else
-    typedef unsigned short    pel; /* pixel type */
+    typedef unsigned char pel;
+    #define BIT_DEPTH 8
+#endif
+
+#else
+#define COMPILE_10BIT 0
+#if COMPILE_10BIT
+    typedef unsigned short pel;
+    #define BIT_DEPTH 10
+#else
+    typedef unsigned char pel;
+    #define BIT_DEPTH 8
+#endif
+
 #endif
 
 /*****************************************************************************

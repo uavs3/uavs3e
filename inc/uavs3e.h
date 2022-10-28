@@ -62,6 +62,29 @@ extern "C"
 
 #define PIC_ALIGN_SIZE 8
 
+#if defined(_WIN32) || defined(__linux__)
+#include <sys/timeb.h>
+#elif defined(__GNUC__)
+#include <sys/time.h>
+#endif
+
+#include "stddef.h"
+
+static __inline long long get_mdate(void)
+{
+#if defined(_WIN32) || defined(__linux__)
+    struct timeb tb;
+    ftime(&tb);
+    return ((long long)tb.time * 1000 + (long long)tb.millitm) * 1000;
+#elif defined(__GNUC__) 
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    return (long long)tv.tv_sec * 1000000 + tv.tv_usec;
+#else
+    return -1;
+#endif
+}
+
 typedef struct uavs3e_enc_stat_t {
     void          *buf;                // [out] bitstream buffer                                       
     int            bytes;              // [out] size of bitstream

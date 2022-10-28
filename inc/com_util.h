@@ -262,7 +262,7 @@ u8 com_tree_split(int w, int h, split_mode_t split, u8 slice_type);
 
 
 /* function selection define based on platforms */
-#if (defined(__ANDROID__) && defined(__aarch64__)) || (defined(__APPLE__) && defined(__arm64__))
+#if (defined(__ANDROID__) && defined(__aarch64__)) || (defined(__APPLE__) && defined(__arm64__)) || (defined(__linux__) && defined(__aarch64__))
 #define ENABLE_FUNCTION_C 1
 #define ENABLE_FUNCTION_ARM64 1
 #elif (defined(__ANDROID__) && defined(__arm__)) || (defined(__APPLE__) && defined(__ARM_NEON__))
@@ -373,6 +373,10 @@ void uavs3e_funs_init_sse();
 void uavs3e_funs_init_avx2();
 #endif
 
+#if ENABLE_FUNCTION_ARM64
+void uavs3e_funs_init_arm64();
+#endif
+
 void *uavs3e_align_malloc(int i_size);
 void uavs3e_align_free(void *p);
 
@@ -383,7 +387,7 @@ static avs3_always_inline int uavs3e_get_log2(int v)
     _BitScanReverse(&index, v);
     return index;
 #else
-    return 31 - __builtin_clz(v);
+    return 31 - __builtin_clz(v|1);
 #endif
 }
 

@@ -58,6 +58,7 @@
 
 #ifndef _WIN32
 #if defined(__APPLE__)
+#include <unistd.h>
 #define _lseeki64 lseek
 #else
 #define _lseeki64 lseek64
@@ -233,7 +234,7 @@ static app_cfg_t options[] = {
     {
         CFG_KEY_NULL,  "speed_level", CFG_TYPE_INTEGER,
         &cfg.speed_level,
-        "Level of coding speed"
+        "Level of coding speed, (default: 0; allowed values: 0, 1, 2, 3, 4)"
         ,0 
     },
     {
@@ -836,7 +837,7 @@ static void print_config(void *h, enc_cfg_t param)
     printf("\tadaptive_gop             : %d\n", param.adaptive_gop);
 
     printf("\n< Parallel Info >\n");
-    printf("\tWPP threads              : %d\n", param.wpp_threads);
+    printf("\tWPP threads              : %d    (1-%d)\n", param.wpp_threads, (param.pic_height + param.ctu_size - 1) / param.ctu_size);
     printf("\tframe threads            : %d\n", param.frm_threads);
 
     printf("\n< RC Info >\n");
@@ -908,7 +909,7 @@ static void print_config(void *h, enc_cfg_t param)
     printf("\n");
 
     //speed-up tools
-    printf("\tSpeed_level: %d", param.speed_level);
+    printf("\tSpeed_level: %d   (allowed 0, 1, 2, 3, 4)", param.speed_level);
 
     printf("\n");
 
@@ -969,6 +970,7 @@ int main(int argc, const char **argv)
     char               enc_ext_info[2048] = "";
     int                i, ret, size;
     time_clk_t         time_start, total_time;
+	long long          check_time;
     long long          frame_cnt;
     int                num_encoded_frames = 0;
     double             bitrate;
@@ -1049,6 +1051,7 @@ int main(int argc, const char **argv)
     frame_cnt  = 0;
 
     /* encode pictures *******************************************************/
+	check_time = get_mdate();
     while (1) {
         com_img_t *img_enc = NULL;
 
@@ -1124,7 +1127,7 @@ int main(int argc, const char **argv)
             return -1;
         }
     }
-
+	check_time = (get_mdate() - check_time) / 1000;
     char end_code[4] = { 0, 0, 1, 0xB1 };
 
     if (fdo > 0) {
@@ -1162,6 +1165,10 @@ int main(int argc, const char **argv)
             (float)clock_2_msec(total_time) / frame_cnt);
     print_log(1, "Average encoding speed            = %.5f frames/sec\n",
             ((float)frame_cnt * 1000) / ((float)clock_2_msec(total_time)));
+	print_log(1, "Actual encoding time for a frame = %.3f sec\n",
+		(float)(check_time * 0.001) / frame_cnt);
+	print_log(1, "Actual encoding speed            = %.5f frames/sec\n",
+		(float)(frame_cnt * 1000) / check_time);
     print_log(1, "===============================================================================\n");
     fflush(stdout);
 
@@ -1170,7 +1177,7 @@ int main(int argc, const char **argv)
     fprintf(fp, "%s    %.4f %.4f %.4f %.4f    %.4f %.4f %.4f    %.5f\n", fn_output, bitrate, 
                                                     psnr_avg[0], psnr_avg[1], psnr_avg[2],
                                                     ssim_avg[0], ssim_avg[1], ssim_avg[2],
-                                                   ((float)frame_cnt * 1000) / ((float)clock_2_msec(total_time)));
+		(float)(frame_cnt * 1000) / check_time);
     fclose(fp);
 #endif
 

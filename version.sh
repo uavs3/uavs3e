@@ -16,11 +16,11 @@ else
 fi
 
 VER_R=`git rev-list origin/master | sort | wc -l | gawk '{print $1}'`
-VER_L=`git rev-list HEAD | sort | wc -l | gawk '{print $1}'`
+VER_L=`git rev-list HEAD ^b4c1df4934b3097dba20746a4a54ef8633e47918| sort | wc -l | gawk '{print $1}'`
 VER_SHA1=`git log -n 1 | head -n 1 | cut -d ' ' -f 2`
 
 major_version="1"
-minor_version="2"
+minor_version="3"
 type_version="release"
 
 # generate the file version.h

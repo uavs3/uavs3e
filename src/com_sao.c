@@ -583,10 +583,10 @@ static void sao_get_stat(com_pic_t  *pic_org, com_pic_t  *pic_rec, com_sao_stat_
     int start_x, end_x, start_y, end_y;
     int start_x_r0, end_x_r0, start_x_r, end_x_r, start_x_rn, end_x_rn;
     int x, y;
-    char leftsign, rightsign, upsign, downsign;
+    s8 leftsign, rightsign, upsign, downsign;
     long diff;
     com_sao_stat_t *statsDate;
-    char signupline[MAX_CU_SIZE * 2], *signupline1;
+    s8 signupline[MAX_CU_SIZE * 2], *signupline1;
     int reg = 0;
     int edgetype, bandtype;
     int SrcStride = STRIDE_IMGB2PIC(pic_rec->img->stride[compIdx]);
@@ -668,7 +668,7 @@ static void sao_get_stat(com_pic_t  *pic_org, com_pic_t  *pic_rec, com_sao_stat_
                     edgetype = downsign + signupline[x];
                     statsDate->diff[edgetype + 2] += (Org[(pix_y + y) * OrgStride + pix_x + x] - Rec[(pix_y + y) * SrcStride + pix_x + x]);
                     statsDate->count[edgetype + 2]++;
-                    signupline[x] = (char)reg;
+                    signupline[x] = (s8)reg;
                     reg = -downsign;
                 }
             }
