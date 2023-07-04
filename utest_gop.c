@@ -822,6 +822,7 @@ int ReadOneth_10bit(avs3_threadpool_t *mem, image_t *img, unsigned char *fd, cfg
     for (i = 0; i < 6; i++)
     {
         avs3_threadpool_wait(mem, listx[i]);
+        free(listx[i]);
     }
 
     return 1;
@@ -1021,7 +1022,7 @@ int main(int argc, char **argv)
     int numframes = 50;
     long long read_size;
 
-    unsigned char* buffer[15];
+    unsigned char* buffer[15] = {NULL};
 
     for (i = 0; i < 15; i++)
     {
@@ -1080,6 +1081,12 @@ int main(int argc, char **argv)
     if (fd_bitstream > 0) {
         _close(fd_bitstream);
     }
+
+#if SPEED_TEST
+    for (i = 0; i < 15; i++) {
+        free(buffer[i]);
+    }
+#endif
 
     return 0;
 }
