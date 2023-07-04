@@ -378,23 +378,26 @@ void* avs3_lib_create(cfg_param_t *input_init, strm_out_t strm_callbak, rec_out_
     avs3_ctrl_t *ctrl;
     double total_memory = 0;
     cfg_param_t *input;
+    static int is_init_lib = 0;
 
     refine_input(input_init);
 
     input_bufsize = max(2 * input_init->succ_bfrms + 1 + input_init->threads_frm + REF_MAXBUFFER + LOOKAHEAD, input_bufsize);
 
-    com_scan_tbl_init();
-    rdoq_init_err_scale(input_init->bit_depth);
-    rdoq_init_prob_2_bits();
+    if (!is_init_lib) {
+        is_init_lib = 1;
+        com_scan_tbl_init();
+        rdoq_init_err_scale(input_init->bit_depth);
+        rdoq_init_prob_2_bits();
 
-    com_funs_init_ip_filter();
-    com_funs_init_pixel_opt();
-    com_funs_init_intra_pred();
-    com_funs_init_transform();
-    com_funs_init_quant();
-    com_funs_init_rdcost();
-    com_funs_init_deblock();
-    com_funs_init_sao();
+        com_funs_init_ip_filter();
+        com_funs_init_pixel_opt();
+        com_funs_init_intra_pred();
+        com_funs_init_transform();
+        com_funs_init_quant();
+        com_funs_init_rdcost();
+        com_funs_init_deblock();
+        com_funs_init_sao();
 
 #if COMPILE_10BIT
     #if defined(__ANDROID__)
@@ -449,7 +452,7 @@ void* avs3_lib_create(cfg_param_t *input_init, strm_out_t strm_callbak, rec_out_
         #endif
     #endif
 #endif
-
+    }
     ctrl = com_malloc(sizeof(avs3_ctrl_t), 1);
     total_memory = sizeof(avs3_ctrl_t);
 
