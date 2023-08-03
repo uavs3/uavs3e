@@ -212,7 +212,7 @@ double loka_estimate_coding_cost(inter_search_t *pi, com_img_t *img_org, com_img
 
             int avaliable_nb = (x ? AVAIL_LE : 0) | (y ? AVAIL_UP : 0) | ((x && y) ? AVAIL_UP_LE : 0);
             static tab_s8 ipm_tab[] = { 0, 1, 2, 4, 8, 12, 16, 20, 24, 28, 32 };
-            u32 min_icost = COM_UINT64_MAX;
+            u32 min_icost = (u32) COM_UINT64_MAX;
             int best_mode;
 
             for (int i = 0; i < sizeof(ipm_tab); i++) {
