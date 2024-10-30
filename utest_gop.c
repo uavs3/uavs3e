@@ -545,34 +545,78 @@ int ReadOneFrame_8bit(image_t *img, int fd, cfg_param_t *input, long long FrameN
     _lseeki64(fd, offset, SEEK_SET);
 
     buf = (unsigned char *)img->plane[0];
-	read_size += _read(fd, buf, width * height);
 
-   if (input->InterlaceCodingOption) {
-	   _lseeki64(fd, width, SEEK_CUR);
-   }
+	if (width != (img->i_stride[0])) {
+		for (i = 0; i < height; i++) {
+			read_size += _read(fd, buf, width);
 
-    if (input->InterlaceCodingOption && FrameNoInFile % 2) {
-		_lseeki64(fd, -width, SEEK_CUR);
-    }
+			if (input->InterlaceCodingOption) {
+				_lseeki64(fd, width, SEEK_CUR);
+			}
 
-    buf = (unsigned char *)img->plane[1];
-    read_size += _read(fd, buf, width * height / 4);
+			buf += img->i_stride[0];
+		}
 
-    if (input->InterlaceCodingOption) {
-		_lseeki64(fd, width / 2, SEEK_CUR);
-    }
+		if (input->InterlaceCodingOption && FrameNoInFile % 2) {
+			_lseeki64(fd, -width, SEEK_CUR);
+		}
+
+		buf = (unsigned char *)img->plane[1];
+		for (i = 0; i < height / 2; i++) {
+			read_size += _read(fd, buf, width / 2);
+
+			if (input->InterlaceCodingOption) {
+				_lseeki64(fd, width / 2, SEEK_CUR);
+			}
+
+			buf += img->i_stride[1];
+		}
+
+		if (input->InterlaceCodingOption && FrameNoInFile % 2) {
+			_lseeki64(fd, -width / 2, SEEK_CUR);
+		}
+
+		buf = (unsigned char *)img->plane[2];
+		for (i = 0; i < height / 2; i++) {
+			read_size += _read(fd, buf, width / 2);
+
+			if (input->InterlaceCodingOption) {
+				_lseeki64(fd, width / 2, SEEK_CUR);
+			}
+
+			buf += img->i_stride[2];
+		}
+	}
+	else {
+		read_size += _read(fd, buf, width * height);
+
+		if (input->InterlaceCodingOption) {
+			_lseeki64(fd, width, SEEK_CUR);
+		}
+
+		if (input->InterlaceCodingOption && FrameNoInFile % 2) {
+			_lseeki64(fd, -width, SEEK_CUR);
+		}
+
+		buf = (unsigned char *)img->plane[1];
+		read_size += _read(fd, buf, width * height / 4);
+
+		if (input->InterlaceCodingOption) {
+			_lseeki64(fd, width / 2, SEEK_CUR);
+		}
 
 
-    if (input->InterlaceCodingOption && FrameNoInFile % 2) {
-        _lseeki64(fd, -width / 2, SEEK_CUR);
-    }
+		if (input->InterlaceCodingOption && FrameNoInFile % 2) {
+			_lseeki64(fd, -width / 2, SEEK_CUR);
+		}
 
-    buf = (unsigned char *)img->plane[2];
-    read_size += _read(fd, buf, width * height / 4);
+		buf = (unsigned char *)img->plane[2];
+		read_size += _read(fd, buf, width * height / 4);
 
-    if (input->InterlaceCodingOption) {
-		_lseeki64(fd, width / 2, SEEK_CUR);
-    }
+		if (input->InterlaceCodingOption) {
+			_lseeki64(fd, width / 2, SEEK_CUR);
+		}
+	}
 
     if (read_size != (size_t)(width * height * 3 / 2)) {
         return 0;
@@ -684,34 +728,77 @@ int ReadOneFrame_10bit(image_t *img, int fd, cfg_param_t *input, long long Frame
     _lseeki64(fd, offset * 2, SEEK_SET);
 
     buf = img->plane[0];
-    read_size += _read(fd, buf, width * height * 2);
 
-    if (input->InterlaceCodingOption) {
-        _lseeki64(fd, width * 2, SEEK_CUR);
-    }
+	if (width != img->i_stride[0]) {
+		for (i = 0; i < height; i++) {
+			read_size += _read(fd, buf, width * 2);
 
-    if (input->InterlaceCodingOption && FrameNoInFile % 2) {
-        _lseeki64(fd, -width * 2, SEEK_CUR);
-    }
+			if (input->InterlaceCodingOption) {
+				_lseeki64(fd, width * 2, SEEK_CUR);
+			}
 
-    buf = img->plane[1];
-    read_size += _read(fd, buf, width * height / 2);
+			buf += img->i_stride[0];
+		}
 
-        if (input->InterlaceCodingOption) {
-            _lseeki64(fd, width / 2 * 2, SEEK_CUR);
-        }
+		if (input->InterlaceCodingOption && FrameNoInFile % 2) {
+			_lseeki64(fd, -width * 2, SEEK_CUR);
+		}
 
-    if (input->InterlaceCodingOption && FrameNoInFile % 2) {
-        _lseeki64(fd, -width / 2 * 2, SEEK_CUR);
-    }
+		buf = img->plane[1];
+		for (i = 0; i < height / 2; i++) {
+			read_size += _read(fd, buf, width / 2 * 2);
 
-    buf = img->plane[2];
-    read_size += _read(fd, buf, width * height / 2);
+			if (input->InterlaceCodingOption) {
+				_lseeki64(fd, width / 2 * 2, SEEK_CUR);
+			}
 
-        if (input->InterlaceCodingOption) {
-            _lseeki64(fd, width / 2 * 2, SEEK_CUR);
-        }
+			buf += img->i_stride[1];
+		}
 
+		if (input->InterlaceCodingOption && FrameNoInFile % 2) {
+			_lseeki64(fd, -width / 2 * 2, SEEK_CUR);
+		}
+
+		buf = img->plane[2];
+		for (i = 0; i < height / 2; i++) {
+			read_size += _read(fd, buf, width / 2 * 2);
+
+			if (input->InterlaceCodingOption) {
+				_lseeki64(fd, width / 2 * 2, SEEK_CUR);
+			}
+
+			buf += img->i_stride[2];
+		}
+	}
+	else {
+		read_size += _read(fd, buf, width * height * 2);
+
+		if (input->InterlaceCodingOption) {
+			_lseeki64(fd, width * 2, SEEK_CUR);
+		}
+
+		if (input->InterlaceCodingOption && FrameNoInFile % 2) {
+			_lseeki64(fd, -width * 2, SEEK_CUR);
+		}
+
+		buf = img->plane[1];
+		read_size += _read(fd, buf, width * height / 2);
+
+		if (input->InterlaceCodingOption) {
+			_lseeki64(fd, width / 2 * 2, SEEK_CUR);
+		}
+
+		if (input->InterlaceCodingOption && FrameNoInFile % 2) {
+			_lseeki64(fd, -width / 2 * 2, SEEK_CUR);
+		}
+
+		buf = img->plane[2];
+		read_size += _read(fd, buf, width * height / 2);
+
+		if (input->InterlaceCodingOption) {
+			_lseeki64(fd, width / 2 * 2, SEEK_CUR);
+		}
+	}
 
     if (read_size != (size_t)(width * height * 3 / 2 * 2)) {
         return 0;
