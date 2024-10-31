@@ -357,7 +357,9 @@ void com_scan_tbl_init()
 void com_scan_tbl_delete()
 {
     for (int i = 0; i < LCU_SIZE_IN_BITS; i++) {
-		if(com_tbl_scan[i]==NULL)
-              com_free(com_tbl_scan[i]);
+		if(com_tbl_scan[i]) {
+            com_free(com_tbl_scan[i]);
+            com_tbl_scan[i] = NULL;
+        }  
     }
 }

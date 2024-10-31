@@ -185,6 +185,7 @@ void avs3gop_lib_free(void *handle)
         com_free(g->obj_list[i].strm_buf);
     }
     com_free(g->obj_list);
+    com_free(g);
 }
 
 image_t *avs3gop_lib_imgbuf(void *handle)
