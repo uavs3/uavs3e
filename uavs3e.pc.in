@@ -1,0 +1,11 @@
+prefix=@CMAKE_INSTALL_PREFIX@
+exec_prefix=${prefix}
+includedir=${prefix}/@CMAKE_INSTALL_INCLUDEDIR@
+libdir=${exec_prefix}/@CMAKE_INSTALL_LIBDIR@
+
+Name: uavs3e
+Description: AVS3 encoder library
+Version: @uavs3e_version@
+Libs: -L${libdir} -luavs3e -lm
+Libs.private: -lpthread
+Cflags: -I${includedir}

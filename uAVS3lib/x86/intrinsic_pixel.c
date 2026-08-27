@@ -287,6 +287,8 @@ void avg_pel_x16_sse128(pel_t *dst, int i_dst, pel_t *src1, int i_src1, pel_t *s
     }
 }
 
+#if ENABLE_AVX2
+
 void avg_pel_x16_sse256(pel_t *dst, int i_dst, pel_t *src1, int i_src1, pel_t *src2, int i_src2, int width, int height)
 {
     __m256i S1, S2, S3, S4, D, D1;
@@ -331,6 +333,7 @@ void avg_pel_x16_sse256(pel_t *dst, int i_dst, pel_t *src1, int i_src1, pel_t *s
         }
     }
 }
+#endif
 
 void avg_pel_1d_sse128(pel_t *dst, pel_t *src1, pel_t *src2, int len)
 {
@@ -346,6 +349,8 @@ void avg_pel_1d_sse128(pel_t *dst, pel_t *src1, pel_t *src2, int len)
         _mm_storeu_si128((__m128i*)(dst + j), D);
     }
 }
+
+#if ENABLE_AVX2
 
 void avg_pel_1d_sse256(pel_t *dst, pel_t *src1, pel_t *src2, int len)
 {
@@ -374,6 +379,8 @@ void avg_pel_1d_sse256(pel_t *dst, pel_t *src1, pel_t *src2, int len)
     }
     
 }
+
+#endif
 
 void padding_rows_sse128(pel_t *src, int i_src, int width, int height, int start, int rows, int pad)
 {
@@ -540,6 +547,8 @@ void com_mem_cpy64_sse128_10bit(const pel_t *src, int i_src, pel_t *dst, int i_d
     }
 }
 
+#if ENABLE_AVX2
+
 void com_mem_cpy32_sse256(const pel_t *src, int i_src, pel_t *dst, int i_dst, int width, int height)
 {
     intptr_t check = (intptr_t)src | (intptr_t)dst | i_src | i_dst; 
@@ -590,6 +599,8 @@ void com_mem_cpy64_sse256_10bit(const pel_t *src, int i_src, pel_t *dst, int i_d
         d += i_dst;
     }
 }
+
+#endif
 
 double calc_ave_sse128(pel_t* p_org, int width, int height, int iDownScale, int bit_depth)
 {
@@ -899,6 +910,8 @@ void avg_pel_1d_sse128_10bit(pel_t *dst, pel_t *src1, pel_t *src2, int len)
 	}
 }
 
+#if ENABLE_AVX2
+
 void avg_pel_16_sse256_10bit(pel_t *dst, int i_dst, pel_t *src1, int i_src1, pel_t *src2, int i_src2, int width, int height)
 {
     int i;
@@ -959,6 +972,8 @@ void avg_pel_1d_sse256_10bit(pel_t *dst, pel_t *src1, pel_t *src2, int len)
         }
     }
 }
+
+#endif
 
 double calc_ave_sse128_10bit(pel_t* p_org, int width, int height, int iDownScale, int bit_depth)
 {
@@ -1059,6 +1074,8 @@ double calc_var_sse128_10bit(pel_t* p_org, int width, int height, int iDownScale
 
     return tmpSum / (1 << (bit_depth - 8)) / (1 << (bit_depth - 8));
 }
+
+#if ENABLE_AVX2
 
 void pix_sub_b4_sse256(resi_t *dst, pel_t *org, int i_org, pel_t *pred, int i_pred)
 {
@@ -1380,3 +1397,5 @@ void pix_add_b32_10bit_sse256(pel_t *dst, int i_dst, pel_t *pred, int i_pred, re
         pred += i_pred;
     }
 }
+
+#endif

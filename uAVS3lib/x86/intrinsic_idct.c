@@ -7256,6 +7256,8 @@ void xTr2nd_8_1d_Inv_Vert_sse128(coef_t *src, int i_src)
 	_mm_storel_epi64((__m128i*)&src[3 * i_src], tmpRes3);
 }
 
+#if ENABLE_AVX2
+
 void add_inv_trans_16x16_sse256(coef_t *src, pel_t *pred, int i_pred, pel_t *dst, int i_dst, int bit_depth)
 {
 	__m256i P00, P02, P04, P06, P08, P10, P12, P14;
@@ -14790,3 +14792,5 @@ void uavs3e_itrans_dst7_pb16_avx2(coef_t *coeff, coef_t *block, int shift, int l
         coeff++;
     }
 }
+
+#endif
