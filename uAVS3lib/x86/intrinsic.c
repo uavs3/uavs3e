@@ -1,6 +1,10 @@
 #include "intrinsic.h" 
 #include "intrinsic_10.h"
 
+#if defined(__APPLE__) || defined(__linux__)
+#include <cpuid.h>
+#endif
+
 ALIGNED_16(char_t intrinsic_mask[15][16]) = {
         { -1,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0 },
         { -1, -1,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0 },
@@ -129,6 +133,12 @@ unsigned int  getcpuidfield(int cpuf)
 #if defined(_WIN32) && !defined(__GNUC__) 
     int dwBuf[4];
     __cpuidex(dwBuf, CPUIDFIELD_FID(cpuf), CPUIDFIELD_FIDSUB(cpuf));
+    return getcpuidfield_buf(dwBuf, cpuf);
+#elif defined(__x86_64__) || defined(__i386__)
+    unsigned int eax, ebx, ecx, edx;
+    __cpuid_count(CPUIDFIELD_FID(cpuf), CPUIDFIELD_FIDSUB(cpuf),
+                  eax, ebx, ecx, edx);
+    int dwBuf[4] = {(int)eax, (int)ebx, (int)ecx, (int)edx};
     return getcpuidfield_buf(dwBuf, cpuf);
 #else
     return 6;
@@ -302,6 +312,7 @@ void com_funs_init_intrinsic_functions()
 
 void com_funs_init_intrinsic_functions_avx2()
 {
+#if ENABLE_AVX2
     g_funs_handle.cost_sad[ 8] = xGetSAD32_sse256;
     g_funs_handle.cost_sad[16] = xGetSAD64_sse256;
 
@@ -385,6 +396,7 @@ void com_funs_init_intrinsic_functions_avx2()
 
     g_funs_handle.get_nz_num = get_nz_num_sse256;
     g_funs_handle.pre_quant_rdoq = pre_quant_rdoq_sse256;
+#endif
 }
 
 void com_funs_init_intrinsic_functions_10bit()
@@ -527,6 +539,7 @@ void com_funs_init_intrinsic_functions_10bit()
 
 void com_funs_init_intrinsic_functions_avx2_10bit()
 {
+#if ENABLE_AVX2
     g_funs_handle.cost_sad[ 4] = xGetSAD16_sse256_10bit;
     g_funs_handle.cost_sad[ 8] = xGetSAD32_sse256_10bit;
     g_funs_handle.cost_sad[16] = xGetSAD64_sse256_10bit;
@@ -615,6 +628,7 @@ void com_funs_init_intrinsic_functions_avx2_10bit()
 
     g_funs_handle.get_nz_num = get_nz_num_sse256;
     g_funs_handle.pre_quant_rdoq = pre_quant_rdoq_sse256;
+#endif
 }
 
 void com_funs_init_intrinsic_functions_avx512_10bit()

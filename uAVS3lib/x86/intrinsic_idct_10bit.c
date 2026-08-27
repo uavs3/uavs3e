@@ -1,7 +1,5 @@
 #include "intrinsic.h"
 
-#include "intrinsic.h"
-
 ALIGNED_32(static const coef_t tab_idct_8x8[12][8]) =
 {
 	{ 44, 38, 44, 38, 44, 38, 44, 38 },
@@ -6936,6 +6934,8 @@ void xTr2nd_8_1d_Inv_Vert_10bit_sse128(coef_t *src, int i_src)
 	_mm_storel_epi64((__m128i*)&src[2 * i_src], tmpRes2);
 	_mm_storel_epi64((__m128i*)&src[3 * i_src], tmpRes3);
 }
+
+#if ENABLE_AVX2
 
 void add_inv_trans_16x16_10bit_sse256(coef_t *src, pel_t *pred, int i_pred, pel_t *dst, int i_dst, int bit_depth)
 {
@@ -13885,3 +13885,5 @@ void add_inv_trans_ext_64x64_10bit_sse256(coef_t *src, pel_t *pred, int i_pred, 
 		}
 	}
 }
+
+#endif

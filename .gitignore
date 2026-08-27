@@ -23,3 +23,6 @@ x64
 *.pdb
 *.lib
 *.obj
+*.pc
+.DS_Store
+version.h

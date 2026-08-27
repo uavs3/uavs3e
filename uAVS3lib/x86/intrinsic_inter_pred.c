@@ -60,6 +60,8 @@ void com_if_filter_hor_4_sse128(const pel_t *src, int i_src, pel_t *dst, int i_d
     }
 }
 
+#if ENABLE_AVX2
+
 void com_if_filter_hor_4_w16_sse256(const pel_t *src, int i_src, pel_t *dst, int i_dst, int width, int height, const char_t *coeff, int bit_depth)
 {
     int row, col;
@@ -93,6 +95,8 @@ void com_if_filter_hor_4_w16_sse256(const pel_t *src, int i_src, pel_t *dst, int
         dst += i_dst;
     }
 }
+
+#endif
 
 void com_if_filter_ver_4_sse128(const pel_t *src, int i_src, pel_t *dst, int i_dst, int width, int height, const char_t *coeff, int bit_depth)
 {
@@ -218,6 +222,8 @@ void com_if_filter_ver_4_sse128(const pel_t *src, int i_src, pel_t *dst, int i_d
         }
     }
 }
+
+#if ENABLE_AVX2
 
 void com_if_filter_ver_4_w16_sse256(const pel_t *src, int i_src, pel_t *dst, int i_dst, int width, int height, const char_t *coeff, int bit_depth)
 {
@@ -402,6 +408,8 @@ void com_if_filter_ver_4_w32_sse256(const pel_t *src, int i_src, pel_t *dst, int
         }
     }
 }
+
+#endif
 
 void com_if_filter_hor_ver_4_sse128(const pel_t *src, int i_src, pel_t *dst, int i_dst, int width, int height, const char_t *coef_x, const char_t *coef_y, int bit_depth)
 {
@@ -603,6 +611,8 @@ void com_if_filter_hor_ver_4_sse128(const pel_t *src, int i_src, pel_t *dst, int
 	}
 }
 
+#if ENABLE_AVX2
+
 void com_if_filter_hor_ver_4_w16_sse256(const pel_t *src, int i_src, pel_t *dst, int i_dst, int width, int height, const char_t *coef_x, const char_t *coef_y, int bit_depth)
 {
     ALIGNED_32(i16s_t tmp_res[(32 + 3) * 32]);
@@ -734,6 +744,8 @@ void com_if_filter_hor_ver_4_w16_sse256(const pel_t *src, int i_src, pel_t *dst,
     }
 }
 
+#endif
+
 void com_if_filter_hor_8_sse128(const pel_t *src, int i_src, pel_t *dst[3], int i_dst, i16s_t *dst_tmp[3], int i_dst_tmp, int width, int height, tab_char_t(*coeff)[8], int bit_depth)
 {
 	int i, j;
@@ -822,6 +834,8 @@ void com_if_filter_hor_8_sse128(const pel_t *src, int i_src, pel_t *dst[3], int 
 		src += i_src;
 	}
 }
+
+#if ENABLE_AVX2
 
 void com_if_filter_hor_8_sse256(const pel_t *src, int i_src, pel_t *dst[3], int i_dst, i16s_t *dst_tmp[3], int i_dst_tmp, int width, int height, tab_char_t(*coeff)[8], int bit_depth)
 {
@@ -914,6 +928,8 @@ void com_if_filter_hor_8_sse256(const pel_t *src, int i_src, pel_t *dst[3], int 
         src += i_src;
     }
 }
+
+#endif
 
 void com_if_filter_ver_8_sse128(const pel_t *src, int i_src, pel_t *dst[3], int i_dst, int width, int height, tab_char_t(*coeff)[8], int bit_depth)
 {
@@ -1015,6 +1031,8 @@ void com_if_filter_ver_8_sse128(const pel_t *src, int i_src, pel_t *dst[3], int 
 	}
 
 }
+
+#if ENABLE_AVX2
 
 void com_if_filter_ver_8_sse256(const pel_t *src, int i_src, pel_t *dst[3], int i_dst, int width, int height, tab_char_t(*coeff)[8], int bit_depth)
 {
@@ -1128,6 +1146,8 @@ void com_if_filter_ver_8_sse256(const pel_t *src, int i_src, pel_t *dst[3], int 
     }
 
 }
+
+#endif
 
 void com_if_filter_ver_8_ext_sse128(const i16s_t *src, int i_src, pel_t *dst[3], int i_dst, int width, int height, tab_char_t(*coeff)[8], int bit_depth)
 {
@@ -1280,6 +1300,8 @@ void com_if_filter_ver_8_ext_sse128(const i16s_t *src, int i_src, pel_t *dst[3],
 		src += i_src;
 	}
 }
+
+#if ENABLE_AVX2
 
 void com_if_filter_ver_8_ext_sse256(const i16s_t *src, int i_src, pel_t *dst[3], int i_dst, int width, int height, tab_char_t(*coeff)[8], int bit_depth)
 {
@@ -1440,6 +1462,7 @@ void com_if_filter_ver_8_ext_sse256(const i16s_t *src, int i_src, pel_t *dst[3],
     }
 }
 
+#endif
 
 /* 10bit compiler */
 
@@ -1559,6 +1582,8 @@ void com_if_filter_hor_4_sse128_10bit(const pel_t *src, int i_src, pel_t *dst, i
 	}
 }
 
+#if ENABLE_AVX2
+
 void com_if_filter_hor_4_w8_sse256_10bit(const pel_t *src, int i_src, pel_t *dst, int i_dst, int width, int height, const char_t *coeff, int bit_depth)
 {
     int row, col;
@@ -1595,6 +1620,8 @@ void com_if_filter_hor_4_w8_sse256_10bit(const pel_t *src, int i_src, pel_t *dst
         dst += i_dst;
     }
 }
+
+#endif
 
 void com_if_filter_ver_4_sse128_10bit(const pel_t *src, int i_src, pel_t *dst, int i_dst, int width, int height, const char_t *coeff, int bit_depth)
 {
@@ -1882,6 +1909,8 @@ void com_if_filter_ver_4_sse128_10bit(const pel_t *src, int i_src, pel_t *dst, i
 		}
 	}
 }
+
+#if ENABLE_AVX2
 
 void com_if_filter_ver_4_w16_sse256_10bit(const pel_t *src, int i_src, pel_t *dst, int i_dst, int width, int height, const char_t *coeff, int bit_depth)
 {
@@ -2230,6 +2259,8 @@ void com_if_filter_ver_4_w32_sse256_10bit(const pel_t *src, int i_src, pel_t *ds
     }
 }
 
+#endif
+
 void com_if_filter_hor_ver_4_sse128_10bit(const pel_t *src, int i_src, pel_t *dst, int i_dst, int width, int height, const char_t *coef_x, const char_t *coef_y, int bit_depth)
 {
 	int row, col;
@@ -2421,6 +2452,8 @@ void com_if_filter_hor_ver_4_sse128_10bit(const pel_t *src, int i_src, pel_t *ds
 	}
 }
 
+#if ENABLE_AVX2
+
 void com_if_filter_hor_ver_4_w16_sse256_10bit(const pel_t *src, int i_src, pel_t *dst, int i_dst, int width, int height, const char_t *coef_x, const char_t *coef_y, int bit_depth)
 {
     ALIGNED_32(i16s_t tmp_res[(32 + 3) * 32]);
@@ -2514,6 +2547,8 @@ void com_if_filter_hor_ver_4_w16_sse256_10bit(const pel_t *src, int i_src, pel_t
     }
 
 }
+
+#endif
 
 void com_if_filter_hor_8_sse128_10bit(const pel_t *src, int i_src, pel_t *dst[3], int i_dst, i16s_t *dst_tmp[3], int i_dst_tmp, int width, int height, tab_char_t(*coeff)[8], int bit_depth)
 {
@@ -2664,6 +2699,8 @@ void com_if_filter_hor_8_sse128_10bit(const pel_t *src, int i_src, pel_t *dst[3]
 	}
 
 }
+
+#if ENABLE_AVX2
 
 void com_if_filter_hor_8_sse256_10bit(const pel_t *src, int i_src, pel_t *dst[3], int i_dst, i16s_t *dst_tmp[3], int i_dst_tmp, int width, int height, tab_char_t(*coeff)[8], int bit_depth)
 {
@@ -2819,6 +2856,8 @@ void com_if_filter_hor_8_sse256_10bit(const pel_t *src, int i_src, pel_t *dst[3]
 
 }
 
+#endif
+
 void com_if_filter_ver_8_sse128_10bit(const pel_t *src, int i_src, pel_t *dst[3], int i_dst, int width, int height, tab_char_t(*coeff)[8], int bit_depth)
 {
 	int i, j;
@@ -2964,6 +3003,8 @@ void com_if_filter_ver_8_sse128_10bit(const pel_t *src, int i_src, pel_t *dst[3]
 	}
 }
 
+#if ENABLE_AVX2
+
 void com_if_filter_ver_8_sse256_10bit(const pel_t *src, int i_src, pel_t *dst[3], int i_dst, int width, int height, tab_char_t(*coeff)[8], int bit_depth)
 {
     int i, j;
@@ -3108,6 +3149,8 @@ void com_if_filter_ver_8_sse256_10bit(const pel_t *src, int i_src, pel_t *dst[3]
         src += i_src;
     }
 }
+
+#endif
 
 void com_if_filter_ver_8_ext_sse128_10bit(const i16s_t *src, int i_src, pel_t *dst[3], int i_dst, int width, int height, tab_char_t(*coeff)[8], int bit_depth)
 {
@@ -3259,6 +3302,8 @@ void com_if_filter_ver_8_ext_sse128_10bit(const i16s_t *src, int i_src, pel_t *d
 	}
 }
 
+#if ENABLE_AVX2
+
 void com_if_filter_ver_8_ext_sse256_10bit(const i16s_t *src, int i_src, pel_t *dst[3], int i_dst, int width, int height, tab_char_t(*coeff)[8], int bit_depth)
 {
 	int i, j;
@@ -3409,3 +3454,4 @@ void com_if_filter_ver_8_ext_sse256_10bit(const i16s_t *src, int i_src, pel_t *d
 	}
 }
 
+#endif

@@ -5,21 +5,10 @@
 extern "C" {
 #endif
 
-#if defined(__linux__)
 #if COMPILE_10BIT
 typedef unsigned short pel_t;
 #else
 typedef unsigned char pel_t;
-#endif
-
-#else
-#define COMPILE_10BIT 0
-#if COMPILE_10BIT
-typedef unsigned short pel_t;
-#else
-typedef unsigned char pel_t;
-#endif
-
 #endif
 
 #define INSERT_MD5 0

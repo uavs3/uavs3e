@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <errno.h>
 #include "threadpool.h"
-#if defined(__APPLE__) && (defined(__arm64__) || defined(__ARM_NEON__))
+#if defined(__APPLE__)
 #include <unistd.h>
 #endif
 

@@ -1369,6 +1369,8 @@ void sub_trans_16x16_sse128(pel_t *org, int i_org, pel_t *pred, int i_pred, coef
 	}
 }
 
+#if ENABLE_AVX2
+
 void sub_trans_16x16_sse256(pel_t *org, int i_org, pel_t *pred, int i_pred, coef_t *dst, int shift)
 {
 	// Const
@@ -2044,6 +2046,8 @@ void sub_trans_16x16_sse256(pel_t *org, int i_org, pel_t *pred, int i_pred, coef
 	MAKE_ODD(28, 15);
 #undef MAKE_ODD
 }
+
+#endif
 
 /////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////// dct 32x32 ////////////////////////////////////////
@@ -2995,6 +2999,8 @@ void sub_trans_32x32_sse128(pel_t *org, int i_org, pel_t *pred, int i_pred, coef
 	}
 }
 
+#if ENABLE_AVX2
+
 void sub_trans_32x32_sse256(pel_t *org, int i_org, pel_t *pred, int i_pred, coef_t *dst, int shift){
 	// Const
 	__m256i c_4 = _mm256_set1_epi32(4);
@@ -3677,6 +3683,8 @@ void sub_trans_32x32_sse256(pel_t *org, int i_org, pel_t *pred, int i_pred, coef
 #undef MAKE_ODD
 	}
 }
+
+#endif
 
 //////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////// dct 64x64 & 64x16 & 16x64/////////////////////////////////
@@ -4980,6 +4988,8 @@ void sub_trans_64x64_sse128(pel_t *org, int i_org, pel_t *pred, int i_pred, coef
 	O14 = _mm256_permute2x128_si256(t6, t14, 0x31); \
 	O15 = _mm256_permute2x128_si256(t7, t15, 0x31); \
 
+#if ENABLE_AVX2
+
 void sub_trans_64x64_sse256(pel_t *org, int i_org, pel_t *pred, int i_pred, coef_t *dst, int shift){
 	int i;
 	resi_t resi[32 * 32];
@@ -6280,6 +6290,8 @@ void sub_trans_64x64_sse256(pel_t *org, int i_org, pel_t *pred, int i_pred, coef
 #undef MAKE_ODD
 	}
 }
+
+#endif
 
 void sub_trans_ext_32x32_sse128(pel_t *org, int i_org, pel_t *pred, int i_pred, coef_t *dst, int shift){
 	// Const
@@ -8064,6 +8076,8 @@ void sub_trans_ext_64x64_sse128(pel_t *org, int i_org, pel_t *pred, int i_pred, 
         dst += 32;
     }
 }
+
+#if ENABLE_AVX2
 
 void sub_trans_ext_32x32_sse256(pel_t *org, int i_org, pel_t *pred, int i_pred, coef_t *dst, int shift){
 	// Const
@@ -9911,6 +9925,8 @@ void sub_trans_ext_64x64_sse256(pel_t *org, int i_org, pel_t *pred, int i_pred, 
 	}
 }
 
+#endif
+
 void xTr2nd_8_1d_Hor_sse128(coef_t *src, int i_src){
 	__m128i zero = _mm_setzero_si128();
 	__m128i factor;
@@ -10193,6 +10209,8 @@ ALIGNED_32(static const short tab_dst7_pb16_coeffs_256i[][16]) = {
     { 17, -31, 41, -45, 42, -34, 20, -4, -13, 28, -39, 44, -43, 36, -24, 8, },
     { 8, -17, 24, -31, 36, -41, 43, -45, 44, -42, 39, -34, 28, -20, 13, -4, }
 };
+
+#if ENABLE_AVX2
 
 void trans_dct8_pb4_avx2(short *src, short *dst, int shift)
 {
@@ -10687,3 +10705,5 @@ void trans_dst7_pb16_avx2(short *src, short *dst, int shift)
         dst += 4;
     }
 }
+
+#endif

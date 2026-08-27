@@ -267,6 +267,8 @@ i32u_t xGetSAD64_sse128(pel_t *p_org, int i_org, pel_t *p_pred, int i_pred, int 
     return uiSum;
 }
 
+#if ENABLE_AVX2
+
 i32u_t xGetSAD32_sse256(pel_t *p_org, int i_org, pel_t *p_pred, int i_pred, int height, int skip_lines)
 {
     i32u_t uiSum = 0;
@@ -348,6 +350,8 @@ i32u_t xGetSAD64_sse256(pel_t *p_org, int i_org, pel_t *p_pred, int i_pred, int 
     uiSum <<= skip_lines;
     return uiSum;
 }
+
+#endif
 
 // --------------------------------------------------------------------------------------------------------------------
 // AVG_SAD
@@ -630,6 +634,8 @@ i32u_t xGetAVGSAD64_sse128(pel_t *p_org, int i_org, pel_t *p_pred1, int i_pred1,
     return uiSum;
 }
 
+#if ENABLE_AVX2
+
 i32u_t xGetAVGSAD32_sse256(pel_t *p_org, int i_org, pel_t *p_pred1, int i_pred1, pel_t *p_pred2, int i_pred2, int height, int skip_lines)
 {
     i32u_t uiSum = 0;
@@ -716,6 +722,8 @@ i32u_t xGetAVGSAD64_sse256(pel_t *p_org, int i_org, pel_t *p_pred1, int i_pred1,
     uiSum <<= skip_lines;
     return uiSum;
 }
+
+#endif
 
 // --------------------------------------------------------------------------------------------------------------------
 // SAD_x4
@@ -1055,6 +1063,8 @@ void xGetSAD64_x4_sse128(pel_t *p_org, int i_org, pel_t *pred0, pel_t *pred1, pe
     sad[3] = ((i32u_t)_mm_extract_epi32(sum0, 3)) << skip_lines;
 }
 
+#if ENABLE_AVX2
+
 void xGetSAD16_x4_sse256(pel_t *p_org, int i_org, pel_t *pred0, pel_t *pred1, pel_t *pred2, pel_t *pred3, int i_pred, i32u_t sad[4], int height, int skip_lines)
 {
     int  i_org_x2, i_pred_x2;
@@ -1217,6 +1227,8 @@ void xGetSAD64_x4_sse256(pel_t *p_org, int i_org, pel_t *pred0, pel_t *pred1, pe
     sad[2] = (((i32u_t)_mm256_extract_epi32(sum0, 2)) + ((i32u_t)_mm256_extract_epi32(sum0, 6))) << skip_lines;
     sad[3] = (((i32u_t)_mm256_extract_epi32(sum0, 3)) + ((i32u_t)_mm256_extract_epi32(sum0, 7))) << skip_lines;
 }
+
+#endif
 
 // --------------------------------------------------------------------------------------------------------------------
 // SSE
@@ -1579,6 +1591,8 @@ i64u_t xGetSSE_Psnr_sse128(pel_t *p_org, int i_org, pel_t *p_pred, int i_pred, i
 	return uiSum;
 }
 
+#if ENABLE_AVX2
+
 i32u_t xGetSSE16_sse256(pel_t *p_org, int i_org, pel_t *p_pred, int i_pred, int height)
 {
     __m256i sum0 = _mm256_setzero_si256();
@@ -1696,6 +1710,8 @@ i32u_t xGetSSE64_sse256(pel_t *p_org, int i_org, pel_t *p_pred, int i_pred, int 
 
     return uiSum;
 }
+
+#endif
 
 // --------------------------------------------------------------------------------------------------------------------
 // HADAMARD with step (used in fractional search)
@@ -1918,6 +1934,8 @@ i32u_t xCalcHAD8x8_sse128(pel_t *p_org, int i_org, pel_t *p_pred, int i_pred)
 
     return uiSum;
 }
+
+#if ENABLE_AVX2
 
 i32u_t xCalcHAD16x16_sse256(pel_t *p_org, int i_org, pel_t *p_pred, int i_pred)
 {
@@ -2251,6 +2269,7 @@ i32u_t xCalcHAD64x64_sse256(pel_t *p_org, int i_org, pel_t *p_pred, int i_pred)
     return uiSum;
 }
 
+#endif
 
 // --------------------------------------------------------------------------------------------------------------------
 // SAD
@@ -2570,6 +2589,8 @@ i32u_t xGetSAD64_sse128_10bit(pel_t *p_org, int i_org, pel_t *p_pred, int i_pred
 	return uiSum;
 }
 
+#if ENABLE_AVX2
+
 i32u_t xGetSAD16_sse256_10bit(pel_t *p_org, int i_org, pel_t *p_pred, int i_pred, int height, int skip_lines)
 {
     i32u_t uiSum = 0;
@@ -2725,6 +2746,8 @@ i32u_t xGetSAD64_sse256_10bit(pel_t *p_org, int i_org, pel_t *p_pred, int i_pred
     uiSum <<= skip_lines;
     return uiSum;
 }
+
+#endif
 
 // --------------------------------------------------------------------------------------------------------------------
 // SSE
@@ -3066,6 +3089,8 @@ i64u_t xGetSSE_Psnr_sse128_10bit(pel_t *p_org, int i_org, pel_t *p_pred, int i_p
     return uiSum;
 }
 
+#if ENABLE_AVX2
+
 i32u_t xGetSSE16_sse256_10bit(pel_t *p_org, int i_org, pel_t *p_pred, int i_pred, int height)
 {
     i32u_t uiSum = 0;
@@ -3187,6 +3212,8 @@ i32u_t xGetSSE64_sse256_10bit(pel_t *p_org, int i_org, pel_t *p_pred, int i_pred
 
     return uiSum;
 }
+
+#endif
 
 // --------------------------------------------------------------------------------------------------------------------
 // SAD_x4
@@ -4070,6 +4097,8 @@ void xGetSAD64_x4_sse128_10bit(pel_t *p_org, int i_org, pel_t *pred0, pel_t *pre
 	sad[3] = ((i32u_t)_mm_extract_epi32(T11, 0)) << skip_lines;
 }
 
+#if ENABLE_AVX2
+
 void xGetSAD16_x4_sse256_10bit(pel_t *p_org, int i_org, pel_t *pred0, pel_t *pred1, pel_t *pred2, pel_t *pred3, int i_pred, i32u_t sad[4], int height, int skip_lines)
 {
     __m256i sum0 = _mm256_setzero_si256();
@@ -4462,6 +4491,8 @@ void xGetSAD64_x4_sse256_10bit(pel_t *p_org, int i_org, pel_t *pred0, pel_t *pre
     sad[3] = (((i32u_t)_mm256_extract_epi32(sum0, 3)) + ((i32u_t)_mm256_extract_epi32(sum0, 7))) << skip_lines;
 }
 
+#endif
+
 // --------------------------------------------------------------------------------------------------------------------
 // AVG_SAD
 // --------------------------------------------------------------------------------------------------------------------
@@ -4829,6 +4860,8 @@ i32u_t xGetAVGSAD64_sse128_10bit(pel_t *p_org, int i_org, pel_t *p_pred1, int i_
 	return uiSum;
 }
 
+#if ENABLE_AVX2
+
 i32u_t xGetAVGSAD16_sse256_10bit(pel_t *p_org, int i_org, pel_t *p_pred1, int i_pred1, pel_t *p_pred2, int i_pred2, int height, int skip_lines)
 {
     i32u_t uiSum = 0;
@@ -5012,6 +5045,8 @@ i32u_t xGetAVGSAD64_sse256_10bit(pel_t *p_org, int i_org, pel_t *p_pred1, int i_
     uiSum <<= skip_lines;
     return uiSum;
 }
+
+#endif
 
 // --------------------------------------------------------------------------------------------------------------------
 // HADAMARD with step (used in fractional search)
@@ -5608,6 +5643,8 @@ i32u_t xCalcHADs8x8_I_sse128_10bit(pel_t *p_org, int i_org)
     return uiSum;
 }
 
+#if ENABLE_AVX2
+
 i32u_t xCalcHAD16x16_sse256_10bit(pel_t *p_org, int i_org, pel_t *p_pred, int i_pred)
 {
     int i, uiSum = 0;
@@ -6183,6 +6220,7 @@ i32u_t xCalcHAD64x64_sse256_10bit(pel_t *p_org, int i_org, pel_t *p_pred, int i_
     return uiSum;
 }
 
+#endif
 
 // --------------------------------------------------------------------------------------------------------------------
 // block pixel's var

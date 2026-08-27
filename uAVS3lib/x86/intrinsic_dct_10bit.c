@@ -1332,6 +1332,8 @@ void sub_trans_16x16_10bit_sse128(pel_t *org, int i_org, pel_t *pred, int i_pred
     }
 }
 
+#if ENABLE_AVX2
+
 void sub_trans_16x16_10bit_sse256(pel_t *org, int i_org, pel_t *pred, int i_pred, coef_t *dst, int shift)
 {
 	// Const
@@ -2006,6 +2008,8 @@ void sub_trans_16x16_10bit_sse256(pel_t *org, int i_org, pel_t *pred, int i_pred
 	MAKE_ODD(28, 15);
 #undef MAKE_ODD
 }
+
+#endif
 
 
 /////////////////////////////////////////////////////////////////////////////////////////////
@@ -2922,6 +2926,8 @@ void sub_trans_32x32_10bit_sse128(pel_t *org, int i_org, pel_t *pred, int i_pred
     }
 }
 
+#if ENABLE_AVX2
+
 void sub_trans_32x32_10bit_sse256(pel_t *org, int i_org, pel_t *pred, int i_pred, coef_t *dst, int shift){
 	// Const
 	int shift1 = shift;
@@ -3582,6 +3588,8 @@ void sub_trans_32x32_10bit_sse256(pel_t *org, int i_org, pel_t *pred, int i_pred
 #undef MAKE_ODD
 	}
 }
+
+#endif
 
 //////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////// dct 64x64 & 64x16 & 16x64/////////////////////////////////
@@ -4835,6 +4843,8 @@ void sub_trans_64x64_10bit_sse128(pel_t *org, int i_org, pel_t *pred, int i_pred
 	O14 = _mm256_permute2x128_si256(t6, t14, 0x31); \
 	O15 = _mm256_permute2x128_si256(t7, t15, 0x31); \
 
+#if ENABLE_AVX2
+
 void sub_trans_64x64_10bit_sse256(pel_t *org, int i_org, pel_t *pred, int i_pred, coef_t *dst, int shift){
 	int i;
 	resi_t resi[32 * 32];
@@ -6013,6 +6023,8 @@ void sub_trans_64x64_10bit_sse256(pel_t *org, int i_org, pel_t *pred, int i_pred
 #undef MAKE_ODD
 	}
 }
+
+#endif
 
 void sub_trans_ext_32x32_10bit_sse128(pel_t *org, int i_org, pel_t *pred, int i_pred, coef_t *dst, int shift){
     // Const
@@ -7717,6 +7729,8 @@ void sub_trans_ext_64x64_10bit_sse128(pel_t *org, int i_org, pel_t *pred, int i_
 ////////////////////////////// 10bit AVX2 dct 16x16 & 32x32 & 64x64///////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////////
 
+#if ENABLE_AVX2
+
 void sub_trans_ext_32x32_10bit_sse256(pel_t *org, int i_org, pel_t *pred, int i_pred, coef_t *dst, int shift){
 	// Const
 	int shift1 = shift;
@@ -9407,3 +9421,5 @@ void sub_trans_ext_64x64_10bit_sse256(pel_t *org, int i_org, pel_t *pred, int i_
 		dst += 32;
 	}
 }
+
+#endif

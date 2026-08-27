@@ -4,7 +4,7 @@
 #include <sys/timeb.h>
 #include <stdlib.h>
 
-#if defined(__APPLE__) && (defined(__arm64__) || defined(__ARM_NEON__))
+#if defined(__APPLE__) && defined(TARGET_OS_IPHONE)
 #include "utest.h"
 #endif
 
@@ -30,7 +30,7 @@
 #define min(a, b)      (((a) < (b)) ? (a) : (b))
 
 #ifndef _WIN32
-#if defined(__APPLE__)
+#if defined(__APPLE__) || defined(__linux__)
 #include <unistd.h>
 #define _lseeki64 lseek
 #else
@@ -359,7 +359,7 @@ signed char *GetConfigFileContent(signed char *Filename)
 }
 
 
-void Configure(cfg_param_t *input, int ac, signed char *av[])
+void Configure(cfg_param_t *input, int ac, const char *av[])
 {
     signed char *content;
     int CLcount, NumberParams;
@@ -950,7 +950,7 @@ static void uavs3e_set_default_param(cfg_param_t *cfg)
     memcpy(&cfg->seq_ref_cfg, &RA_RPS, sizeof(RA_RPS));
 }
 
-#if defined(__APPLE__) && (defined(__arm64__) || defined(__ARM_NEON__))
+#if defined(__APPLE__) && defined(TARGET_OS_IPHONE)
 int uavs3e_code_rt(int argc, const char **argv)
 #else
 int main(int argc, const char **argv)

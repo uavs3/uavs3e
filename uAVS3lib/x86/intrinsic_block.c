@@ -35,6 +35,8 @@ int quant_normal_sse128(coef_t *curr_blk, int coef_num, int Q, int qp_const, int
     return !_mm_testz_si128(sum, _mm_set1_epi16(-1));
 }
 
+#if ENABLE_AVX2
+
 int quant_normal_sse256(coef_t *curr_blk, int coef_num, int Q, int qp_const, int shift)
 {
     int i;
@@ -68,6 +70,8 @@ int quant_normal_sse256(coef_t *curr_blk, int coef_num, int Q, int qp_const, int
     }
     return !_mm256_testz_si256(sum, _mm256_set1_epi16(-1));
 }
+
+#endif
 
 int quant_ext_sse128(coef_t *curr_blk, int size, int Q, int qp_const, int shift)
 {
@@ -107,6 +111,8 @@ int quant_ext_sse128(coef_t *curr_blk, int size, int Q, int qp_const, int shift)
     return !_mm_testz_si128(sum, _mm_set1_epi16(-1));
 }
 
+#if ENABLE_AVX2
+
 int quant_ext_sse256(coef_t *curr_blk, int size, int Q, int qp_const, int shift)
 {
     int i;
@@ -143,6 +149,8 @@ int quant_ext_sse256(coef_t *curr_blk, int size, int Q, int qp_const, int shift)
 
     return !_mm256_testz_si256(sum, _mm256_set1_epi16(-1));
 }
+
+#endif
 
 void inv_quant_normal_sse128(coef_t *src, coef_t *dst, int coef_num, int QPI, int shift)
 {
@@ -200,6 +208,8 @@ void inv_quant_normal_sse128(coef_t *src, coef_t *dst, int coef_num, int QPI, in
     } 
 }
 
+#if ENABLE_AVX2
+
 void inv_quant_normal_sse256(coef_t *src, coef_t *dst, int coef_num, int QPI, int shift)
 {
     int i;
@@ -217,6 +227,8 @@ void inv_quant_normal_sse256(coef_t *src, coef_t *dst, int coef_num, int QPI, in
         _mm_storel_epi64((__m128i*)(dst + i + 4), _mm256_extracti128_si256(D1, 1));
     }
 }
+
+#endif
 
 void inv_quant_ext_sse128(coef_t *src, coef_t *dst, int size, int QPI, int shift)
 {
@@ -306,6 +318,8 @@ int add_sign_sse128(coef_t *dat, i16u_t *abs_val, int len)
     return !_mm_testz_si128(NZ, _mm_set1_epi16(-1));
 }
 
+#if ENABLE_AVX2
+
 int add_sign_sse256(coef_t *dat, i16u_t *abs_val, int len)
 {
     int i;
@@ -326,6 +340,8 @@ int add_sign_sse256(coef_t *dat, i16u_t *abs_val, int len)
 
     return !_mm256_testz_si256(NZ, _mm256_set1_epi16(-1));
 }
+
+#endif
 
 int pre_quant_sse128(coef_t *curr_blk, i16u_t *abs_blk, int len, int Q_threshold)
 {
@@ -349,6 +365,8 @@ int pre_quant_sse128(coef_t *curr_blk, i16u_t *abs_blk, int len, int Q_threshold
     return !_mm_testz_si128(NZ, _mm_set1_epi16(-1));
 }
 
+#if ENABLE_AVX2
+
 int pre_quant_sse256(coef_t *curr_blk, i16u_t *abs_blk, int len, int Q_threshold)
 {
     int i;
@@ -370,6 +388,8 @@ int pre_quant_sse256(coef_t *curr_blk, i16u_t *abs_blk, int len, int Q_threshold
 
     return !_mm256_testz_si256(NZ, _mm256_set1_epi16(-1));
 }
+
+#endif
 
 int get_cg_bits_sse128(coef_t *coef)
 {
@@ -419,6 +439,8 @@ void zero_cg_check8_sse128(coef_t *coef, i64u_t *cg_mask)
     _mm_store_si128((__m128i*)(cg_mask), T1);
     _mm_store_si128((__m128i*)(cg_mask + 2), T5);
 }
+
+#if ENABLE_AVX2
 
 void zero_cg_check16_sse256(coef_t *coef, i64u_t *cg_mask)
 {
@@ -619,3 +641,5 @@ int pre_quant_rdoq_sse256(i16s_t *coef, int num, int q_value, int q_bits, int er
 
     return last_nz;
 }
+
+#endif
