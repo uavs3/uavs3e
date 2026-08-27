@@ -40,8 +40,10 @@ double pre_cal_I_cost(const cfg_param_t *input, pel_t *p_org, int i_org, int wid
     return cost / pixels;
 }
 
-void* pre_cal_PB_one_lcu_row(pre_cal_PB_param_t* param)
+void* pre_cal_PB_one_lcu_row(void *arg)
 {
+    pre_cal_PB_param_t *param = (pre_cal_PB_param_t *)arg;
+
     const cfg_param_t *input = param->input;
     int lcu_y = param->lcu_y;
     image_t *ref_img = param->ref_img;

@@ -6,6 +6,8 @@
 
 #ifdef _WIN32
 #include <IO.H>
+#else
+#include <unistd.h>
 #endif
 
 #include <assert.h>
@@ -395,7 +397,7 @@ signed char *GetConfigFileContent(signed char *Filename)
 }
 
 
-void Configure(cfg_param_t *input, int ac, signed char *av[])
+void Configure(cfg_param_t *input, int ac, char *av[])
 {
 	signed char *content;
     int CLcount, NumberParams;
@@ -1039,7 +1041,7 @@ int main(int argc, char **argv)
     Configure(&input, argc, argv);
 #endif
 
-#if defined(__GNUC__)
+#if defined(__GNUC__) && !defined(__APPLE__)
     int j, k;
     cpu_set_t mask1, mask2, mask3, mask4, mask5, mask6, mask7, mask8, mask9, mask10, mask11, mask12, mask13, mask14, mask15, mask16;
     void *mask_list[16] = { &mask1, &mask2, &mask3, &mask4, &mask5, &mask6, &mask7, &mask8, &mask9, &mask10, &mask11, &mask12, &mask13, &mask14, &mask15, &mask16 };
